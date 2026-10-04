@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { TimelineDay } from "@/lib/types";
+import type { TimelineDay } from "@/lib/types";
 import { formatPHP } from "@/lib/currency";
 
 interface RunwayTimelineProps {
@@ -9,134 +8,67 @@ interface RunwayTimelineProps {
   nextCycleDateStr?: string;
 }
 
-export function RunwayTimeline({
-  timeline,
-  nextCycleDateStr = "Unavailable",
-}: RunwayTimelineProps) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+function dateLabel(date: string) {
+  return new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+  });
+}
 
-  const selectedDay = timeline.find((d) => d.date === selectedDate) || timeline[0];
+export function RunwayTimeline({ timeline, nextCycleDateStr = "Unavailable" }: RunwayTimelineProps) {
+  if (!timeline.length) return <p className="text-body-md">No forecast days available.</p>;
+
+  const lowestDay = timeline.reduce((lowest, day) => day.balance < lowest.balance ? day : lowest);
+  const endingDay = timeline[timeline.length - 1];
 
   return (
-    <section className="flex flex-col space-y-space-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-            14-Day Runway Calendar
-          </h2>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Next income: {nextCycleDateStr}
-          </p>
-        </div>
+    <section className="min-w-0 space-y-5 text-on-surface" aria-label="Daily cash forecast">
+      <div className="text-body-sm text-on-surface-variant">
+        <p>{dateLabel(timeline[0].date)} – {dateLabel(endingDay.date)}</p>
+        <p className="mt-1">Next income: {nextCycleDateStr}</p>
       </div>
 
-      {/* Timeline Scroller */}
-      <div className="flex space-x-space-xs overflow-x-auto pb-1 pt-1 -mx-margin px-margin scrollbar-none snap-x snap-mandatory">
-        {timeline.map((day, idx) => {
-          const dateObj = new Date(`${day.date}T12:00:00`);
-          const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-          const dayNum = dateObj.getDate();
-          const isSelected = day.date === (selectedDate || timeline[0]?.date);
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={`min-w-0 rounded-2xl border p-4 ${lowestDay.balance < 0 ? "border-error/30 bg-error-container/30" : "border-outline-variant/30 bg-surface-container-low"}`}>
+          <dt className="text-body-sm text-on-surface-variant">Lowest projected balance</dt>
+          <dd className={`mt-1 break-words text-headline-sm font-semibold tabular-nums ${lowestDay.balance < 0 ? "text-error" : "text-on-surface"}`}>{formatPHP(lowestDay.balance)}</dd>
+          <dd className="mt-1 text-body-sm text-on-surface-variant">{dateLabel(lowestDay.date)}{lowestDay.balance < 0 ? " · Shortfall" : ""}</dd>
+        </div>
+        <div className="min-w-0 rounded-2xl border border-outline-variant/30 bg-surface-container-low p-4">
+          <dt className="text-body-sm text-on-surface-variant">Ending projected balance</dt>
+          <dd className={`mt-1 break-words text-headline-sm font-semibold tabular-nums ${endingDay.balance < 0 ? "text-error" : "text-on-surface"}`}>{formatPHP(endingDay.balance)}</dd>
+          <dd className="mt-1 text-body-sm text-on-surface-variant">{dateLabel(endingDay.date)}</dd>
+        </div>
+      </dl>
 
-          if (day.isPayday) {
-            return (
-              <button
-                key={day.date}
-                type="button"
-                aria-pressed={isSelected} onClick={() => setSelectedDate(day.date)}
-                className={`flex flex-col items-center justify-between min-w-[64px] min-h-24 py-3 px-2 bg-secondary-fixed text-on-secondary-fixed rounded-lg border shadow-sm text-center shrink-0 snap-start transition-all ${
-                  isSelected ? "border-2 border-secondary ring-2 ring-secondary/30 scale-105" : "border-secondary"
-                }`}
-              >
-                <div className="flex items-center space-x-0.5">
-                  <span className="material-symbols-outlined text-[12px] text-secondary">
-                    star
-                  </span>
-                  <span className="font-label-sm text-label-sm font-bold">
-                    {dayName}
-                  </span>
-                </div>
-                <span className="font-currency-md text-currency-md font-bold text-on-secondary-fixed my-0.5">
-                  {dayNum}
-                </span>
-                <span className="font-label-sm text-label-sm uppercase font-bold text-secondary tracking-tighter">
-                  Income
-                </span>
-              </button>
-            );
-          }
-
-          const isFirstDay = idx === 0;
-
-          return (
-            <button
-              key={day.date}
-              type="button"
-              aria-pressed={isSelected} onClick={() => setSelectedDate(day.date)}
-              className={`flex flex-col items-center justify-between min-w-[64px] min-h-24 py-3 px-2 glass-panel text-center shrink-0 snap-start transition-all ${
-                isSelected
-                  ? "border-2 border-secondary shadow-md scale-105"
-                  : isFirstDay
-                  ? "border-2 border-secondary/70 shadow-sm"
-                  : "border border-outline-variant/30"
-              }`}
-            >
-              <span
-                className={`font-label-sm text-label-sm font-semibold ${
-                  isFirstDay || isSelected ? "text-secondary" : "text-on-surface-variant"
-                }`}
-              >
-                {dayName}
-              </span>
-              <span className="font-currency-md text-currency-md font-bold text-on-surface my-0.5">
-                {dayNum}
-              </span>
-              <div className="flex items-center justify-center h-2">
-                {day.isGraceActive ? (
-                  <span className="w-2 h-2 rounded-full bg-on-tertiary-container ring-2 ring-error-container" />
-                ) : day.hasDues ? (
-                  <span className="w-2 h-2 rounded-full bg-error" />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-                )}
+      <div>
+        <h3 className="text-body-md font-semibold">Day by day</h3>
+        <p className="mt-1 text-body-sm text-on-surface-variant">Balances are projected at the end of each day. Spending includes bills and your daily spending estimate.</p>
+      </div>
+      <ol className="space-y-3">
+        {timeline.map((day) => (
+          <li key={day.date} className={`min-w-0 rounded-2xl border p-4 ${day.balance < 0 ? "border-error/30 bg-error-container/20" : "border-outline-variant/30 bg-surface-container-low"}`}>
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <time dateTime={day.date} className="text-body-md font-semibold">{dateLabel(day.date)}</time>
+              <div className="min-w-0">
+                <p className={`break-words text-body-md font-semibold tabular-nums ${day.balance < 0 ? "text-error" : "text-on-surface"}`}>{formatPHP(day.balance)}</p>
+                <p className="text-body-sm text-on-surface-variant">End-of-day balance</p>
               </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected Day Forecast Dropdown / Detail Callout */}
-      {selectedDay && (
-        <div className="bg-surface-container-low p-4 rounded-[24px] flex flex-col gap-3 text-on-surface animate-in fade-in duration-200">
-          <div className="flex flex-col">
-            <span className="font-label-sm text-label-sm text-on-surface-variant">
-              {new Date(`${selectedDay.date}T12:00:00`).toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-              })}
-            </span>
-            <span className="font-currency-sm text-currency-sm font-semibold">
-              Projected Balance: {formatPHP(selectedDay.balance)}
-            </span>
-          </div>
-          {selectedDay.duesDescription && selectedDay.duesDescription.length > 0 && (
-            <span className="font-label-sm text-label-sm text-error font-medium">
-              Dues: {selectedDay.duesDescription.join(", ")}
-            </span>
-          )}
-          {selectedDay.isPayday && (
-            <span className="font-label-sm text-label-sm text-secondary font-bold">
-              {selectedDay.incomeDescription?.join(", ") || "Projected income"} (+{formatPHP(selectedDay.inflow)})
-            </span>
-          )}
-          {!selectedDay.isPayday && !selectedDay.duesDescription?.length && (
-            <span className="font-label-sm text-label-sm text-on-surface-variant">
-              Normal burn (-{formatPHP(selectedDay.outflow)})
-            </span>
-          )}
-        </div>
-      )}
+            </div>
+            <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-body-sm tabular-nums">
+              <div className="flex flex-wrap gap-x-2"><dt className="text-on-surface-variant">Income</dt><dd className={day.inflow > 0 ? "font-semibold text-secondary" : "text-on-surface"}>{formatPHP(day.inflow)}</dd></div>
+              <div className="flex flex-wrap gap-x-2"><dt className="text-on-surface-variant">Spending</dt><dd>{formatPHP(day.outflow)}</dd></div>
+            </dl>
+            {(day.inflow > 0 || day.isPayday || day.hasDues || day.duesDescription?.length || day.isGraceActive || day.balance < 0) && (
+              <div className="mt-3 space-y-1 border-t border-outline-variant/30 pt-3 text-body-sm [overflow-wrap:anywhere]">
+                {(day.inflow > 0 || day.isPayday) && <p className="text-secondary"><span className="font-semibold">Income: </span>{day.incomeDescription?.join(", ") || "Projected income"}</p>}
+                {(day.hasDues || !!day.duesDescription?.length) && <p><span className="font-semibold">Bills: </span>{day.duesDescription?.join(", ") || "Scheduled bills"}</p>}
+                {day.isGraceActive && <p className="text-error">Bill grace period active</p>}
+                {day.balance < 0 && <p className="font-semibold text-error">Projected shortfall: {formatPHP(Math.abs(day.balance))}</p>}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
