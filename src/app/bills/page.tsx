@@ -262,8 +262,7 @@ export default function BillsPage() {
 
           {/* Obligation Groups Stream */}
           {!isBillsLoading && billsAvailable && <div className="flex flex-col gap-space-lg">
-<<<<<<< HEAD
-            {visibleBills.length === 0 && <p className="text-body-md text-on-surface-variant">
+            {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
               {tab === "due" && nextPaydayDate
                 ? `No outstanding obligations are due by ${nextPaydayDate}.`
                 : tab === "due" && isForecastLoading
@@ -272,9 +271,6 @@ export default function BillsPage() {
                   ? "No overdue obligations to show. The pay cycle cannot be determined without a next payday."
                   : "No outstanding obligations."}
             </p>}
-=======
-            {activeBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">No outstanding obligations.</p>}
->>>>>>> 88a4991274b17adeffa322d74a2cecfb673c31e1
             {/* Group A: Critical / Grace Window */}
             {graceBills.length > 0 && (
               <section className="flex flex-col gap-space-sm">
@@ -344,13 +340,8 @@ export default function BillsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <CalendarDays size={17} className="text-secondary" aria-hidden="true" />
-<<<<<<< HEAD
-                    <span className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
-                      Due by Next Payday
-=======
                     <span runway-id="bills.group.due.title" className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
-                      Due Today &amp; This Week
->>>>>>> 88a4991274b17adeffa322d74a2cecfb673c31e1
+                      Due by Next Payday
                     </span>
                   </div>
                   <span runway-id="bills.group.due.count" className="font-label-sm text-label-sm font-medium text-on-surface-variant">
