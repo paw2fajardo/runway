@@ -34,6 +34,8 @@ export default function BillsPage() {
   const [isBillsLoading, setIsBillsLoading] = useState(true);
   const [billsAvailable, setBillsAvailable] = useState(false);
   const [billsError, setBillsError] = useState<string | null>(null);
+  const [nextPaydayDate, setNextPaydayDate] = useState<string | null>(null);
+  const [isForecastLoading, setIsForecastLoading] = useState(true);
   const [tab, setTab] = useState<"due" | "all">("due");
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddBillOpen, setIsAddBillOpen] = useState<boolean>(false);
@@ -69,6 +71,27 @@ export default function BillsPage() {
   useEffect(() => {
     fetchBills();
   }, [fetchBills]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    fetch("/api/runway/forecast")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Forecast unavailable");
+        return res.json();
+      })
+      .then((data: { next_payday_date?: string }) => {
+        if (!isCurrent) return;
+        const date = data.next_payday_date?.slice(0, 10);
+        setNextPaydayDate(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null);
+      })
+      .catch(() => {
+        if (isCurrent) setNextPaydayDate(null);
+      })
+      .finally(() => {
+        if (isCurrent) setIsForecastLoading(false);
+      });
+    return () => { isCurrent = false; };
+  }, []);
 
   const handlePayBill = async (instanceId: string) => {
     try {
@@ -117,14 +140,17 @@ export default function BillsPage() {
     .reduce((acc, b) => acc + b.amountDue, 0);
   const subsTotal = committedTotal - utilitiesTotal;
 
-  // Groups
-  const graceBills = activeBills.filter((b) => b.status === "grace_period");
-  const dueThisWeekBills = activeBills.filter(
-    (b) => b.status === "upcoming" && !b.isAutoPay
-  );
-  const autoDebitBills = activeBills.filter((b) => b.isAutoPay);
   const today = new Date();
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const visibleBills = tab === "all"
+    ? activeBills
+    : activeBills.filter((b) => b.dueDate <= todayDate || (nextPaydayDate !== null && b.dueDate <= nextPaydayDate));
+  // Groups use the selected list so the tabs filter every rendered obligation.
+  const graceBills = visibleBills.filter((b) => b.status === "grace_period");
+  const dueThisWeekBills = visibleBills.filter(
+    (b) => b.status !== "grace_period" && !b.isAutoPay
+  );
+  const autoDebitBills = visibleBills.filter((b) => b.isAutoPay);
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
@@ -176,6 +202,13 @@ export default function BillsPage() {
                 All Bills &amp; Subs
               </button>
             </div>
+            {tab === "due" && <p className="text-body-sm text-on-surface-variant" role="status">
+              {isForecastLoading
+                ? "Checking your next payday to define this pay cycle…"
+                : nextPaydayDate
+                  ? `Showing unpaid obligations due by ${nextPaydayDate}, including overdue items.`
+                  : "Next payday is unavailable. Showing overdue unpaid obligations only; all bills remain available in All Bills & Subs."}
+            </p>}
           </section>
 
           {/* High-Contrast Operational Summary Card */}
@@ -229,7 +262,15 @@ export default function BillsPage() {
 
           {/* Obligation Groups Stream */}
           {!isBillsLoading && billsAvailable && <div className="flex flex-col gap-space-lg">
-            {activeBills.length === 0 && <p className="text-body-md text-on-surface-variant">No outstanding obligations.</p>}
+            {visibleBills.length === 0 && <p className="text-body-md text-on-surface-variant">
+              {tab === "due" && nextPaydayDate
+                ? `No outstanding obligations are due by ${nextPaydayDate}.`
+                : tab === "due" && isForecastLoading
+                  ? "Checking your next payday before listing this pay cycle’s obligations…"
+                : tab === "due" && !isForecastLoading
+                  ? "No overdue obligations to show. The pay cycle cannot be determined without a next payday."
+                  : "No outstanding obligations."}
+            </p>}
             {/* Group A: Critical / Grace Window */}
             {graceBills.length > 0 && (
               <section className="flex flex-col gap-space-sm">
@@ -299,7 +340,7 @@ export default function BillsPage() {
                   <div className="flex items-center gap-1.5">
                     <CalendarDays size={17} className="text-secondary" aria-hidden="true" />
                     <span className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
-                      Due Today &amp; This Week
+                      Due by Next Payday
                     </span>
                   </div>
                   <span className="font-label-sm text-label-sm font-medium text-on-surface-variant">
