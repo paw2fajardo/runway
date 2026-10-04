@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { formatPHP } from "@/lib/currency";
-import { Dialog } from "@/components/ui/Dialog";
 import { CircleCheck, TriangleAlert } from "lucide-react";
 
 interface SolvencyHeroProps {
@@ -10,6 +9,7 @@ interface SolvencyHeroProps {
   dailyAllowance: number;
   liquidCash: number;
   upcomingDues: number;
+  plannedSpending: number;
   daysToPayday: number;
   paydayDateStr?: string;
   isSolvent?: boolean;
@@ -20,13 +20,12 @@ export function SolvencyHero({
   dailyAllowance,
   liquidCash,
   upcomingDues,
+  plannedSpending,
   daysToPayday,
   paydayDateStr = "Unavailable",
   isSolvent = true,
 }: SolvencyHeroProps) {
-  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   return (
-    <>
     <section runway-id="runway.solvency-hero" className="forest-panel p-6 flex flex-col gap-6">
       {/* Top badge row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -63,38 +62,39 @@ export function SolvencyHero({
             <span runway-id="runway.daily-allowance" className="font-currency-sm text-currency-sm font-semibold text-white">
               {formatPHP(dailyAllowance)}/day
             </span>{" "}
-            allowance
+            if spread evenly
           </span>
         </div>
       </div>
 
-      <button runway-id="runway.view-breakdown" type="button" onClick={() => setIsBreakdownOpen(true)} className="min-h-11 self-start px-5 rounded-full bg-white text-primary text-body-md font-semibold shadow-sm">View breakdown</button>
-    </section>
-      <Dialog open={isBreakdownOpen} onClose={() => setIsBreakdownOpen(false)} title="Runway breakdown">
-      <div className="flex flex-col gap-5 text-on-surface">
-        <div className="flex flex-col items-start text-left">
-          <span runway-id="runway.breakdown-liquid-cash-label" className="font-label-sm text-label-sm text-on-surface-variant">
+      <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 sm:grid-cols-3">
+        <div className="min-w-0">
+          <span runway-id="runway.breakdown-liquid-cash-label" className="font-label-sm text-label-sm text-white/70">
             Liquid Cash
           </span>
-          <div className="flex items-center space-x-1 mt-0.5">
-            <span runway-id="runway.breakdown-liquid-cash" className="font-currency-md text-currency-md font-semibold text-on-surface">
-              {formatPHP(liquidCash)}
-            </span>
+          <div runway-id="runway.breakdown-liquid-cash" className="mt-0.5 font-currency-md text-currency-md font-semibold text-white whitespace-nowrap">
+            {formatPHP(liquidCash)}
           </div>
         </div>
 
-        <div className="flex flex-col items-start">
-          <span runway-id="runway.breakdown-upcoming-dues-label" className="font-label-sm text-label-sm text-on-surface-variant">
+        <div className="min-w-0">
+          <span runway-id="runway.breakdown-upcoming-dues-label" className="font-label-sm text-label-sm text-white/70">
             Upcoming Dues
           </span>
-          <div className="flex items-center space-x-1 mt-0.5">
-            <span runway-id="runway.breakdown-upcoming-dues" className="font-currency-md text-currency-md font-semibold text-error">
-              {formatPHP(upcomingDues)}
-            </span>
+          <div runway-id="runway.breakdown-upcoming-dues" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
+            {formatPHP(upcomingDues)}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <span runway-id="runway.breakdown-planned-spending-label" className="font-label-sm text-label-sm text-white/70">
+            Planned Spending
+          </span>
+          <div runway-id="runway.breakdown-planned-spending" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
+            {formatPHP(plannedSpending)}
           </div>
         </div>
       </div>
-      </Dialog>
-    </>
+    </section>
   );
 }
