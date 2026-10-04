@@ -68,33 +68,35 @@ export function ReconcileModal({
     <Dialog open={isOpen} onClose={onClose} title="Balance checkpoint">
       <div className="flex flex-col gap-4">
 
-        <p className="font-body-sm text-body-sm text-on-surface-variant">
-          Reconcile <strong>{account.name}</strong> to your bank or wallet&apos;s actual
-          ground truth. LedgerFlow will automatically compensate any drift.
+        <p runway-id={`accounts.reconcile.${account.id}.description`} className="font-body-sm text-body-sm text-on-surface-variant">
+          Reconcile <strong runway-id={`accounts.reconcile.${account.id}.account-name`}>{account.name}</strong> to your bank or wallet&apos;s actual
+          ground truth. Runway will automatically compensate any drift.
         </p>
 
         {/* Current vs Observed */}
         <div className="bg-surface-container-low p-space-md rounded-xl flex flex-col space-y-2">
           <div className="flex justify-between items-center text-on-surface-variant font-label-sm text-label-sm">
-            <span>Recorded Balance:</span>
-            <span className="font-currency-sm text-currency-sm font-semibold text-on-surface">
+            <span runway-id={`accounts.reconcile.${account.id}.recorded-label`}>Recorded Balance:</span>
+            <span runway-id={`accounts.reconcile.${account.id}.recorded-balance`} className="font-currency-sm text-currency-sm font-semibold text-on-surface">
               {formatPHP(currentCents)}
             </span>
           </div>
 
           <div className="flex flex-col space-y-1 pt-1 border-t border-outline-variant/20">
             <label
-              htmlFor="observedInput"
+              htmlFor={`observedInput-${account.id}`}
+              runway-id={`accounts.reconcile.${account.id}.observed-label`}
               className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant"
             >
               Observed Live Balance (₱)
             </label>
             <div className="relative flex items-center">
-              <span className="absolute left-3 text-on-surface-variant font-currency-md text-currency-md">
+              <span runway-id={`accounts.reconcile.${account.id}.currency-prefix`} className="absolute left-3 text-on-surface-variant font-currency-md text-currency-md">
                 ₱
               </span>
               <input
-                id="observedInput"
+                id={`observedInput-${account.id}`}
+                runway-id={`accounts.reconcile.${account.id}.observed-input`}
                 type="number"
                 step="0.01"
                 placeholder={(currentCents / 100).toFixed(2)}
@@ -109,10 +111,11 @@ export function ReconcileModal({
 
         {/* Drift Callout */}
         <div className="flex items-center justify-between px-1">
-          <span className="font-label-sm text-label-sm text-on-surface-variant">
+          <span runway-id={`accounts.reconcile.${account.id}.drift-label`} className="font-label-sm text-label-sm text-on-surface-variant">
             Drift Adjustment:
           </span>
           <span
+            runway-id={`accounts.reconcile.${account.id}.drift-value`}
             className={`font-currency-sm text-currency-sm font-semibold ${
               discrepancy === 0
                 ? "text-on-surface-variant"
@@ -128,7 +131,7 @@ export function ReconcileModal({
         </div>
 
         {errorMsg && (
-          <p className="text-error font-body-sm text-body-sm text-center">
+          <p runway-id={`accounts.reconcile.${account.id}.error`} className="text-error font-body-sm text-body-sm text-center">
             {errorMsg}
           </p>
         )}
@@ -137,6 +140,7 @@ export function ReconcileModal({
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button
             type="button"
+            runway-id={`accounts.reconcile.${account.id}.cancel`}
             onClick={onClose}
             className="h-11 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md font-semibold hover:bg-surface-container transition"
           >
@@ -144,6 +148,7 @@ export function ReconcileModal({
           </button>
           <button
             type="button"
+            runway-id={`accounts.reconcile.${account.id}.confirm`}
             onClick={handleConfirm}
             disabled={isSubmitting}
             className="h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold hover:opacity-90 active:scale-95 transition disabled:opacity-50"

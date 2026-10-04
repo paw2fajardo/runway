@@ -93,42 +93,42 @@ export default function AccountsPage() {
           {/* Top KPI Bento */}
           <div className="grid grid-cols-2 gap-2 pt-space-xs">
             <div className="glass-panel p-space-md flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
                 Total Liquid Cash
               </span>
-              <span className="font-currency-display text-headline-md text-secondary font-bold mt-1">
+              <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-headline-md text-secondary font-bold mt-1">
                 {formatPHP(totalLiquid)}
               </span>
-              <span className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
+              <span runway-id="accounts.summary.liquid.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
                 {liquidAccounts.length} Connected Wallets
               </span>
             </div>
 
             <div className="glass-panel p-space-md flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <span runway-id="accounts.summary.credit.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
                 Revolving Debt
               </span>
-              <span className="font-currency-display text-headline-md text-error font-bold mt-1">
+              <span runway-id="accounts.summary.credit.total" className="font-currency-display text-headline-md text-error font-bold mt-1">
                 {formatPHP(totalCreditDebt)}
               </span>
-              <span className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
+              <span runway-id="accounts.summary.credit.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
                 {creditAccounts.length} Active Cards
               </span>
             </div>
           </div>
 
           {/* Section 1: Liquid Accounts */}
-          <section className="flex flex-col gap-space-sm">
+          <section runway-id="accounts.liquid.section" className="flex flex-col gap-space-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-secondary text-[20px]">
+                <span runway-id="accounts.liquid.icon" className="material-symbols-outlined text-secondary text-[20px]">
                   account_balance
                 </span>
-                <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                <h2 runway-id="accounts.liquid.heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">
                   Liquid Assets &amp; Wallets
                 </h2>
               </div>
-              <span className="font-label-sm text-label-sm text-on-surface-variant">
+              <span runway-id="accounts.liquid.note" className="font-label-sm text-label-sm text-on-surface-variant">
                 Integer-cent safe
               </span>
             </div>
@@ -137,11 +137,12 @@ export default function AccountsPage() {
               {liquidAccounts.map((acc) => (
                 <div
                   key={acc.id}
+                  runway-id={`accounts.liquid.account.${acc.id}`}
                   className="glass-panel p-space-md flex items-center justify-between"
                 >
                   <div className="flex items-center space-x-space-sm min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
-                      <span className="material-symbols-outlined text-[20px]">
+                      <span runway-id={`accounts.liquid.account.${acc.id}.icon`} className="material-symbols-outlined text-[20px]">
                         {acc.name.toLowerCase().includes("maya") ||
                         acc.name.toLowerCase().includes("gcash")
                           ? "account_balance_wallet"
@@ -151,26 +152,27 @@ export default function AccountsPage() {
                       </span>
                     </div>
                     <div className="min-w-0 flex flex-col">
-                      <span className="font-body-md text-body-md font-semibold text-on-surface truncate">
+                      <span runway-id={`accounts.liquid.account.${acc.id}.name`} className="font-body-md text-body-md font-semibold text-on-surface truncate">
                         {acc.name}
                       </span>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">
+                      <span runway-id={`accounts.liquid.account.${acc.id}.type`} className="font-body-sm text-body-sm text-on-surface-variant">
                         Liquid Checking / Savings
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-space-sm shrink-0">
-                    <span className="font-currency-md text-currency-md font-bold text-on-surface">
+                    <span runway-id={`accounts.liquid.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-on-surface">
                       {formatPHP(acc.currentBalance)}
                     </span>
                     <button
                       type="button"
+                      runway-id={`accounts.liquid.account.${acc.id}.reconcile`}
                       onClick={() => setReconcileAccount(acc)}
                       title="Reconcile balance drift"
                       className="px-2.5 py-1 bg-surface-container-low hover:bg-surface-container text-secondary rounded-lg font-label-sm text-label-sm font-semibold flex items-center gap-1 active:scale-95 transition"
                     >
-                      <span className="material-symbols-outlined text-[15px]">
+                      <span runway-id={`accounts.liquid.account.${acc.id}.reconcile-icon`} className="material-symbols-outlined text-[15px]">
                         verified
                       </span>
                       Reconcile
@@ -183,17 +185,17 @@ export default function AccountsPage() {
 
           {/* Section 2: Revolving Credit */}
           {creditAccounts.length > 0 && (
-            <section className="flex flex-col gap-space-sm">
+            <section runway-id="accounts.credit.section" className="flex flex-col gap-space-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-outline text-[20px]">
+                  <span runway-id="accounts.credit.icon" className="material-symbols-outlined text-outline text-[20px]">
                     credit_card
                   </span>
-                  <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                  <h2 runway-id="accounts.credit.heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">
                     Revolving Credit Cards
                   </h2>
                 </div>
-                <span className="font-label-sm text-label-sm text-on-surface-variant">
+                <span runway-id="accounts.credit.note" className="font-label-sm text-label-sm text-on-surface-variant">
                   Cycle Tracking
                 </span>
               </div>
@@ -203,33 +205,34 @@ export default function AccountsPage() {
                   return (
                     <div
                       key={acc.id}
+                      runway-id={`accounts.credit.account.${acc.id}`}
                       className="glass-panel p-space-md flex flex-col gap-2"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex items-center space-x-space-sm min-w-0">
                           <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-outline shrink-0">
-                            <span className="material-symbols-outlined text-[20px]">
+                            <span runway-id={`accounts.credit.account.${acc.id}.icon`} className="material-symbols-outlined text-[20px]">
                               credit_card
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-body-md text-body-md font-semibold text-on-surface">
+                            <span runway-id={`accounts.credit.account.${acc.id}.name`} className="font-body-md text-body-md font-semibold text-on-surface">
                               {acc.name}
                             </span>
                           </div>
                         </div>
 
                         <div className="flex flex-col items-end">
-                          <span className="font-currency-md text-currency-md font-bold text-error">
+                          <span runway-id={`accounts.credit.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-error">
                             {formatPHP(acc.currentBalance)}
                           </span>
-                          <span className="font-label-sm text-label-sm text-on-surface-variant">
+                          <span runway-id={`accounts.credit.account.${acc.id}.balance-label`} className="font-label-sm text-label-sm text-on-surface-variant">
                             Running Balance
                           </span>
                         </div>
                       </div>
 
-                      <button type="button" onClick={() => setDetailAccount(acc)} className="min-h-11 text-secondary text-body-sm self-start">Details</button>
+                      <button runway-id={`accounts.credit.account.${acc.id}.details`} type="button" onClick={() => setDetailAccount(acc)} className="min-h-11 text-secondary text-body-sm self-start">Details</button>
                     </div>
                   );
                 })}
@@ -240,10 +243,11 @@ export default function AccountsPage() {
           {/* Add Account Action */}
           <button
             type="button"
+            runway-id="accounts.add-account"
             onClick={() => setIsAddAccountOpen(true)}
             className="w-full h-12 glass-panel text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-surface-container-low active:scale-[0.99] transition-all"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span runway-id="accounts.add-account.icon" className="material-symbols-outlined text-[20px]">
               account_balance
             </span>
             Add Financial Account
@@ -277,11 +281,12 @@ export default function AccountsPage() {
           >
 
             <div className="flex flex-col space-y-1">
-              <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+              <label runway-id="accounts.add.name.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                 Account Name
               </label>
               <input
                 type="text"
+                runway-id="accounts.add.name.input"
                 required
                 placeholder="e.g. Maya Savings"
                 value={newName}
@@ -291,10 +296,11 @@ export default function AccountsPage() {
             </div>
 
             <div className="flex flex-col space-y-1">
-              <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+              <label runway-id="accounts.add.type.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                 Account Type
               </label>
               <select
+                runway-id="accounts.add.type.select"
                 value={newType}
                 onChange={(e) =>
                   setNewType(
@@ -303,18 +309,19 @@ export default function AccountsPage() {
                 }
                 className="h-10 px-3 rounded-lg border border-outline-variant/50 font-body-md text-body-md bg-white"
               >
-                <option value="liquid">Liquid (Bank / E-Wallet / Cash)</option>
-                <option value="revolving_credit">Revolving Credit Card</option>
-                <option value="installment_loan">Fixed Installment Loan</option>
+                <option runway-id="accounts.add.type.liquid" value="liquid">Liquid (Bank / E-Wallet / Cash)</option>
+                <option runway-id="accounts.add.type.credit" value="revolving_credit">Revolving Credit Card</option>
+                <option runway-id="accounts.add.type.loan" value="installment_loan">Fixed Installment Loan</option>
               </select>
             </div>
 
             <div className="flex flex-col space-y-1">
-              <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+              <label runway-id="accounts.add.balance.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                 Initial Balance (₱)
               </label>
               <input
                 type="number"
+                runway-id="accounts.add.balance.input"
                 step="0.01"
                 required
                 placeholder="0.00"
@@ -327,11 +334,12 @@ export default function AccountsPage() {
             {newType === "revolving_credit" && (
               <>
                 <div className="flex flex-col space-y-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                  <label runway-id="accounts.add.limit.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                     Credit Limit (₱)
                   </label>
                   <input
                     type="number"
+                    runway-id="accounts.add.limit.input"
                     step="0.01"
                     placeholder="50000.00"
                     value={newLimit}
@@ -342,11 +350,12 @@ export default function AccountsPage() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col space-y-1">
-                    <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                    <label runway-id="accounts.add.cutoff.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                       Cutoff Day
                     </label>
                     <input
                       type="number"
+                      runway-id="accounts.add.cutoff.input"
                       min="1"
                       max="31"
                       placeholder="18"
@@ -356,11 +365,12 @@ export default function AccountsPage() {
                     />
                   </div>
                   <div className="flex flex-col space-y-1">
-                    <label className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                    <label runway-id="accounts.add.due-day.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                       Due Day
                     </label>
                     <input
                       type="number"
+                      runway-id="accounts.add.due-day.input"
                       min="1"
                       max="31"
                       placeholder="8"
@@ -376,6 +386,7 @@ export default function AccountsPage() {
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
+                runway-id="accounts.add.cancel"
                 onClick={() => setIsAddAccountOpen(false)}
                 className="h-11 rounded-lg bg-surface-container-low font-label-md text-label-md font-semibold"
               >
@@ -383,6 +394,7 @@ export default function AccountsPage() {
               </button>
               <button
                 type="submit"
+                runway-id="accounts.add.save"
                 className="h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
               >
                 Save Account
@@ -392,10 +404,10 @@ export default function AccountsPage() {
       </Dialog>
       <Dialog open={detailAccount !== null} onClose={() => setDetailAccount(null)} title={detailAccount?.name || "Account details"}>
         {detailAccount && <dl className="space-y-4 text-body-md">
-          <div><dt>Statement cutoff day</dt><dd>{detailAccount.statementCutoffDay || "—"}</dd></div>
-          <div><dt>Payment due day</dt><dd>{detailAccount.paymentDueDay || "—"}</dd></div>
-          <div><dt>Credit limit</dt><dd>{formatPHP(detailAccount.creditLimit || 0)}</dd></div>
-          <div><dt>Available credit</dt><dd className="text-secondary">{formatPHP((detailAccount.creditLimit || 0) - detailAccount.currentBalance)}</dd></div>
+          <div><dt runway-id={`accounts.details.${detailAccount.id}.cutoff.label`}>Statement cutoff day</dt><dd runway-id={`accounts.details.${detailAccount.id}.cutoff.value`}>{detailAccount.statementCutoffDay || "—"}</dd></div>
+          <div><dt runway-id={`accounts.details.${detailAccount.id}.due-day.label`}>Payment due day</dt><dd runway-id={`accounts.details.${detailAccount.id}.due-day.value`}>{detailAccount.paymentDueDay || "—"}</dd></div>
+          <div><dt runway-id={`accounts.details.${detailAccount.id}.credit-limit.label`}>Credit limit</dt><dd runway-id={`accounts.details.${detailAccount.id}.credit-limit.value`}>{formatPHP(detailAccount.creditLimit || 0)}</dd></div>
+          <div><dt runway-id={`accounts.details.${detailAccount.id}.available-credit.label`}>Available credit</dt><dd runway-id={`accounts.details.${detailAccount.id}.available-credit.value`} className="text-secondary">{formatPHP((detailAccount.creditLimit || 0) - detailAccount.currentBalance)}</dd></div>
         </dl>}
       </Dialog>
     </div>

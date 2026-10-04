@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LedgerFlow - Personal Finance Platform",
+  title: "Runway - Personal Finance Platform",
   description:
     "Self-hosted personal finance platform with forward cash runway forecasting, atomic compound transactions, and offline capture.",
   manifest: "/manifest.json",
