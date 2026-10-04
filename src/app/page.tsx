@@ -1,0 +1,424 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Header } from "@/components/layout/Header";
+import { BottomNav } from "@/components/layout/BottomNav";
+import { SolvencyHero } from "@/components/runway/SolvencyHero";
+import { RunwayTimeline } from "@/components/runway/RunwayTimeline";
+import { LiquidAccountsStrip } from "@/components/runway/LiquidAccountsStrip";
+import { UpcomingDuesList, DueItem } from "@/components/runway/UpcomingDuesList";
+import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
+import { ReconcileModal } from "@/components/accounts/ReconcileModal";
+import { IncomeStreamCreateSchema, IncomeStreamPatchSchema, type PayScheduleKind, type IncomeStreamResponse, type IncomeStreamsResponse, type RunwayForecastResponse } from "@/lib/types";
+import { Dialog } from "@/components/ui/Dialog";
+import { formatPHP } from "@/lib/currency";
+
+interface AccountData {
+  id: string;
+  name: string;
+  type: string;
+  currentBalance: number;
+  creditLimit?: number | null;
+  statementCutoffDay?: number | null;
+}
+
+export default function RunwayDashboard() {
+  const [forecast, setForecast] = useState<RunwayForecastResponse | null>(null);
+  const [accounts, setAccounts] = useState<AccountData[]>([]);
+  const [dues, setDues] = useState<DueItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
+  const [reconcileAccount, setReconcileAccount] = useState<AccountData | null>(null);
+  const [isForecastOpen, setIsForecastOpen] = useState(false);
+  const [isBalancesOpen, setIsBalancesOpen] = useState(false);
+  const [isDuesOpen, setIsDuesOpen] = useState(false);
+  const [accountsAvailable, setAccountsAvailable] = useState(false);
+  const [duesAvailable, setDuesAvailable] = useState(false);
+  const balancesTrigger = useRef<HTMLButtonElement>(null);
+  const [incomeStreams, setIncomeStreams] = useState<IncomeStreamResponse[] | null>(null);
+  const [isPaySettingsLoading, setIsPaySettingsLoading] = useState(true);
+  const [paySettingsError, setPaySettingsError] = useState<string | null>(null);
+  const [incomeDialog, setIncomeDialog] = useState<"manage" | "form" | null>(null);
+  const [editingStream, setEditingStream] = useState<IncomeStreamResponse | null>(null);
+  const [streamNameInput, setStreamNameInput] = useState("");
+  const [streamActionError, setStreamActionError] = useState<string | null>(null);
+  const [streamActionId, setStreamActionId] = useState<string | null>(null);
+  const incomeDialogFrame = useRef<number | null>(null);
+  const [netPayInput, setNetPayInput] = useState("");
+  const [payDateInput, setPayDateInput] = useState("");
+  const [payScheduleKind, setPayScheduleKind] = useState<PayScheduleKind | "calendar">("biweekly");
+  const [payIntervalInput, setPayIntervalInput] = useState("14");
+  const [isPaySaving, setIsPaySaving] = useState(false);
+  const [payFormError, setPayFormError] = useState<string | null>(null);
+
+  const fetchPaySettings = useCallback(async () => {
+    setIsPaySettingsLoading(true);
+    try {
+      const response = await fetch("/api/runway/income-streams");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.code === "PAY_SCHEDULE_MIGRATION_REQUIRED"
+        ? "Income streams need a database update before they can be saved."
+        : "Income streams are unavailable. Please retry.");
+      setIncomeStreams((data as IncomeStreamsResponse).streams);
+      setPaySettingsError(null);
+    } catch (error) {
+      setPaySettingsError(error instanceof Error ? error.message : "Income streams are unavailable. Please retry.");
+    } finally {
+      setIsPaySettingsLoading(false);
+    }
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    // Settings failures are isolated from the existing account/bill/forecast data.
+    const settingsRequest = fetchPaySettings();
+    try {
+      const [forecastRes, accountsRes, billsRes] = await Promise.all([
+        fetch("/api/runway/forecast"),
+        fetch("/api/accounts"),
+        fetch("/api/bills"),
+      ]);
+
+      if (forecastRes.ok) {
+        const fData = await forecastRes.json();
+        setForecast(fData);
+      } else setForecast(null);
+      if (accountsRes.ok) {
+        const aData = await accountsRes.json();
+        setAccounts(aData);
+        setAccountsAvailable(true);
+      } else setAccountsAvailable(false);
+      if (billsRes.ok) {
+        const bData = await billsRes.json();
+        const mappedDues: DueItem[] = bData.map((b: {
+          instanceId: string;
+          name: string;
+          dueDate: string;
+          amountDue: number;
+          status: string;
+          isAutoPay?: boolean;
+          sourceAccountName?: string | null;
+        }) => ({
+          id: b.instanceId,
+          name: b.name,
+          dueDate: b.dueDate,
+          amountDue: b.amountDue,
+          status: b.status,
+          isAutoPay: b.isAutoPay,
+          sourceAccountName: b.sourceAccountName,
+        }));
+        setDues(mappedDues);
+        setDuesAvailable(true);
+      } else setDuesAvailable(false);
+    } catch (err) {
+      console.error("Dashboard data fetch failed:", err);
+      setForecast(null);
+      setAccountsAvailable(false);
+      setDuesAvailable(false);
+    } finally {
+      setIsLoading(false);
+      await settingsRequest;
+    }
+  }, [fetchPaySettings]);
+
+  const transitionIncomeDialog = (next: "manage" | "form") => {
+    setIncomeDialog(null);
+    if (incomeDialogFrame.current !== null) cancelAnimationFrame(incomeDialogFrame.current);
+    incomeDialogFrame.current = requestAnimationFrame(() => {
+      incomeDialogFrame.current = requestAnimationFrame(() => { setIncomeDialog(next); incomeDialogFrame.current = null; });
+    });
+  };
+  useEffect(() => () => { if (incomeDialogFrame.current !== null) cancelAnimationFrame(incomeDialogFrame.current); }, []);
+
+  const openPaySettings = (stream: IncomeStreamResponse | null = null) => {
+    setEditingStream(stream);
+    setStreamNameInput(stream?.name ?? "");
+    const cents = stream ? String(stream.net_pay_cents).padStart(3, "0") : null;
+    setNetPayInput(cents ? `${cents.slice(0, -2)}.${cents.slice(-2)}` : "");
+    setPayDateInput(stream ? stream.payday_anchor ?? stream.next_pay_date : "");
+    setPayScheduleKind(stream?.schedule_kind ?? "biweekly");
+    setPayIntervalInput(String(stream?.interval_days ?? 14));
+    setPayFormError(null);
+    transitionIncomeDialog("form");
+  };
+
+  const scheduleDescription = (stream: IncomeStreamResponse) => stream.schedule_kind === "weekly" ? "Weekly"
+    : stream.schedule_kind === "biweekly" ? "Every 2 weeks"
+    : stream.schedule_kind === "monthly" ? "Monthly"
+    : stream.schedule_kind === "custom" ? `Every ${stream.interval_days} days`
+    : `Calendar days ${stream.salary_cycle_days}`;
+
+  const handleToggleStream = async (stream: IncomeStreamResponse) => {
+    if (streamActionId || isPaySaving) return;
+    setStreamActionId(stream.id); setStreamActionError(null);
+    try {
+      const response = await fetch(`/api/runway/income-streams/${stream.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_enabled: !stream.is_enabled }) });
+      if (!response.ok) throw new Error("Unable to change this income stream. Please retry.");
+      const saved = await response.json() as IncomeStreamResponse;
+      setIncomeStreams(current => current?.map(item => item.id === saved.id ? saved : item) ?? [saved]);
+      await fetchData();
+    } catch (error) { setStreamActionError(error instanceof Error ? error.message : "Unable to update income stream."); }
+    finally { setStreamActionId(null); }
+  };
+
+  const handleSavePay = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isPaySaving) return;
+    const amount = netPayInput.trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+    const cents = amount ? Number(`${amount[1]}${(amount[2] || "").padEnd(2, "0")}`) : NaN;
+    const values = { name: streamNameInput, net_pay_cents: cents,
+      ...(payScheduleKind !== "calendar" ? { next_pay_date: payDateInput, schedule_kind: payScheduleKind,
+        ...(payScheduleKind === "custom" ? { interval_days: /^\d+$/.test(payIntervalInput) ? Number(payIntervalInput) : NaN } : {}) } : {}),
+    };
+    const parsed = editingStream ? IncomeStreamPatchSchema.safeParse(values) : IncomeStreamCreateSchema.safeParse(values);
+    if (!parsed.success) {
+      setPayFormError("Enter a name, positive take-home pay with up to two decimal places, a valid date, and 1–366 whole days for a custom interval.");
+      return;
+    }
+    setIsPaySaving(true);
+    setPayFormError(null);
+    try {
+      const response = await fetch(editingStream ? `/api/runway/income-streams/${editingStream.id}` : "/api/runway/income-streams", {
+        method: editingStream ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(parsed.data),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.code === "PAY_SCHEDULE_MIGRATION_REQUIRED"
+        ? "Income streams need a database update before they can be saved. Your changes have not been saved."
+        : "Unable to save this income stream. Please retry.");
+      const saved = data as IncomeStreamResponse;
+      setIncomeStreams(current => editingStream ? current?.map(item => item.id === saved.id ? saved : item) ?? [saved] : [...(current ?? []), saved]);
+      setPaySettingsError(null);
+      transitionIncomeDialog("manage");
+      await fetchData();
+    } catch (error) {
+      setPayFormError(error instanceof Error ? error.message : "Unable to save this income stream. Please retry.");
+    } finally {
+      setIsPaySaving(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handlePayBill = async (due: DueItem) => {
+    try {
+      const res = await fetch(`/api/bills/${due.id}/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Payment failed:", err);
+    }
+  };
+
+  const handleReconcileClick = (accountId: string) => {
+    const acc = accounts.find((a) => a.id === accountId);
+    if (acc) {
+      setIsBalancesOpen(false);
+      setReconcileAccount(acc);
+    }
+  };
+
+  const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited");
+  const today = new Date();
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const warningDues = unpaidDues.filter((due) =>
+    due.status === "grace_period" || due.status === "past_due" || due.status === "due_today" ||
+    (/^\d{4}-\d{2}-\d{2}$/.test(due.dueDate) && due.dueDate <= todayDate)
+  );
+  const ordinaryDues = unpaidDues.filter((due) => !warningDues.includes(due)).slice(0, 2);
+  const negativeDay = forecast?.timeline.find((day) => day.balance < 0);
+  const enabledIncomeStreams = incomeStreams?.filter(stream => stream.is_enabled) ?? [];
+  const nextIncomeDate = enabledIncomeStreams.map(stream => stream.next_pay_date).sort()[0];
+  const paydayDateStr = forecast?.next_payday_date
+    ? new Date(`${forecast.next_payday_date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : "Unavailable";
+
+  return (
+    <div className="flex flex-col min-h-screen bg-transparent">
+      <Header />
+
+      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
+        <div className="flex flex-col w-full px-margin gap-6 pb-space-xl">
+          <div className="space-y-2 pt-2">
+            <h1 className="text-headline-lg font-semibold tracking-tight">Cash Runway</h1>
+            <p className="text-body-md text-on-surface-variant">Your liquidity overview, before the next income.</p>
+          </div>
+          {/* Solvency Hero Card */}
+          {forecast ? <SolvencyHero
+            safeToSpend={forecast.net_projected_buffer}
+            dailyAllowance={forecast.daily_allowance}
+            liquidCash={forecast.current_liquid_cash}
+            upcomingDues={forecast.scheduled_bills_total}
+            daysToPayday={forecast.days_to_payday}
+            paydayDateStr={paydayDateStr}
+            isSolvent={forecast.is_solvent}
+          /> : <div className="forest-panel p-6 text-body-md" role="status">
+            {isLoading ? "Loading your runway…" : "Runway forecast unavailable."}
+            {!isLoading && <button type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>}
+          </div>}
+
+          {negativeDay && <p className="rounded-xl bg-error-container p-4 text-on-error-container text-body-md" role="status">
+            Forecast warning: your balance falls below zero on {negativeDay.date}.
+          </p>}
+
+          <section className="glass-panel p-5 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-body-md font-semibold">Income streams</h2>
+              <button type="button" onClick={() => { setStreamActionError(null); setIncomeDialog("manage"); }} disabled={isPaySaving || !!streamActionId}
+                className="min-h-11 px-4 rounded-full bg-white/70 border border-primary/10 text-secondary text-body-md font-semibold disabled:opacity-50">
+                Manage
+              </button>
+            </div>
+            {isPaySettingsLoading ? <p className="text-body-sm text-on-surface-variant" role="status">Loading income streams…</p>
+              : paySettingsError ? <div>
+                <p className="text-body-sm text-error" role="alert">{paySettingsError}</p>
+                <button type="button" onClick={fetchPaySettings} className="min-h-11 text-secondary text-body-md">Retry</button>
+              </div> : incomeStreams ? <div className="space-y-1">
+                <p className="text-body-md">{enabledIncomeStreams.length} enabled income {enabledIncomeStreams.length === 1 ? "stream" : "streams"}</p>
+                <p className="text-body-sm text-on-surface-variant">{nextIncomeDate ? `Next income: ${nextIncomeDate}` : "Add or resume an income stream to calculate your forecast."}</p>
+              </div> : <p className="text-body-sm text-on-surface-variant">Add your income streams to forecast your cash flow.</p>}
+          </section>
+
+          <div className="glass-panel divide-y divide-outline-variant/20">
+            <button type="button" onClick={() => setIsForecastOpen(true)} disabled={!forecast || isLoading}
+              className="w-full min-h-14 p-5 flex justify-between items-center gap-3 text-body-md disabled:opacity-50">
+              <span className="font-semibold">14-day forecast</span><span className="text-secondary">View →</span>
+            </button>
+            <button ref={balancesTrigger} type="button" onClick={() => setIsBalancesOpen(true)} disabled={!accountsAvailable || isLoading}
+              className="w-full min-h-14 p-5 flex justify-between items-center gap-3 text-body-md disabled:opacity-50">
+              <span className="font-semibold">Balances</span><span className="text-on-surface-variant">{isLoading ? "Loading…" : accountsAvailable ? `${accounts.length} accounts →` : "Unavailable"}</span>
+            </button>
+          </div>
+
+          {duesAvailable ? <>
+            {warningDues.length > 0 && <section className="space-y-3">
+              <h2 className="text-body-md font-semibold text-error">Payment warnings · {warningDues.length}</h2>
+              <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} />
+            </section>}
+            {ordinaryDues.length > 0 && <UpcomingDuesList dues={ordinaryDues} onPayClick={handlePayBill} />}
+            {unpaidDues.length === 0 && <p className="text-body-md text-on-surface-variant">No upcoming dues.</p>}
+            <button type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All upcoming dues ({unpaidDues.length}) →</button>
+          </> : <p className="text-body-md text-on-surface-variant" role="status">{isLoading ? "Loading upcoming dues…" : "Upcoming dues unavailable."}</p>}
+        </div>
+      </main>
+
+      <Dialog open={incomeDialog === "manage"} onClose={() => { if (!streamActionId) setIncomeDialog(null); }} title="Income streams">
+        <div className="space-y-5">
+          <button type="button" disabled={isPaySettingsLoading || !!streamActionId} onClick={() => openPaySettings()} className="min-h-11 px-5 rounded-full bg-primary text-white font-semibold disabled:opacity-50">Add income stream</button>
+          {streamActionError && <p className="text-error text-body-md" role="alert">{streamActionError}</p>}
+          {isPaySettingsLoading ? <p role="status">Loading income streams…</p> : paySettingsError ? <div>
+            <p role="alert" className="text-error text-body-md">{paySettingsError}</p>
+            <button type="button" onClick={fetchPaySettings} className="min-h-11 text-secondary font-semibold">Retry</button>
+          </div> : incomeStreams?.length ? incomeStreams.map(stream => <div key={stream.id} className="rounded-[24px] bg-surface-container-low p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-body-md font-semibold break-words min-w-0">{stream.name}</h3>
+              <span className="rounded-full bg-white/70 px-3 py-1 text-label-sm">{stream.is_enabled ? "Enabled" : "Paused"}</span>
+            </div>
+            <p className="font-currency-md font-semibold">{formatPHP(stream.net_pay_cents)} <span className="font-body-sm text-body-sm font-normal">per payment</span></p>
+            <p className="text-body-sm text-on-surface-variant">{scheduleDescription(stream)} · {stream.is_enabled ? "Next income" : "Scheduled date"}: {stream.next_pay_date}</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" disabled={!!streamActionId} onClick={() => openPaySettings(stream)} aria-label={`Edit ${stream.name}`} className="min-h-11 px-4 rounded-full bg-white/80 text-secondary font-semibold disabled:opacity-50">Edit</button>
+              <button type="button" disabled={!!streamActionId} onClick={() => handleToggleStream(stream)} aria-label={`${stream.is_enabled ? "Pause" : "Resume"} ${stream.name}`} className="min-h-11 px-4 rounded-full bg-white/80 text-secondary font-semibold disabled:opacity-50">{streamActionId === stream.id ? "Saving…" : stream.is_enabled ? "Pause" : "Resume"}</button>
+            </div>
+          </div>) : <p className="text-body-md">No income streams yet. Add one to start forecasting.</p>}
+        </div>
+      </Dialog>
+      <Dialog open={incomeDialog === "form"} onClose={() => { if (!isPaySaving) transitionIncomeDialog("manage"); }} title={editingStream ? "Edit income stream" : "Add income stream"}>
+        <form onSubmit={handleSavePay} className="space-y-5" noValidate>
+          <div className="space-y-2">
+            <label htmlFor="income-name-input" className="block text-body-md font-semibold">Income name</label>
+            <input id="income-name-input" type="text" value={streamNameInput} maxLength={100} onChange={event => setStreamNameInput(event.target.value)}
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md" />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="net-pay-input" className="block text-body-md font-semibold">Take-home pay (PHP)</label>
+            <input id="net-pay-input" type="text" inputMode="decimal" value={netPayInput} maxLength={24}
+              onChange={(event) => setNetPayInput(event.target.value)} aria-describedby="net-pay-hint"
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md" />
+            <p id="net-pay-hint" className="text-body-sm text-on-surface-variant">The amount deposited after deductions, per payment.</p>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="pay-schedule-input" className="block text-body-md font-semibold">Pay schedule</label>
+            <select id="pay-schedule-input" value={payScheduleKind} onChange={(event) => setPayScheduleKind(event.target.value as PayScheduleKind | "calendar")}
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md">
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="monthly">Monthly</option>
+              <option value="custom">Custom interval</option>
+              {editingStream?.schedule_kind === "calendar" && <option value="calendar">Keep existing calendar schedule</option>}
+            </select>
+          </div>
+          {payScheduleKind === "custom" && <div className="space-y-2">
+            <label htmlFor="pay-interval-input" className="block text-body-md font-semibold">Every N days</label>
+            <input id="pay-interval-input" type="number" inputMode="numeric" min="1" max="366" step="1" value={payIntervalInput}
+              onChange={(event) => setPayIntervalInput(event.target.value)} aria-describedby="pay-interval-hint"
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md" />
+            <p id="pay-interval-hint" className="text-body-sm text-on-surface-variant">Choose 1–366 whole days.</p>
+          </div>}
+          {payScheduleKind !== "calendar" && <div className="space-y-2">
+            <label htmlFor="pay-date-input" className="block text-body-md font-semibold">Schedule start date</label>
+            <input id="pay-date-input" type="date" value={payDateInput} onChange={(event) => setPayDateInput(event.target.value)}
+              aria-describedby="pay-date-hint"
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md" />
+          </div>}
+          <p id="pay-date-hint" className="text-body-sm text-on-surface-variant">{payScheduleKind === "calendar" ? `Keeps calendar days ${editingStream?.salary_cycle_days}.` : payScheduleKind === "monthly"
+            ? "Repeats on this day each month, using the last day in shorter months. The original day is preserved."
+            : "Repeats from this date at your selected interval."} {payScheduleKind !== "calendar" && "A past date rolls forward to the next income date."}</p>
+          {editingStream?.schedule_kind === "calendar" && payScheduleKind !== "calendar" && <p className="text-body-sm text-on-surface-variant">Saving replaces this stream’s calendar schedule with the selected schedule.</p>}
+          <p className="text-body-sm text-on-surface-variant">This updates your forecast. It does not record a deposit or change account balances.</p>
+          {payFormError && <p className="text-body-md text-error" role="alert">{payFormError}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" disabled={isPaySaving} onClick={() => transitionIncomeDialog("manage")} className="min-h-11 rounded-full bg-surface-container-low text-body-md disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isPaySaving} className="min-h-11 rounded-full bg-primary text-white text-body-md font-semibold disabled:opacity-50">{isPaySaving ? "Saving…" : "Save stream"}</button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog open={isForecastOpen} onClose={() => setIsForecastOpen(false)} title="14-day forecast">
+        {forecast?.timeline.length ? <RunwayTimeline timeline={forecast.timeline} nextCycleDateStr={paydayDateStr} />
+          : <p className="text-body-md">{forecast ? "No forecast days available." : "Forecast unavailable."}</p>}
+      </Dialog>
+      <Dialog open={isBalancesOpen} onClose={() => setIsBalancesOpen(false)} title="Balances">
+        {!accountsAvailable ? <p className="text-body-md">Balances unavailable.</p> : accounts.length > 0
+          ? <LiquidAccountsStrip accounts={accounts} onReconcileClick={handleReconcileClick} />
+          : <p className="text-body-md">No accounts yet.</p>}
+      </Dialog>
+      <Dialog open={isDuesOpen} onClose={() => setIsDuesOpen(false)} title="All upcoming dues">
+        {!duesAvailable ? <p className="text-body-md">Upcoming dues unavailable.</p> : unpaidDues.length > 0
+          ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} />
+          : <p className="text-body-md">No upcoming dues.</p>}
+      </Dialog>
+
+      {/* Bottom Tab Navigation */}
+      <BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+
+      {/* Rapid Expense Keypad Drawer */}
+      {forecast ? <RapidExpenseDrawer
+        isOpen={isQuickLogOpen}
+        onClose={() => setIsQuickLogOpen(false)}
+        onSuccess={fetchData}
+        accounts={accounts}
+        daysToPayday={Math.max(1, forecast.days_to_payday)}
+      /> : <Dialog open={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} title="Quick log">
+        <p className="text-body-md" role="status">{isLoading ? "Loading your forecast…" : "Your forecast and daily allowance are unavailable. Retry to load them before logging an entry."}</p>
+        <button type="button" onClick={fetchData} className="min-h-11 mt-4 text-secondary font-semibold">Retry</button>
+      </Dialog>}
+
+      {/* Reconcile Modal */}
+      <ReconcileModal
+        account={reconcileAccount}
+        isOpen={reconcileAccount !== null}
+        onClose={() => {
+          setReconcileAccount(null);
+          requestAnimationFrame(() => balancesTrigger.current?.focus());
+        }}
+        onSuccess={fetchData}
+      />
+    </div>
+  );
+}
