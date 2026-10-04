@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { incomeStreams, projectionSettings } from "../src/db/schema";
+import { MAX_DAILY_DISCRETIONARY_BURN_CENTS } from "../src/lib/types";
 
-const store = vi.hoisted(() => ({ settings: [] as Record<string, unknown>[], streams: [] as Record<string, unknown>[], writes: [] as unknown[], locked: false }));
+const store = vi.hoisted(() => ({ settings: [] as Record<string, unknown>[], streams: [] as Record<string, unknown>[], accounts: [] as Record<string, unknown>[], writes: [] as unknown[], locked: false }));
 vi.mock("drizzle-orm", async importOriginal => {
   const actual = await importOriginal<typeof import("drizzle-orm")>();
   const key = (name: string) => name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
@@ -13,7 +14,7 @@ vi.mock("drizzle-orm", async importOriginal => {
 });
 vi.mock("../src/db", async () => {
   const schema = await import("../src/db/schema");
-  const rows = (table: unknown) => table === schema.projectionSettings ? store.settings : store.streams;
+  const rows = (table: unknown) => table === schema.projectionSettings ? store.settings : table === schema.accounts ? store.accounts : store.streams;
   const tx = {
     execute: async () => { store.locked = true; },
     select: () => ({ from: (table: unknown) => {
@@ -39,21 +40,24 @@ vi.mock("../src/db", async () => {
 
 import { GET, POST } from "../src/app/api/runway/income-streams/route";
 import { PATCH } from "../src/app/api/runway/income-streams/[id]/route";
-import { GET as settingsGET, PUT } from "../src/app/api/runway/settings/route";
+import { GET as settingsGET, PATCH as settingsPATCH, PUT } from "../src/app/api/runway/settings/route";
 
 const primaryId = "00000000-0000-4000-8000-000000000001";
 const secondId = "00000000-0000-4000-8000-000000000002";
 const foreignId = "00000000-0000-4000-8000-000000000003";
 const request = (body: unknown, method = "POST") => new NextRequest("http://localhost/api/runway/income-streams", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const patch = (body: unknown, id = primaryId) => PATCH(request(body, "PATCH"), { params: Promise.resolve({ id }) });
+const settingsPatch = (body: unknown) => settingsPATCH(request(body, "PATCH"));
 const valid = { name: "Freelance", net_pay_cents: 123456, next_pay_date: "2028-01-31", schedule_kind: "monthly" };
 
 beforeEach(() => {
   store.settings = [{ id: primaryId, expectedSalaryAmount: 999999, salaryCycleDays: "15,30", dailyDiscretionaryBurn: 85000 }];
   store.streams = [{ id: primaryId, projectionSettingsId: primaryId, name: "Primary income", netPayCents: 10000,
-    scheduleKind: null, paydayAnchor: null, intervalDays: null, salaryCycleDays: "15,30", isEnabled: true }];
+    destinationAccountId: null, scheduleKind: null, paydayAnchor: null, intervalDays: null, salaryCycleDays: "15,30", isEnabled: true }];
+  store.accounts = [{ id: secondId, name: "BPI", type: "liquid", isActive: true }];
   store.writes = []; store.locked = false;
 });
+afterEach(() => vi.useRealTimers());
 
 describe("Income stream API", () => {
   it("lists paused streams and preserves legacy calendar schedules", async () => {
@@ -80,6 +84,17 @@ describe("Income stream API", () => {
     expect(store.settings).toHaveLength(1);
     expect(store.writes).toEqual([projectionSettings, incomeStreams]);
   });
+  it("saves only active liquid destination accounts", async () => {
+    const response = await POST(request({ ...valid, destination_account_id: secondId }));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ destination_account_id: secondId });
+    expect(store.streams[1].destinationAccountId).toBe(secondId);
+    expect(store.streams[1].destinationAccountSetDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    store.writes = [];
+    store.accounts[0].isActive = false;
+    expect((await POST(request({ ...valid, destination_account_id: secondId }))).status).toBe(400);
+    expect(store.writes).toEqual([]);
+  });
   it.each([{ ...valid, name: "  " }, { ...valid, name: "x".repeat(101) }, { ...valid, net_pay_cents: 0 },
     { ...valid, net_pay_cents: 1.5 }, { ...valid, net_pay_cents: Number.MAX_SAFE_INTEGER + 1 },
     { ...valid, next_pay_date: "2027-02-29" }, { ...valid, schedule_kind: "other" },
@@ -105,11 +120,15 @@ describe("Income stream API", () => {
     expect(store.streams[0]).toMatchObject({ name: "Main job", netPayCents: 23456, scheduleKind: null, paydayAnchor: null });
     expect(store.settings[0].expectedSalaryAmount).toBe(999999);
   });
-  it("pauses and resumes reversibly without changing amount or anchor", async () => {
+  it("resets deposit eligibility when resuming a stream", async () => {
+    Object.assign(store.streams[0], { destinationAccountId: secondId, destinationAccountSetDate: "2026-10-02" });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2027, 0, 5, 12));
     expect((await patch({ is_enabled: false })).status).toBe(200);
     expect(store.streams[0].isEnabled).toBe(false);
+    expect(store.streams[0].destinationAccountSetDate).toBe("2026-10-02");
     expect((await patch({ is_enabled: true })).status).toBe(200);
-    expect(store.streams[0]).toMatchObject({ isEnabled: true, netPayCents: 10000, paydayAnchor: null });
+    expect(store.streams[0]).toMatchObject({ isEnabled: true, netPayCents: 10000, paydayAnchor: null, destinationAccountSetDate: "2027-01-05" });
   });
   it("retains monthly original anchor during amount edits", async () => {
     Object.assign(store.streams[0], { scheduleKind: "monthly", paydayAnchor: "2027-01-31" });
@@ -129,11 +148,51 @@ describe("Income stream API", () => {
 
 describe("Primary pay compatibility adapter", () => {
   it("reads the migrated stream rather than obsolete settings amounts", async () => {
-    expect(await (await settingsGET()).json()).toMatchObject({ configured: true, net_pay_cents: 10000, schedule_kind: "calendar" });
+    expect(await (await settingsGET()).json()).toMatchObject({ configured: true, net_pay_cents: 10000, schedule_kind: "calendar", daily_discretionary_burn_cents: 85000 });
+  });
+  it("updates or clears the destination account", async () => {
+    expect((await patch({ destination_account_id: secondId })).status).toBe(200);
+    expect(store.streams[0].destinationAccountId).toBe(secondId);
+    const assignmentDate = store.streams[0].destinationAccountSetDate;
+    expect((await patch({ name: "Renamed salary" })).status).toBe(200);
+    expect(store.streams[0].destinationAccountSetDate).toBe(assignmentDate);
+    expect((await patch({ destination_account_id: null })).status).toBe(200);
+    expect(store.streams[0].destinationAccountId).toBeNull();
   });
   it("does not resurrect an absent primary stream from old salary fields", async () => {
     store.streams = [];
-    expect(await (await settingsGET()).json()).toEqual({ configured: false });
+    expect(await (await settingsGET()).json()).toEqual({ configured: false, daily_discretionary_burn_cents: 85000 });
+  });
+  it("updates planned spending without changing pay settings", async () => {
+    const response = await settingsPatch({ daily_discretionary_burn_cents: 12345 });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ daily_discretionary_burn_cents: 12345 });
+    expect(store.settings[0].dailyDiscretionaryBurn).toBe(12345);
+    expect(store.streams[0].netPayCents).toBe(10000);
+    expect(store.writes).toEqual([projectionSettings]);
+  });
+  it("accepts the safe maximum planned spending value", async () => {
+    const response = await settingsPatch({ daily_discretionary_burn_cents: MAX_DAILY_DISCRETIONARY_BURN_CENTS });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ daily_discretionary_burn_cents: MAX_DAILY_DISCRETIONARY_BURN_CENTS });
+  });
+  it.each([-1, 1.5, "100", Number.MAX_SAFE_INTEGER + 1, {}, null])("rejects invalid planned spending %j before writes", async value => {
+    const response = await settingsPatch({ daily_discretionary_burn_cents: value });
+    expect(response.status).toBe(400);
+    expect(store.writes).toEqual([]);
+  });
+  it("rejects the first unsafe planned spending value before writes", async () => {
+    const response = await settingsPatch({ daily_discretionary_burn_cents: MAX_DAILY_DISCRETIONARY_BURN_CENTS + 1 });
+    expect(response.status).toBe(400);
+    expect(store.writes).toEqual([]);
+  });
+  it("creates the settings profile when first saving planned spending", async () => {
+    store.settings = []; store.streams = [];
+    const response = await settingsPatch({ daily_discretionary_burn_cents: 0 });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ daily_discretionary_burn_cents: 0 });
+    expect(store.settings[0].dailyDiscretionaryBurn).toBe(0);
+    expect(store.writes).toEqual([projectionSettings]);
   });
   it("preserves a paused primary while an old request defaults to biweekly", async () => {
     store.streams[0].isEnabled = false;

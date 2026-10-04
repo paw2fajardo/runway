@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { accounts, balanceCheckpoints } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { applyDueIncomeStreamDeposits } from "@/lib/income-stream-deposits";
 
 const AccountCreateSchema = z.object({
   name: z.string().min(1),
@@ -16,6 +17,7 @@ const AccountCreateSchema = z.object({
 
 export async function GET() {
   try {
+    await applyDueIncomeStreamDeposits();
     const allAccounts = await db
       .select()
       .from(accounts)
@@ -24,6 +26,10 @@ export async function GET() {
 
     return NextResponse.json(allAccounts, { status: 200 });
   } catch (error: unknown) {
+    const cause = error && typeof error === "object" && "cause" in error ? error.cause : error;
+    if (cause && typeof cause === "object" && "code" in cause && (cause.code === "42703" || cause.code === "42P01")) {
+      return NextResponse.json({ error: "Income deposit database update is required.", code: "INCOME_DEPOSIT_MIGRATION_REQUIRED" }, { status: 503 });
+    }
     console.error("Fetch accounts failed:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500 });

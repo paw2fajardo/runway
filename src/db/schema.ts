@@ -228,6 +228,8 @@ export const projectionSettings = pgTable("projection_settings", {
 export const incomeStreams = pgTable("income_streams", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectionSettingsId: uuid("projection_settings_id").notNull().references(() => projectionSettings.id),
+  destinationAccountId: uuid("destination_account_id").references(() => accounts.id, { onDelete: "set null" }),
+  destinationAccountSetDate: date("destination_account_set_date", { mode: "string" }),
   name: varchar("name", { length: 100 }).notNull(),
   netPayCents: bigint("net_pay_cents", { mode: "number" }).notNull(),
   scheduleKind: varchar("schedule_kind", { length: 20 }),
@@ -246,6 +248,18 @@ export const incomeStreams = pgTable("income_streams", {
       AND ((${table.scheduleKind} = 'custom' AND ${table.intervalDays} IS NOT NULL AND ${table.intervalDays} BETWEEN 1 AND 366)
         OR (${table.scheduleKind} <> 'custom' AND ${table.intervalDays} IS NULL)))
   `),
+}));
+
+export const incomeStreamDeposits = pgTable("income_stream_deposits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  incomeStreamId: uuid("income_stream_id").notNull().references(() => incomeStreams.id, { onDelete: "restrict" }),
+  scheduledDate: date("scheduled_date", { mode: "string" }).notNull(),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  depositedAt: timestamp("deposited_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqueOccurrence: uniqueIndex("income_stream_deposits_stream_date_unique").on(table.incomeStreamId, table.scheduledDate),
+  validAmount: check("income_stream_deposits_amount_check", sql`${table.amountCents} > 0 AND ${table.amountCents} <= 9007199254740991`),
 }));
 
 // 9. Ingestion Inbox (AI / SMS Staging Queue)
