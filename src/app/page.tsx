@@ -383,7 +383,7 @@ export default function RunwayDashboard() {
         {forecast?.timeline.length ? <RunwayTimeline timeline={forecast.timeline} nextCycleDateStr={paydayDateStr} />
           : <p className="text-body-md">{forecast ? "No forecast days available." : "Forecast unavailable."}</p>}
       </Dialog>
-      <Dialog open={isBalancesOpen} onClose={() => setIsBalancesOpen(false)} title="Balances">
+      <Dialog open={isBalancesOpen} onClose={() => setIsBalancesOpen(false)} title="Balances" fullScreen>
         {!accountsAvailable ? <p className="text-body-md">Balances unavailable.</p> : accounts.length > 0
           ? <LiquidAccountsStrip accounts={accounts} onReconcileClick={handleReconcileClick} />
           : <p className="text-body-md">No accounts yet.</p>}

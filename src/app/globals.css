@@ -12,6 +12,31 @@
   overflow-y: auto;
 }
 .app-dialog-content { padding: 24px; }
+.app-dialog.app-dialog-fullscreen {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background-color: theme('colors.background');
+}
+.app-dialog-fullscreen-content {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.app-dialog-fullscreen-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: 16px;
+  background-color: theme('colors.background');
+}
 .app-dialog::backdrop {
   background: rgba(7, 40, 33, 0.36);
   -webkit-backdrop-filter: blur(8px);
