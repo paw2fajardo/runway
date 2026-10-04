@@ -18,11 +18,12 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
   const isInbox = pathname.startsWith("/inbox");
 
   return (
-    <nav aria-label="Main navigation" className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-[400px]" style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
+    <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-[400px]" style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
       <div className="flex items-center justify-between gap-1 rounded-full border border-white/15 bg-primary-container/95 p-2 shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
         {/* Tab 1: Runway */}
         <Link
           href="/"
+          runway-id="runway.nav.home"
           aria-label="Runway"
           aria-current={isRunway ? "page" : undefined}
           className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 transition-colors ${
@@ -38,6 +39,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         {/* Tab 2: Bills */}
         <Link
           href="/bills"
+          runway-id="runway.nav.bills"
           aria-label="Bills"
           aria-current={isBills ? "page" : undefined}
           className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 transition-colors ${
@@ -54,6 +56,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         <div className="flex shrink-0 items-center justify-center">
           <button
             onClick={onOpenQuickLog}
+            runway-id="runway.nav.quick-log"
             aria-label="Open Rapid Expense Log"
             type="button"
             className="w-11 h-11 rounded-full bg-secondary-fixed text-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform duration-100"
@@ -65,6 +68,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         {/* Tab 4: Accounts */}
         <Link
           href="/accounts"
+          runway-id="runway.nav.accounts"
           aria-label="Accounts"
           aria-current={isAccounts ? "page" : undefined}
           className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 transition-colors ${
@@ -80,6 +84,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         {/* Tab 5: Inbox */}
         <Link
           href="/inbox"
+          runway-id="runway.nav.inbox"
           aria-label="Inbox"
           aria-current={isInbox ? "page" : undefined}
           className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 transition-colors ${

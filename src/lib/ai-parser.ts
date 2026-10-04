@@ -153,8 +153,8 @@ export async function parseInboxText(
       headers: {
         Authorization: `Bearer ${effectiveKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://ledgerflow.local",
-        "X-Title": "LedgerFlow Finance",
+        "HTTP-Referer": "https://runway.local",
+        "X-Title": "Runway Finance",
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
@@ -162,7 +162,7 @@ export async function parseInboxText(
         messages: [
           {
             role: "system",
-            content: `You are LedgerFlow AI Ingestion Engine. Extract financial data from SMS, receipts, or bill notifications.
+            content: `You are Runway AI Ingestion Engine. Extract financial data from SMS, receipts, or bill notifications.
 Output strictly JSON matching this structure:
 {
   "merchant": string,

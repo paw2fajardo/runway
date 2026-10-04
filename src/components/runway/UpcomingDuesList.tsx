@@ -17,9 +17,10 @@ export interface DueItem {
 interface UpcomingDuesListProps {
   dues: DueItem[];
   onPayClick?: (due: DueItem) => void;
+  idPrefix?: string;
 }
 
-export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
+export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming-dues" }: UpcomingDuesListProps) {
   const getIcon = (name: string) => {
     const lower = name.toLowerCase();
     if (lower.includes("meralco") || lower.includes("electric")) return "bolt";
@@ -32,17 +33,17 @@ export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
   };
 
   return (
-    <section className="flex flex-col space-y-space-sm">
+    <section runway-id={idPrefix} className="flex flex-col space-y-space-sm">
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1.5">
-          <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+          <h2 runway-id={`${idPrefix}.title`} className="font-headline-sm text-headline-sm text-on-surface font-semibold">
             Upcoming Dues
           </h2>
-          <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-bold">
+          <span runway-id={`${idPrefix}.count`} className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-bold">
             {dues.length}
           </span>
         </div>
-        <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">
+        <span runway-id={`${idPrefix}.description`} className="font-label-sm text-label-sm text-on-surface-variant font-medium">
           Recorded dues
         </span>
       </div>
@@ -55,6 +56,7 @@ export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
           return (
             <div
               key={due.id}
+              runway-id={`${idPrefix}.item.${due.id}`}
               className="glass-panel p-5 flex flex-wrap gap-4 items-center justify-between"
             >
               <div className="flex items-center space-x-space-sm min-w-0">
@@ -63,20 +65,20 @@ export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
                 </div>
                 <div className="min-w-0 flex flex-col">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-body-md text-body-md font-semibold text-on-surface truncate">
+                    <span runway-id={`${idPrefix}.item.${due.id}.name`} className="font-body-md text-body-md font-semibold text-on-surface truncate">
                       {due.name}
                     </span>
                     {isGrace ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container">
+                      <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container">
                         Grace Active
                       </span>
                     ) : due.isAutoPay ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container text-on-surface-variant">
+                      <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container text-on-surface-variant">
                         Auto
                       </span>
                     ) : null}
                   </div>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">
+                  <span runway-id={`${idPrefix}.item.${due.id}.schedule`} className="font-body-sm text-body-sm text-on-surface-variant">
                     {isGrace
                       ? `Grace period · Due ${due.dueDate}`
                       : due.isAutoPay
@@ -87,7 +89,7 @@ export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
               </div>
 
               <div className="flex items-center space-x-space-sm shrink-0">
-                <span className="font-currency-md text-currency-md font-bold text-on-surface">
+                <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="font-currency-md text-currency-md font-bold text-on-surface">
                   {formatPHP(due.amountDue)}
                 </span>
                 {due.isAutoPay ? (
@@ -96,6 +98,7 @@ export function UpcomingDuesList({ dues, onPayClick }: UpcomingDuesListProps) {
                   </span>
                 ) : (
                   <button
+                    runway-id={`${idPrefix}.item.${due.id}.pay`}
                     type="button"
                     onClick={() => onPayClick && onPayClick(due)}
                     className="min-h-11 px-5 py-2 bg-primary text-on-primary rounded-full font-label-sm text-label-sm font-semibold active:scale-95 transition"
