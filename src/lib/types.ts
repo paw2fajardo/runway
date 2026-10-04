@@ -7,6 +7,7 @@ export const CompoundTransactionSchema = z.object({
   source_account_id: z.string().uuid().optional().nullable(),
   destination_account_id: z.string().uuid().optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
+  category_name: z.string().trim().min(1).max(100).optional(),
   gross_outflow: z.number().int().nonnegative().optional().default(0), // in cents
   net_inflow: z.number().int().nonnegative().optional().default(0), // in cents
   fee_amount: z.number().int().nonnegative().optional().default(0), // in cents
