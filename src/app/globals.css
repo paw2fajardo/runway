@@ -95,6 +95,9 @@
   padding-bottom: 16px;
   background-color: theme('colors.background');
 }
+.app-dialog-header-region { touch-action: pan-x pinch-zoom; }
+.app-dialog-drag-handle { display: none; }
+.app-dialog.app-dialog-dragging { transition: none; }
 .app-dialog::backdrop {
   background: rgba(7, 40, 33, 0.36);
   opacity: 0;
@@ -188,5 +191,38 @@ nav[aria-label="Main navigation"] :focus-visible {
 
   .animate-pulse {
     animation: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .app-dialog:not(.app-dialog-fullscreen) {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 8px));
+    margin: 0;
+    overflow-y: auto;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+  }
+  .app-dialog:not(.app-dialog-fullscreen)[open] { transform: translateY(0); }
+  .app-dialog:not(.app-dialog-fullscreen) .app-dialog-content {
+    padding: 12px 20px max(20px, env(safe-area-inset-bottom, 0px));
+  }
+  .app-dialog-header-region { margin-bottom: 16px; }
+  .app-dialog-header-region:not(.app-dialog-fullscreen-header) { touch-action: pan-x pinch-zoom; }
+  .app-dialog-drag-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 0 auto 12px;
+    border-radius: 999px;
+    background: rgba(7, 40, 33, 0.22);
+  }
+  .app-dialog-header-region header { margin-bottom: 0; }
+  .app-dialog-quick-log {
+    height: min(760px, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
+    max-height: min(92dvh, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
   }
 }
