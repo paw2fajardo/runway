@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         type: parsed.type,
         currency: parsed.currency,
         currentBalance: parsed.current_balance,
+        initialBalance: parsed.current_balance,
         creditLimit: parsed.credit_limit,
         statementCutoffDay: parsed.statement_cutoff_day,
         paymentDueDay: parsed.payment_due_day,

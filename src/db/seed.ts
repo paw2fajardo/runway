@@ -51,24 +51,28 @@ async function seed() {
       type: "liquid" as const,
       currency: "PHP",
       currentBalance: 1850000, // ₱18,500.00
+      initialBalance: 1850000,
     },
     {
       name: "Maya Wallet",
       type: "liquid" as const,
       currency: "PHP",
       currentBalance: 350000, // ₱3,500.00
+      initialBalance: 350000,
     },
     {
       name: "Cash on Hand",
       type: "liquid" as const,
       currency: "PHP",
       currentBalance: 120000, // ₱1,200.00
+      initialBalance: 120000,
     },
     {
       name: "BDO Card",
       type: "revolving_credit" as const,
       currency: "PHP",
       currentBalance: 420000, // ₱4,200.00
+      initialBalance: 420000,
       creditLimit: 5000000, // ₱50,000.00
       statementCutoffDay: 18,
       paymentDueDay: 8,

@@ -11,6 +11,21 @@
   color: inherit;
   overflow-y: auto;
 }
+.app-dialog-quick-log {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100% - 24px));
+  height: min(760px, calc(var(--quick-log-viewport-height, 100dvh) - 24px));
+  max-height: calc(var(--quick-log-viewport-height, 100dvh) - 24px);
+  overflow: hidden;
+}
+.app-dialog-quick-log .app-dialog-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 .app-dialog-content { padding: 24px; }
 .app-dialog.app-dialog-fullscreen {
   position: fixed;

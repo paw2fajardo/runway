@@ -57,6 +57,7 @@ export default function BillsPage() {
   const [newBillName, setNewBillName] = useState("");
   const [newBillAmount, setNewBillAmount] = useState("");
   const [newBillDay, setNewBillDay] = useState("15");
+  const [newBillDayOfWeek, setNewBillDayOfWeek] = useState("1");
   const [newBillFrequency, setNewBillFrequency] = useState("monthly");
   const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
@@ -132,7 +133,9 @@ export default function BillsPage() {
           name: newBillName,
           type: newBillType,
           amount: Math.round(parseFloat(newBillAmount) * 100),
-          due_day_of_month: parseInt(newBillDay, 10),
+          ...(newBillFrequency === "weekly" || newBillFrequency === "biweekly"
+            ? { due_day_of_week: parseInt(newBillDayOfWeek, 10) }
+            : { due_day_of_month: parseInt(newBillDay, 10) }),
           frequency: newBillFrequency,
           occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
@@ -572,18 +575,36 @@ export default function BillsPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col space-y-1">
                 <label runway-id="bills.add.due-day.label" htmlFor="bill-day" className="font-label-sm text-label-sm text-on-surface-variant">
-                  Due Day of Month
+                  {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? "Due day of week" : "Due Day of Month"}
                 </label>
-                <input
-                  runway-id="bills.add.due-day.input" id="bill-day"
-                  type="number"
-                  min="1"
-                  max="31"
-                  required
-                  value={newBillDay}
-                  onChange={(e) => setNewBillDay(e.target.value)}
-                  className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
-                />
+                {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? (
+                  <select
+                    runway-id="bills.add.due-day.input" id="bill-day"
+                    required
+                    value={newBillDayOfWeek}
+                    onChange={(e) => setNewBillDayOfWeek(e.target.value)}
+                    className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
+                  >
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                  </select>
+                ) : (
+                  <input
+                    runway-id="bills.add.due-day.input" id="bill-day"
+                    type="number"
+                    min="1"
+                    max="31"
+                    required
+                    value={newBillDay}
+                    onChange={(e) => setNewBillDay(e.target.value)}
+                    className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
+                  />
+                )}
               </div>
 
               <div className="flex flex-col space-y-1">

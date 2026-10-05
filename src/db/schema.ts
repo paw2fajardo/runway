@@ -119,6 +119,9 @@ export const accounts = pgTable(
     currentBalance: bigint("current_balance", { mode: "number" })
       .notNull()
       .default(0),
+    initialBalance: bigint("initial_balance", { mode: "number" })
+      .notNull()
+      .default(0),
     creditLimit: bigint("credit_limit", { mode: "number" }),
     statementCutoffDay: smallint("statement_cutoff_day"),
     paymentDueDay: smallint("payment_due_day"),
@@ -205,6 +208,7 @@ export const bills = pgTable("bills", {
   isEstimate: boolean("is_estimate").notNull().default(false),
   isAutoPay: boolean("is_auto_pay").notNull().default(false),
   dueDayOfMonth: smallint("due_day_of_month").notNull(),
+  dueDayOfWeek: smallint("due_day_of_week"),
   frequency: varchar("frequency", { length: 20 }).notNull().default("monthly"),
   occurrenceLimit: smallint("occurrence_limit"),
   gracePeriodDays: smallint("grace_period_days").notNull().default(0),

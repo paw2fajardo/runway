@@ -14,6 +14,7 @@ interface AccountItem {
   type: "liquid" | "revolving_credit" | "installment_loan";
   currency: string;
   currentBalance: number;
+  initialBalance: number;
   creditLimit?: number | null;
   statementCutoffDay?: number | null;
   paymentDueDay?: number | null;
@@ -25,6 +26,9 @@ export default function AccountsPage() {
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddAccountOpen, setIsAddAccountOpen] = useState<boolean>(false);
   const [detailAccount, setDetailAccount] = useState<AccountItem | null>(null);
+  const [editAccount, setEditAccount] = useState<AccountItem | null>(null);
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // New account form state
   const [newName, setNewName] = useState("");
@@ -52,29 +56,73 @@ export default function AccountsPage() {
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError("");
+    setIsSaving(true);
     try {
-      const res = await fetch("/api/accounts", {
-        method: "POST",
+      const isEditing = editAccount !== null;
+      const res = await fetch(isEditing ? `/api/accounts/${editAccount.id}` : "/api/accounts", {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName,
           type: newType,
-          current_balance: Math.round((parseFloat(newBalance) || 0) * 100),
           credit_limit: newLimit ? Math.round(parseFloat(newLimit) * 100) : null,
           statement_cutoff_day: newCutoff ? parseInt(newCutoff, 10) : null,
           payment_due_day: newDueDay ? parseInt(newDueDay, 10) : null,
+          ...(isEditing
+            ? { initial_balance: Math.round((parseFloat(newBalance) || 0) * 100) }
+            : { current_balance: Math.round((parseFloat(newBalance) || 0) * 100) }),
         }),
       });
 
       if (res.ok) {
+        await fetchAccounts();
         setIsAddAccountOpen(false);
+        setEditAccount(null);
         setNewName("");
         setNewBalance("");
-        fetchAccounts();
+        setNewLimit("");
+        setNewCutoff("");
+        setNewDueDay("");
+      } else {
+        const data = await res.json().catch(() => null);
+        setFormError(data?.error || `Unable to ${isEditing ? "update" : "create"} account. Please try again.`);
       }
     } catch (err) {
-      console.error("Failed to create account:", err);
+      console.error("Failed to save account:", err);
+      setFormError("Unable to save account. Check your connection and try again.");
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const openEditAccount = (account: AccountItem) => {
+    setEditAccount(account);
+    setNewName(account.name);
+    setNewType(account.type);
+    setNewBalance(String(account.initialBalance / 100));
+    setNewLimit(account.creditLimit == null ? "" : String(account.creditLimit / 100));
+    setNewCutoff(account.statementCutoffDay == null ? "" : String(account.statementCutoffDay));
+    setNewDueDay(account.paymentDueDay == null ? "" : String(account.paymentDueDay));
+    setFormError("");
+  };
+
+  const closeAccountForm = () => {
+    setIsAddAccountOpen(false);
+    setEditAccount(null);
+    setFormError("");
+  };
+
+  const openNewAccount = () => {
+    setEditAccount(null);
+    setNewName("");
+    setNewType("liquid");
+    setNewBalance("");
+    setNewLimit("");
+    setNewCutoff("");
+    setNewDueDay("");
+    setFormError("");
+    setIsAddAccountOpen(true);
   };
 
   const liquidAccounts = accounts.filter((a) => a.type === "liquid");
@@ -165,6 +213,7 @@ export default function AccountsPage() {
                     <span runway-id={`accounts.liquid.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-on-surface">
                       {formatPHP(acc.currentBalance)}
                     </span>
+                    <button type="button" runway-id={`accounts.liquid.account.${acc.id}.edit`} onClick={() => openEditAccount(acc)} className="min-h-11 px-2 text-secondary text-body-sm">Edit</button>
                     <button
                       type="button"
                       runway-id={`accounts.liquid.account.${acc.id}.reconcile`}
@@ -232,7 +281,10 @@ export default function AccountsPage() {
                         </div>
                       </div>
 
-                      <button runway-id={`accounts.credit.account.${acc.id}.details`} type="button" onClick={() => setDetailAccount(acc)} className="min-h-11 text-secondary text-body-sm self-start">Details</button>
+                      <div className="flex items-center gap-4 self-start">
+                        <button runway-id={`accounts.credit.account.${acc.id}.details`} type="button" onClick={() => setDetailAccount(acc)} className="min-h-11 text-secondary text-body-sm">Details</button>
+                        <button runway-id={`accounts.credit.account.${acc.id}.edit`} type="button" onClick={() => openEditAccount(acc)} className="min-h-11 text-secondary text-body-sm">Edit</button>
+                      </div>
                     </div>
                   );
                 })}
@@ -244,7 +296,7 @@ export default function AccountsPage() {
           <button
             type="button"
             runway-id="accounts.add-account"
-            onClick={() => setIsAddAccountOpen(true)}
+            onClick={openNewAccount}
             className="w-full h-12 glass-panel text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-surface-container-low active:scale-[0.99] transition-all"
           >
             <span runway-id="accounts.add-account.icon" className="material-symbols-outlined text-[20px]">
@@ -274,7 +326,7 @@ export default function AccountsPage() {
       />
 
       {/* Add Account Modal */}
-      <Dialog open={isAddAccountOpen} onClose={() => setIsAddAccountOpen(false)} title="New account">
+      <Dialog open={isAddAccountOpen || editAccount !== null} onClose={closeAccountForm} title={editAccount ? "Edit account" : "New account"}>
           <form
             onSubmit={handleCreateAccount}
             className="flex flex-col space-y-4"
@@ -286,7 +338,7 @@ export default function AccountsPage() {
               </label>
               <input
                 type="text"
-                runway-id="accounts.add.name.input"
+                runway-id={editAccount ? "accounts.edit.name.input" : "accounts.add.name.input"}
                 required
                 placeholder="e.g. Maya Savings"
                 value={newName}
@@ -300,7 +352,7 @@ export default function AccountsPage() {
                 Account Type
               </label>
               <select
-                runway-id="accounts.add.type.select"
+                runway-id={editAccount ? "accounts.edit.type.select" : "accounts.add.type.select"}
                 value={newType}
                 onChange={(e) =>
                   setNewType(
@@ -316,12 +368,12 @@ export default function AccountsPage() {
             </div>
 
             <div className="flex flex-col space-y-1">
-              <label runway-id="accounts.add.balance.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
-                Initial Balance (₱)
+              <label runway-id={editAccount ? "accounts.edit.balance.label" : "accounts.add.balance.label"} className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                Initial Balance (₱) {editAccount && <span className="normal-case">(opening balance correction)</span>}
               </label>
               <input
                 type="number"
-                runway-id="accounts.add.balance.input"
+                runway-id={editAccount ? "accounts.edit.balance.input" : "accounts.add.balance.input"}
                 step="0.01"
                 required
                 placeholder="0.00"
@@ -329,17 +381,18 @@ export default function AccountsPage() {
                 onChange={(e) => setNewBalance(e.target.value)}
                 className="h-10 px-3 rounded-lg border border-outline-variant/50 font-currency-md text-currency-md"
               />
+              {editAccount && <span className="font-body-sm text-body-sm text-on-surface-variant">Updates the opening balance; the displayed running balance is recalculated from transactions and deposits.</span>}
             </div>
 
             {newType === "revolving_credit" && (
               <>
                 <div className="flex flex-col space-y-1">
-                  <label runway-id="accounts.add.limit.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                  <label runway-id={editAccount ? "accounts.edit.limit.label" : "accounts.add.limit.label"} className="font-label-sm text-label-sm text-on-surface-variant uppercase">
                     Credit Limit (₱)
                   </label>
                   <input
                     type="number"
-                    runway-id="accounts.add.limit.input"
+                    runway-id={editAccount ? "accounts.edit.limit.input" : "accounts.add.limit.input"}
                     step="0.01"
                     placeholder="50000.00"
                     value={newLimit}
@@ -355,7 +408,7 @@ export default function AccountsPage() {
                     </label>
                     <input
                       type="number"
-                      runway-id="accounts.add.cutoff.input"
+                      runway-id={editAccount ? "accounts.edit.cutoff.input" : "accounts.add.cutoff.input"}
                       min="1"
                       max="31"
                       placeholder="18"
@@ -370,7 +423,7 @@ export default function AccountsPage() {
                     </label>
                     <input
                       type="number"
-                      runway-id="accounts.add.due-day.input"
+                      runway-id={editAccount ? "accounts.edit.due-day.input" : "accounts.add.due-day.input"}
                       min="1"
                       max="31"
                       placeholder="8"
@@ -383,21 +436,23 @@ export default function AccountsPage() {
               </>
             )}
 
+            {formError && <p role="alert" className="text-error text-body-sm">{formError}</p>}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
                 runway-id="accounts.add.cancel"
-                onClick={() => setIsAddAccountOpen(false)}
+                onClick={closeAccountForm}
                 className="h-11 rounded-lg bg-surface-container-low font-label-md text-label-md font-semibold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                runway-id="accounts.add.save"
+                runway-id={editAccount ? "accounts.edit.save" : "accounts.add.save"}
+                disabled={isSaving}
                 className="h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
               >
-                Save Account
+                {isSaving ? "Saving…" : editAccount ? "Save Changes" : "Save Account"}
               </button>
             </div>
           </form>

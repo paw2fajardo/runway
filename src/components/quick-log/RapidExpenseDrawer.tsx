@@ -64,6 +64,7 @@ export function RapidExpenseDrawer({
   const [categorySearch, setCategorySearch] = useState("");
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -135,7 +136,6 @@ export function RapidExpenseDrawer({
     : 0;
 
   const handleKeyClick = (val: string) => {
-    if (val === ".") return; // cent format handles decimals naturally
     if (rawDigits.length >= 8) return;
     setRawDigits((prev) => (prev === "0" ? val : prev + val));
   };
@@ -146,6 +146,7 @@ export function RapidExpenseDrawer({
 
   const handleConfirm = async () => {
     if (baseCents <= 0) return;
+    setSubmitError(null);
     setIsSubmitting(true);
 
     try {
@@ -196,6 +197,7 @@ export function RapidExpenseDrawer({
       onClose();
     } catch (err) {
       console.error("Failed to queue transaction:", err);
+      setSubmitError("Couldn’t save this entry. Your details are still here. Try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -255,8 +257,8 @@ export function RapidExpenseDrawer({
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose} title="Quick log">
-      <div className="flex flex-col select-none pb-safe">
+    <Dialog open={isOpen} onClose={onClose} title="Quick log" className="app-dialog-quick-log">
+      <div className="flex h-full min-h-0 flex-col select-none pb-safe">
         {/* Drag Handle and Mode Selector Header */}
         <div className="flex flex-col items-center pt-space-sm pb-space-xs relative shrink-0">
           <div className="w-12 h-1 rounded-full bg-on-surface-variant/20 mb-space-sm" />
@@ -308,7 +310,7 @@ export function RapidExpenseDrawer({
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="flex flex-col gap-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain pr-1">
           {/* Amount Display & Runway Impact */}
           <div className="flex flex-col items-center pt-space-xs pb-space-xs text-center">
             <div className="inline-flex items-baseline justify-center gap-1">
@@ -337,6 +339,33 @@ export function RapidExpenseDrawer({
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Numeric Touch Keypad */}
+          <p runway-id="quick-log.amount.hint" className="text-center text-label-sm text-on-surface-variant">Enter digits in cents (for example, 1250 = ₱12.50).</p>
+          <div className="grid grid-cols-3 gap-2 pt-space-xs select-none">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((k) => (
+              <React.Fragment key={k}>
+                {k === "0" && <span aria-hidden="true" />}
+                <button
+                  runway-id={`quick-log.key.${k}`}
+                  type="button"
+                  onClick={() => handleKeyClick(k)}
+                  className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface font-currency-lg text-currency-lg active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center font-bold"
+                >
+                  {k}
+                </button>
+              </React.Fragment>
+            ))}
+            <button
+              runway-id="quick-log.key.backspace"
+              type="button"
+              onClick={handleBackspace}
+              aria-label="Backspace"
+              className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center"
+            >
+              <span runway-id="quick-log.key.backspace.icon" className="material-symbols-outlined text-[22px]">backspace</span>
+            </button>
           </div>
 
           {/* Category Allocation (if Expense) */}
@@ -609,32 +638,12 @@ export function RapidExpenseDrawer({
             </div>
           )}
 
-          {/* Numeric Touch Keypad */}
-          <div className="grid grid-cols-3 gap-2 pt-space-xs select-none">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((k) => (
-              <button
-                runway-id={`quick-log.key.${k}`}
-                key={k}
-                type="button"
-                onClick={() => handleKeyClick(k)}
-                className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface font-currency-lg text-currency-lg active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center font-bold"
-              >
-                {k}
-              </button>
-            ))}
-            <button
-              runway-id="quick-log.key.backspace"
-              type="button"
-              onClick={handleBackspace}
-              aria-label="Backspace"
-              className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center"
-            >
-              <span runway-id="quick-log.key.backspace.icon" className="material-symbols-outlined text-[22px]">backspace</span>
-            </button>
-          </div>
+        </div>
 
-          {/* Confirm Button Area */}
-          <div className="flex flex-col gap-space-xs pt-space-xs pb-space-md">
+        {/* Confirm Button Area */}
+        <div className="shrink-0 border-t border-white/70 bg-surface-container-lowest/80 pt-space-xs">
+          {submitError && <p runway-id="quick-log.submit.error" role="alert" className="mb-space-xs text-center text-body-sm text-error">{submitError}</p>}
+          <div className="flex flex-col gap-space-xs pb-space-xs">
             <button
               runway-id="quick-log.confirm"
               type="button"

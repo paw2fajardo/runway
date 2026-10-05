@@ -8,9 +8,10 @@ interface DialogProps {
   title: string;
   children: ReactNode;
   fullScreen?: boolean;
+  className?: string;
 }
 
-export function Dialog({ open, onClose, title, children, fullScreen = false }: DialogProps) {
+export function Dialog({ open, onClose, title, children, fullScreen = false, className = "" }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const instanceId = useId();
@@ -30,8 +31,22 @@ export function Dialog({ open, onClose, title, children, fullScreen = false }: D
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !className.split(/\s+/).includes("app-dialog-quick-log")) return;
+    const dialog = ref.current;
+    const viewport = window.visualViewport;
+    if (!dialog || !viewport) return;
+    const updateHeight = () => dialog.style.setProperty("--quick-log-viewport-height", `${viewport.height}px`);
+    updateHeight();
+    viewport.addEventListener("resize", updateHeight);
+    return () => {
+      viewport.removeEventListener("resize", updateHeight);
+      dialog.style.removeProperty("--quick-log-viewport-height");
+    };
+  }, [open, className]);
+
   return (
-    <dialog ref={ref} runway-id={`runway.dialog.${instanceId}`} aria-labelledby={titleId} className={`glass-panel app-dialog${fullScreen ? " app-dialog-fullscreen" : ""}`}
+    <dialog ref={ref} runway-id={`runway.dialog.${instanceId}`} aria-labelledby={titleId} className={`glass-panel app-dialog${fullScreen ? " app-dialog-fullscreen" : ""}${className ? ` ${className}` : ""}`}
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onPointerDown={(event) => { backdropStart.current = event.target === event.currentTarget; }}
       onClick={(event) => {
