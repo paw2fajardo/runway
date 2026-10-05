@@ -21,6 +21,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: payday-worker
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-change_me_secure_pw}@db:5432/${POSTGRES_DB:-finance_platform}
+    command: ["npm", "run", "db:push"]
+    restart: "no"
 
   app:
     build:

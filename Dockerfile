@@ -35,7 +35,7 @@ ENV npm_config_cache=/tmp/npm-cache
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 worker
 COPY --from=deps /app/node_modules ./node_modules
-COPY --chown=worker:nodejs package.json tsconfig.json ./
+COPY --chown=worker:nodejs package.json tsconfig.json drizzle.config.ts ./
 COPY --chown=worker:nodejs src ./src
 USER worker
 CMD ["npm", "run", "payday:worker"]
