@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db } from "../../../../db";
 import {
   transactions,
   transactionLegs,
   accounts,
   categories,
-} from "@/db/schema";
-import { CompoundTransactionSchema } from "@/lib/types";
-import { eq, sql } from "drizzle-orm";
+} from "../../../../db/schema";
+import { CompoundTransactionSchema } from "../../../../lib/types";
+import { and, eq, sql } from "drizzle-orm";
+import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = CompoundTransactionSchema.parse(body);
+
+    if (parsed.category_id) {
+      const [category] = await db.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
+      if (!category || category.isArchived) throw new Error("Selected category is unavailable.");
+    }
 
     // Look up System Fee category for friction legs
     let systemFeeCategoryId: string | null = null;
@@ -20,7 +31,7 @@ export async function POST(req: NextRequest) {
       const feeCat = await db
         .select()
         .from(categories)
-        .where(eq(categories.isSystemFee, true))
+        .where(and(eq(categories.isSystemFee, true), eq(categories.isArchived, false)))
         .limit(1);
       if (feeCat.length > 0) {
         systemFeeCategoryId = feeCat[0].id;
@@ -41,9 +52,21 @@ export async function POST(req: NextRequest) {
           categoryId = createdCategory.id;
         } else {
           const [existingCategory] = await tx
-            .select({ id: categories.id })
+            .select({
+              id: categories.id,
+              isIncome: categories.isIncome,
+              isSystemFee: categories.isSystemFee,
+              isArchived: categories.isArchived,
+            })
             .from(categories)
-            .where(eq(categories.name, parsed.category_name))
+            .where(
+              and(
+                eq(categories.name, parsed.category_name),
+                eq(categories.isArchived, false),
+                eq(categories.isIncome, false),
+                eq(categories.isSystemFee, false),
+              ),
+            )
             .limit(1);
           if (!existingCategory) throw new Error("Unable to resolve expense category.");
           categoryId = existingCategory.id;

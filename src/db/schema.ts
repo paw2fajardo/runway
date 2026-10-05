@@ -1,4 +1,5 @@
 import {
+  AnyPgColumn,
   pgTable,
   uuid,
   varchar,
@@ -52,6 +53,61 @@ export const inboxItemStatusEnum = pgEnum("inbox_item_status", [
   "discarded",
 ]);
 
+export const paycheckOccurrenceKindEnum = pgEnum("paycheck_occurrence_kind", [
+  "scheduled",
+  "retry",
+]);
+
+export const paycheckOccurrenceStatusEnum = pgEnum(
+  "paycheck_occurrence_status",
+  ["pending_confirmation", "confirmed", "reversed_awaiting_retry"]
+);
+
+export const paycheckPushDeliveryStatusEnum = pgEnum(
+  "paycheck_push_delivery_status",
+  ["pending", "retryable", "sent", "expired"]
+);
+
+// Single local owner account. The fixed key prevents multiple owners.
+export const ownerAuth = pgTable(
+  "owner_auth",
+  {
+    id: integer("id").primaryKey().notNull().default(1),
+    username: varchar("username", { length: 80 }).notNull(),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [check("owner_auth_singleton_check", sql`${table.id} = 1`)]
+);
+
+export const ownerSessions = pgTable(
+  "owner_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references(() => ownerAuth.id, { onDelete: "cascade" }),
+    tokenDigest: varchar("token_digest", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("uq_owner_sessions_token_digest").on(table.tokenDigest),
+    index("idx_owner_sessions_owner_id").on(table.ownerId),
+    check(
+      "owner_sessions_token_digest_check",
+      sql`${table.tokenDigest} ~ '^[0-9a-f]{64}$'`
+    ),
+  ]
+);
+
 // 1. Accounts
 export const accounts = pgTable(
   "accounts",
@@ -83,6 +139,7 @@ export const categories = pgTable("categories", {
   name: varchar("name", { length: 100 }).notNull().unique(),
   isIncome: boolean("is_income").notNull().default(false),
   isSystemFee: boolean("is_system_fee").notNull().default(false),
+  isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -252,6 +309,149 @@ export const incomeStreams = pgTable("income_streams", {
   `),
 }));
 
+// A durable record of each automatic credit or one-time retry. Snapshots keep
+// the financial event intelligible if its stream or account is later changed.
+export const paycheckOccurrences = pgTable(
+  "paycheck_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    incomeStreamId: uuid("income_stream_id")
+      .notNull()
+      .references(() => incomeStreams.id, { onDelete: "restrict" }),
+    kind: paycheckOccurrenceKindEnum("kind").notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    retryDate: date("retry_date", { mode: "string" }),
+    accountId: uuid("account_id").references(() => accounts.id, {
+      onDelete: "set null",
+    }),
+    accountNameSnapshot: varchar("account_name_snapshot", { length: 100 }),
+    amountSnapshot: bigint("amount_snapshot", { mode: "number" }).notNull(),
+    transactionId: uuid("transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    status: paycheckOccurrenceStatusEnum("status")
+      .notNull()
+      .default("pending_confirmation"),
+    parentOccurrenceId: uuid("parent_occurrence_id").references(
+      (): AnyPgColumn => paycheckOccurrences.id,
+      { onDelete: "restrict" }
+    ),
+    reversalTransactionId: uuid("reversal_transaction_id").references(
+      () => transactions.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("uq_paycheck_scheduled_stream_date")
+      .on(table.incomeStreamId, table.dueDate)
+      .where(sql`${table.kind} = 'scheduled'`),
+    uniqueIndex("uq_paycheck_retry_parent_date")
+      .on(table.parentOccurrenceId, table.retryDate)
+      .where(sql`${table.kind} = 'retry'`),
+    index("idx_paycheck_occurrences_due_status").on(table.dueDate, table.status),
+    index("idx_paycheck_occurrences_stream_date").on(
+      table.incomeStreamId,
+      table.dueDate
+    ),
+    index("idx_paycheck_occurrences_parent").on(table.parentOccurrenceId),
+    index("idx_paycheck_occurrences_transaction").on(table.transactionId),
+    index("idx_paycheck_occurrences_reversal").on(table.reversalTransactionId),
+    check(
+      "paycheck_occurrences_amount_check",
+      sql`${table.amountSnapshot} > 0 AND ${table.amountSnapshot} <= 9007199254740991`
+    ),
+    check(
+      "paycheck_occurrences_kind_fields_check",
+      sql`(${table.kind} = 'scheduled' AND ${table.parentOccurrenceId} IS NULL AND ${table.retryDate} IS NULL) OR (${table.kind} = 'retry' AND ${table.parentOccurrenceId} IS NOT NULL AND ${table.retryDate} IS NOT NULL AND ${table.retryDate} = ${table.dueDate})`
+    ),
+  ]
+);
+
+// One registered browser endpoint belonging to the single local owner.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references(() => ownerAuth.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    endpointHash: varchar("endpoint_hash", { length: 64 }).notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_push_subscriptions_endpoint_hash").on(table.endpointHash),
+    index("idx_push_subscriptions_owner_id").on(table.ownerId),
+    check(
+      "push_subscriptions_endpoint_hash_check",
+      sql`${table.endpointHash} ~ '^[0-9a-f]{64}$'`
+    ),
+  ]
+);
+
+// Keeps per-paycheck delivery state after an expired browser endpoint is deleted.
+// endpointHashSnapshot is the stable unique identity; subscriptionId may become
+// NULL when the endpoint is removed without losing the send/retry history.
+export const paycheckPushDeliveries = pgTable(
+  "paycheck_push_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    occurrenceId: uuid("occurrence_id")
+      .notNull()
+      .references(() => paycheckOccurrences.id, { onDelete: "restrict" }),
+    subscriptionId: uuid("subscription_id").references(
+      () => pushSubscriptions.id,
+      { onDelete: "set null" }
+    ),
+    endpointHashSnapshot: varchar("endpoint_hash_snapshot", {
+      length: 64,
+    }).notNull(),
+    status: paycheckPushDeliveryStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_paycheck_push_occurrence_endpoint").on(
+      table.occurrenceId,
+      table.endpointHashSnapshot
+    ),
+    index("idx_paycheck_push_deliveries_retry").on(
+      table.status,
+      table.nextAttemptAt
+    ),
+    check(
+      "paycheck_push_deliveries_endpoint_hash_check",
+      sql`${table.endpointHashSnapshot} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      "paycheck_push_deliveries_attempt_count_check",
+      sql`${table.attemptCount} >= 0`
+    ),
+  ]
+);
 export const incomeStreamDeposits = pgTable("income_stream_deposits", {
   id: uuid("id").primaryKey().defaultRandom(),
   incomeStreamId: uuid("income_stream_id").notNull().references(() => incomeStreams.id, { onDelete: "restrict" }),
@@ -384,6 +584,9 @@ export type NewProjectionSetting = typeof projectionSettings.$inferInsert;
 
 export type IncomeStream = typeof incomeStreams.$inferSelect;
 export type NewIncomeStream = typeof incomeStreams.$inferInsert;
+
+export type PaycheckOccurrence = typeof paycheckOccurrences.$inferSelect;
+export type NewPaycheckOccurrence = typeof paycheckOccurrences.$inferInsert;
 
 export type InboxItem = typeof inboxItems.$inferSelect;
 export type NewInboxItem = typeof inboxItems.$inferInsert;

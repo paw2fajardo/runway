@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db } from "../../../../../db";
 import {
   billInstances,
   bills,
   transactions,
   transactionLegs,
   accounts,
-} from "@/db/schema";
+} from "../../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
+import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
 import { nextBillDueDate, type BillFrequency } from "@/lib/bill-schedule";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));

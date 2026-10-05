@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { bills, billInstances, accounts, categories } from "@/db/schema";
+import { db } from "../../../db";
+import { bills, billInstances, accounts, categories } from "../../../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 
 const BillCreateSchema = z.object({
   name: z.string().min(1),
@@ -24,7 +25,10 @@ const BillCreateSchema = z.object({
   grace_period_days: z.number().int().min(0).default(0),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
+  const owner = await requireOwner(request);
+  if (owner instanceof Response) return owner;
+
   try {
     const activeBills = await db
       .select({
@@ -65,9 +69,19 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = BillCreateSchema.parse(body);
+
+    if (parsed.category_id) {
+      const [category] = await db.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
+      if (!category || category.isArchived) return NextResponse.json({ error: "Selected category is unavailable." }, { status: 400 });
+    }
 
     const now = new Date();
     const year = now.getFullYear();

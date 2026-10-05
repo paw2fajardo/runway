@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { accounts, balanceCheckpoints } from "@/db/schema";
+import { db } from "../../../db";
+import { accounts, balanceCheckpoints } from "../../../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
-import { applyDueIncomeStreamDeposits } from "@/lib/income-stream-deposits";
+import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 
 const AccountCreateSchema = z.object({
   name: z.string().min(1),
@@ -15,9 +15,11 @@ const AccountCreateSchema = z.object({
   payment_due_day: z.number().int().min(1).max(31).optional().nullable(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
+  const owner = await requireOwner(request);
+  if (owner instanceof Response) return owner;
+
   try {
-    await applyDueIncomeStreamDeposits();
     const allAccounts = await db
       .select()
       .from(accounts)
@@ -26,10 +28,6 @@ export async function GET() {
 
     return NextResponse.json(allAccounts, { status: 200 });
   } catch (error: unknown) {
-    const cause = error && typeof error === "object" && "cause" in error ? error.cause : error;
-    if (cause && typeof cause === "object" && "code" in cause && (cause.code === "42703" || cause.code === "42P01")) {
-      return NextResponse.json({ error: "Income deposit database update is required.", code: "INCOME_DEPOSIT_MIGRATION_REQUIRED" }, { status: 503 });
-    }
     console.error("Fetch accounts failed:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -37,6 +35,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = AccountCreateSchema.parse(body);

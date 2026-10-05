@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { inboxItems } from "@/db/schema";
+import { db } from "../../../../../db";
+import { inboxItems } from "../../../../../db/schema";
 import { eq } from "drizzle-orm";
+import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originError = assertSameOrigin(_req);
+  if (originError) return originError;
+  const owner = await requireOwner(_req);
+  if (owner instanceof Response) return owner;
   try {
     const { id } = await params;
     const [discarded] = await db
