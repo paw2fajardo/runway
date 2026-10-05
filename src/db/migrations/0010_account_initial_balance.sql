@@ -1,7 +1,7 @@
 BEGIN;
 
 ALTER TABLE accounts
-  ADD COLUMN initial_balance bigint;
+  ADD COLUMN IF NOT EXISTS initial_balance bigint;
 
 UPDATE accounts AS account
 SET initial_balance = account.current_balance
