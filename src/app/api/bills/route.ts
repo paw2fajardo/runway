@@ -20,6 +20,8 @@ const BillCreateSchema = z.object({
   is_estimate: z.boolean().default(false),
   is_auto_pay: z.boolean().default(false),
   due_day_of_month: z.number().int().min(1).max(31),
+  frequency: z.enum(["weekly", "biweekly", "monthly", "every_2_months", "every_3_months", "every_6_months", "annually"]).default("monthly"),
+  occurrence_limit: z.number().int().min(1).max(600).nullable().optional(),
   grace_period_days: z.number().int().min(0).default(0),
 });
 
@@ -42,6 +44,8 @@ export async function GET(request: Request) {
         isEstimate: bills.isEstimate,
         isAutoPay: bills.isAutoPay,
         dueDayOfMonth: bills.dueDayOfMonth,
+        frequency: bills.frequency,
+        occurrenceLimit: bills.occurrenceLimit,
         gracePeriodDays: bills.gracePeriodDays,
         sourceAccountId: bills.sourceAccountId,
         sourceAccountName: accounts.name,
@@ -83,7 +87,8 @@ export async function POST(req: NextRequest) {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const periodIdentifier = `${year}-${month}`;
-    const dueDay = String(parsed.due_day_of_month).padStart(2, "0");
+    const lastDayOfMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+    const dueDay = String(Math.min(parsed.due_day_of_month, lastDayOfMonth)).padStart(2, "0");
     const dueDate = `${year}-${month}-${dueDay}`;
 
     const result = await db.transaction(async (tx) => {
@@ -99,6 +104,8 @@ export async function POST(req: NextRequest) {
           isEstimate: parsed.is_estimate,
           isAutoPay: parsed.is_auto_pay,
           dueDayOfMonth: parsed.due_day_of_month,
+          frequency: parsed.frequency,
+          occurrenceLimit: parsed.occurrence_limit ?? null,
           gracePeriodDays: parsed.grace_period_days,
         })
         .returning();

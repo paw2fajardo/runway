@@ -9,6 +9,7 @@ import {
 } from "../../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
+import { nextBillDueDate, type BillFrequency } from "@/lib/bill-schedule";
 
 export async function POST(
   req: NextRequest,
@@ -33,6 +34,11 @@ export async function POST(
         name: bills.name,
         sourceAccountId: bills.sourceAccountId,
         categoryId: bills.categoryId,
+        dueDate: billInstances.dueDate,
+        dueDayOfMonth: bills.dueDayOfMonth,
+        frequency: bills.frequency,
+        occurrenceLimit: bills.occurrenceLimit,
+        recurringAmount: bills.amount,
       })
       .from(billInstances)
       .innerJoin(bills, eq(billInstances.billId, bills.id))
@@ -103,6 +109,27 @@ export async function POST(
         })
         .where(eq(billInstances.id, id))
         .returning();
+
+      const [{ instanceCount }] = await tx
+        .select({ instanceCount: sql<number>`count(*)::int` })
+        .from(billInstances)
+        .where(eq(billInstances.billId, instance.billId));
+
+      if (instance.occurrenceLimit === null || instanceCount < instance.occurrenceLimit) {
+        const nextDueDate = nextBillDueDate(
+          instance.dueDate,
+          instance.frequency as BillFrequency,
+          instance.dueDayOfMonth,
+        );
+        await tx.insert(billInstances).values({
+          billId: instance.billId,
+          periodIdentifier: nextDueDate,
+          dueDate: nextDueDate,
+          targetSettlementDate: nextDueDate,
+          amountDue: instance.recurringAmount,
+          status: "upcoming",
+        });
+      }
 
       return {
         instance: updatedInstance,

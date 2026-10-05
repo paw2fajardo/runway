@@ -205,6 +205,8 @@ export const bills = pgTable("bills", {
   isEstimate: boolean("is_estimate").notNull().default(false),
   isAutoPay: boolean("is_auto_pay").notNull().default(false),
   dueDayOfMonth: smallint("due_day_of_month").notNull(),
+  frequency: varchar("frequency", { length: 20 }).notNull().default("monthly"),
+  occurrenceLimit: smallint("occurrence_limit"),
   gracePeriodDays: smallint("grace_period_days").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -223,7 +225,7 @@ export const billInstances = pgTable(
     billId: uuid("bill_id")
       .notNull()
       .references(() => bills.id, { onDelete: "cascade" }),
-    periodIdentifier: varchar("period_identifier", { length: 7 }).notNull(), // e.g., '2026-10'
+    periodIdentifier: varchar("period_identifier", { length: 10 }).notNull(), // YYYY-MM-DD for each occurrence
     dueDate: date("due_date", { mode: "string" }).notNull(),
     targetSettlementDate: date("target_settlement_date", {
       mode: "string",
