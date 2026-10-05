@@ -19,9 +19,13 @@ export function assertSameOrigin(request: Request): Response | null {
   if (origin === null) return null; // Non-browser clients do not send Origin.
 
   try {
-    if (new URL(origin).origin === new URL(request.url).origin) return null;
+    const configuredOrigin = process.env.APP_ORIGIN;
+    const expectedOrigin = configuredOrigin
+      ? new URL(configuredOrigin).origin
+      : new URL(request.url).origin;
+    if (new URL(origin).origin === expectedOrigin) return null;
   } catch {
-    // Malformed and opaque origins are never trusted.
+    // Malformed configured, request, and opaque origins are never trusted.
   }
   return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403 });
 }
