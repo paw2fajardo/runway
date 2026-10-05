@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../db";
-import { incomeStreams, projectionSettings } from "../../../../../db/schema";
+import { accounts, incomeStreams, projectionSettings } from "../../../../../db/schema";
 import { IncomeStreamPatchSchema, PaySettingsSchema } from "../../../../../lib/types";
 import { incomeStreamResponse } from "../../../../../lib/runway";
+
+function localDateOnly(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -19,6 +23,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const [existing] = await tx.select().from(incomeStreams).where(scope).limit(1);
       if (!existing) return { status: 404, error: "Income stream not found." };
       const change = parsed.data;
+      if (change.destination_account_id) {
+        const [account] = await tx.select().from(accounts).where(and(eq(accounts.id, change.destination_account_id), eq(accounts.type, "liquid"), eq(accounts.isActive, true))).limit(1);
+        if (!account) return { status: 400, error: "Choose an active liquid destination account." };
+      }
       const kind = change.schedule_kind ?? existing.scheduleKind;
       const anchor = change.next_pay_date ?? existing.paydayAnchor;
       const interval = kind === "custom" ? change.interval_days ?? existing.intervalDays : null;
@@ -27,8 +35,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       if (change.interval_days !== undefined && kind !== "custom") return { status: 400, error: "Intervals apply only to custom schedules." };
       if (kind != null && !PaySettingsSchema.safeParse({ net_pay_cents: change.net_pay_cents ?? existing.netPayCents, next_pay_date: anchor,
         schedule_kind: kind, ...(kind === "custom" ? { interval_days: interval } : {}) }).success) return { status: 400, error: "Provide a valid pay date, schedule and custom interval." };
+      const destinationAccountId = change.destination_account_id === undefined ? existing.destinationAccountId : change.destination_account_id;
+      const destinationChanged = change.destination_account_id !== undefined && change.destination_account_id !== existing.destinationAccountId;
+      const resumed = change.is_enabled === true && !existing.isEnabled;
       const [saved] = await tx.update(incomeStreams).set({
         name: change.name ?? existing.name, netPayCents: change.net_pay_cents ?? existing.netPayCents,
+        destinationAccountId,
+        destinationAccountSetDate: !destinationAccountId ? null : destinationChanged || resumed
+          ? localDateOnly(new Date())
+          : existing.destinationAccountSetDate,
         scheduleKind: kind, paydayAnchor: anchor, intervalDays: interval,
         isEnabled: change.is_enabled ?? existing.isEnabled, updatedAt: new Date(),
       }).where(scope).returning();

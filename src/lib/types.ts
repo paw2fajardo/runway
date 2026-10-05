@@ -7,6 +7,7 @@ export const CompoundTransactionSchema = z.object({
   source_account_id: z.string().uuid().optional().nullable(),
   destination_account_id: z.string().uuid().optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
+  category_name: z.string().trim().min(1).max(100).optional(),
   gross_outflow: z.number().int().nonnegative().optional().default(0), // in cents
   net_inflow: z.number().int().nonnegative().optional().default(0), // in cents
   fee_amount: z.number().int().nonnegative().optional().default(0), // in cents
@@ -42,6 +43,11 @@ export const PaySettingsSchema = z.object({
 });
 
 export type PaySettingsInput = z.infer<typeof PaySettingsSchema>;
+export const MAX_DAILY_DISCRETIONARY_BURN_CENTS = Math.floor(Number.MAX_SAFE_INTEGER / 366);
+export const DailyDiscretionaryBurnSchema = z.object({
+  daily_discretionary_burn_cents: z.number().int().nonnegative().max(MAX_DAILY_DISCRETIONARY_BURN_CENTS),
+}).strict();
+export type DailyDiscretionaryBurnInput = z.infer<typeof DailyDiscretionaryBurnSchema>;
 const incomeStreamFields = {
   name: z.string().trim().min(1).max(100),
   net_pay_cents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
@@ -49,6 +55,7 @@ const incomeStreamFields = {
   schedule_kind: PayScheduleKindSchema,
   interval_days: z.number().int().min(1).max(366).optional(),
   is_enabled: z.boolean().optional(),
+  destination_account_id: z.string().uuid().nullable().optional(),
 };
 export const IncomeStreamCreateSchema = z.object(incomeStreamFields).strict().superRefine((value, ctx) => {
   if (value.schedule_kind === "custom" ? value.interval_days === undefined : value.interval_days !== undefined) {
@@ -65,11 +72,13 @@ export interface IncomeStreamResponse {
   interval_days: number | null;
   salary_cycle_days: string;
   is_enabled: boolean;
+  destination_account_id: string | null;
   next_pay_date: string;
 }
 export interface IncomeStreamsResponse { streams: IncomeStreamResponse[] }
-export type PaySettingsResponse = { configured: false } | {
+export type PaySettingsResponse = { configured: false; daily_discretionary_burn_cents: number } | {
   configured: true;
+  daily_discretionary_burn_cents: number;
   net_pay_cents: number;
   schedule_kind: PayScheduleKind | "calendar";
   interval_days: number | null;

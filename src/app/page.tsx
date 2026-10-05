@@ -9,7 +9,7 @@ import { LiquidAccountsStrip } from "@/components/runway/LiquidAccountsStrip";
 import { UpcomingDuesList, DueItem } from "@/components/runway/UpcomingDuesList";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { ReconcileModal } from "@/components/accounts/ReconcileModal";
-import { IncomeStreamCreateSchema, IncomeStreamPatchSchema, type PayScheduleKind, type IncomeStreamResponse, type IncomeStreamsResponse, type RunwayForecastResponse } from "@/lib/types";
+import { IncomeStreamCreateSchema, IncomeStreamPatchSchema, MAX_DAILY_DISCRETIONARY_BURN_CENTS, type PayScheduleKind, type IncomeStreamResponse, type IncomeStreamsResponse, type RunwayForecastResponse } from "@/lib/types";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatPHP } from "@/lib/currency";
 
@@ -45,11 +45,38 @@ export default function RunwayDashboard() {
   const [streamActionId, setStreamActionId] = useState<string | null>(null);
   const incomeDialogFrame = useRef<number | null>(null);
   const [netPayInput, setNetPayInput] = useState("");
+  const [payDestinationAccountId, setPayDestinationAccountId] = useState("");
   const [payDateInput, setPayDateInput] = useState("");
   const [payScheduleKind, setPayScheduleKind] = useState<PayScheduleKind | "calendar">("biweekly");
   const [payIntervalInput, setPayIntervalInput] = useState("14");
   const [isPaySaving, setIsPaySaving] = useState(false);
   const [payFormError, setPayFormError] = useState<string | null>(null);
+  const [plannedSpendingInput, setPlannedSpendingInput] = useState("");
+  const [isPlannedSpendingLoading, setIsPlannedSpendingLoading] = useState(true);
+  const [isPlannedSpendingSaving, setIsPlannedSpendingSaving] = useState(false);
+  const [plannedSpendingError, setPlannedSpendingError] = useState<string | null>(null);
+  const [plannedSpendingWarning, setPlannedSpendingWarning] = useState<string | null>(null);
+
+  const fetchPlannedSpending = useCallback(async () => {
+    setIsPlannedSpendingLoading(true);
+    try {
+      const response = await fetch("/api/runway/settings");
+      const data = await response.json();
+      if (!response.ok || !Number.isSafeInteger(data.daily_discretionary_burn_cents) || data.daily_discretionary_burn_cents < 0) {
+        throw new Error("Planned spending is unavailable. Please retry.");
+      }
+      const cents = String(data.daily_discretionary_burn_cents).padStart(3, "0");
+      setPlannedSpendingInput(`${cents.slice(0, -2)}.${cents.slice(-2)}`);
+      setPlannedSpendingWarning(data.daily_discretionary_burn_cents > MAX_DAILY_DISCRETIONARY_BURN_CENTS
+        ? `This saved amount is above the current limit of ${formatPHP(MAX_DAILY_DISCRETIONARY_BURN_CENTS)} per day. Edit it to an allowed amount before saving.`
+        : null);
+      setPlannedSpendingError(null);
+    } catch (error) {
+      setPlannedSpendingError(error instanceof Error ? error.message : "Planned spending is unavailable. Please retry.");
+    } finally {
+      setIsPlannedSpendingLoading(false);
+    }
+  }, []);
 
   const fetchPaySettings = useCallback(async () => {
     setIsPaySettingsLoading(true);
@@ -71,6 +98,7 @@ export default function RunwayDashboard() {
   const fetchData = useCallback(async () => {
     // Settings failures are isolated from the existing account/bill/forecast data.
     const settingsRequest = fetchPaySettings();
+    const plannedSpendingRequest = fetchPlannedSpending();
     try {
       const [forecastRes, accountsRes, billsRes] = await Promise.all([
         fetch("/api/runway/forecast"),
@@ -117,8 +145,9 @@ export default function RunwayDashboard() {
     } finally {
       setIsLoading(false);
       await settingsRequest;
+      await plannedSpendingRequest;
     }
-  }, [fetchPaySettings]);
+  }, [fetchPaySettings, fetchPlannedSpending]);
 
   const transitionIncomeDialog = (next: "manage" | "form") => {
     setIncomeDialog(null);
@@ -137,6 +166,7 @@ export default function RunwayDashboard() {
     setPayDateInput(stream ? stream.payday_anchor ?? stream.next_pay_date : "");
     setPayScheduleKind(stream?.schedule_kind ?? "biweekly");
     setPayIntervalInput(String(stream?.interval_days ?? 14));
+    setPayDestinationAccountId(stream?.destination_account_id ?? "");
     setPayFormError(null);
     transitionIncomeDialog("form");
   };
@@ -163,9 +193,13 @@ export default function RunwayDashboard() {
   const handleSavePay = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isPaySaving) return;
+    if (!payDestinationAccountId || !accounts.some(account => account.id === payDestinationAccountId && account.type === "liquid")) {
+      setPayFormError("Choose an active liquid destination account.");
+      return;
+    }
     const amount = netPayInput.trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
     const cents = amount ? Number(`${amount[1]}${(amount[2] || "").padEnd(2, "0")}`) : NaN;
-    const values = { name: streamNameInput, net_pay_cents: cents,
+    const values = { name: streamNameInput, net_pay_cents: cents, destination_account_id: payDestinationAccountId,
       ...(payScheduleKind !== "calendar" ? { next_pay_date: payDateInput, schedule_kind: payScheduleKind,
         ...(payScheduleKind === "custom" ? { interval_days: /^\d+$/.test(payIntervalInput) ? Number(payIntervalInput) : NaN } : {}) } : {}),
     };
@@ -193,6 +227,32 @@ export default function RunwayDashboard() {
       setPayFormError(error instanceof Error ? error.message : "Unable to save this income stream. Please retry.");
     } finally {
       setIsPaySaving(false);
+    }
+  };
+
+  const handleSavePlannedSpending = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isPlannedSpendingSaving || isPlannedSpendingLoading) return;
+    const amount = plannedSpendingInput.trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+    const cents = amount ? Number(`${amount[1]}${(amount[2] || "").padEnd(2, "0")}`) : NaN;
+    if (!Number.isSafeInteger(cents) || cents < 0 || cents > MAX_DAILY_DISCRETIONARY_BURN_CENTS) {
+      setPlannedSpendingError(`Enter a nonnegative amount in PHP with up to two decimal places, no more than ${formatPHP(MAX_DAILY_DISCRETIONARY_BURN_CENTS)} per day.`);
+      return;
+    }
+    setIsPlannedSpendingSaving(true);
+    setPlannedSpendingError(null);
+    try {
+      const response = await fetch("/api/runway/settings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daily_discretionary_burn_cents: cents }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to save planned spending. Please retry.");
+      await fetchData();
+    } catch (error) {
+      setPlannedSpendingError(error instanceof Error ? error.message : "Unable to save planned spending. Please retry.");
+    } finally {
+      setIsPlannedSpendingSaving(false);
     }
   };
 
@@ -233,6 +293,8 @@ export default function RunwayDashboard() {
   const ordinaryDues = unpaidDues.filter((due) => !warningDues.includes(due)).slice(0, 2);
   const negativeDay = forecast?.timeline.find((day) => day.balance < 0);
   const enabledIncomeStreams = incomeStreams?.filter(stream => stream.is_enabled) ?? [];
+  const activeLiquidAccounts = accounts.filter(account => account.type === "liquid");
+  const destinationAccountName = (id: string | null) => activeLiquidAccounts.find(account => account.id === id)?.name ?? (id ? "Unavailable account" : "No account selected");
   const nextIncomeDate = enabledIncomeStreams.map(stream => stream.next_pay_date).sort()[0];
   const paydayDateStr = forecast?.next_payday_date
     ? new Date(`${forecast.next_payday_date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
@@ -254,6 +316,7 @@ export default function RunwayDashboard() {
             dailyAllowance={forecast.daily_allowance}
             liquidCash={forecast.current_liquid_cash}
             upcomingDues={forecast.scheduled_bills_total}
+            plannedSpending={forecast.discretionary_burn_total}
             daysToPayday={forecast.days_to_payday}
             paydayDateStr={paydayDateStr}
             isSolvent={forecast.is_solvent}
@@ -309,6 +372,30 @@ export default function RunwayDashboard() {
 
       <Dialog open={incomeDialog === "manage"} onClose={() => { if (!streamActionId) setIncomeDialog(null); }} title="Income streams">
         <div className="space-y-5">
+          <form runway-id="runway.income-manage.planned-spending-form" onSubmit={handleSavePlannedSpending} className="rounded-[24px] bg-surface-container-low p-4 space-y-3" noValidate>
+            <div className="space-y-2">
+              <label runway-id="runway.income-manage.planned-spending-label" htmlFor="planned-spending-input" className="block text-body-md font-semibold">Planned spending per day (PHP)</label>
+              <input runway-id="runway.income-manage.planned-spending-input" id="planned-spending-input" type="text" inputMode="decimal" value={plannedSpendingInput} maxLength={24} disabled={isPlannedSpendingLoading || isPlannedSpendingSaving}
+                onChange={event => {
+                  const value = event.target.value;
+                  setPlannedSpendingInput(value);
+                  const amount = value.trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+                  const cents = amount ? Number(`${amount[1]}${(amount[2] || "").padEnd(2, "0")}`) : NaN;
+                  setPlannedSpendingWarning(Number.isSafeInteger(cents) && cents > MAX_DAILY_DISCRETIONARY_BURN_CENTS
+                    ? `This amount is above the current limit of ${formatPHP(MAX_DAILY_DISCRETIONARY_BURN_CENTS)} per day.`
+                    : null);
+                }} aria-describedby="planned-spending-hint planned-spending-error planned-spending-warning"
+                className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md disabled:opacity-50" />
+              <p runway-id="runway.income-manage.planned-spending-hint" id="planned-spending-hint" className="text-body-sm text-on-surface-variant">This daily amount is included in your forecast until your next payday.</p>
+              {plannedSpendingWarning && <p runway-id="runway.income-manage.planned-spending-warning" id="planned-spending-warning" className="text-on-surface-variant text-body-sm" role="status">{plannedSpendingWarning}</p>}
+            </div>
+            {isPlannedSpendingLoading ? <p runway-id="runway.income-manage.planned-spending-loading" role="status" className="text-body-sm text-on-surface-variant">Loading planned spending…</p> : null}
+            {plannedSpendingError && <p runway-id="runway.income-manage.planned-spending-error" id="planned-spending-error" className="text-error text-body-md" role="alert">{plannedSpendingError}</p>}
+            <div className="flex gap-3">
+              <button runway-id="runway.income-manage.planned-spending-save" type="submit" disabled={isPlannedSpendingLoading || isPlannedSpendingSaving} className="min-h-11 px-5 rounded-full bg-primary text-white font-semibold disabled:opacity-50">{isPlannedSpendingSaving ? "Saving…" : "Save planned spending"}</button>
+              {plannedSpendingError && !isPlannedSpendingLoading && !isPlannedSpendingSaving && <button runway-id="runway.income-manage.planned-spending-retry" type="button" onClick={fetchPlannedSpending} className="min-h-11 text-secondary font-semibold">Reload</button>}
+            </div>
+          </form>
           <button runway-id="runway.income-manage.add" type="button" disabled={isPaySettingsLoading || !!streamActionId} onClick={() => openPaySettings()} className="min-h-11 px-5 rounded-full bg-primary text-white font-semibold disabled:opacity-50">Add income stream</button>
           {streamActionError && <p runway-id="runway.income-manage.action-error" className="text-error text-body-md" role="alert">{streamActionError}</p>}
           {isPaySettingsLoading ? <p runway-id="runway.income-manage.loading" role="status">Loading income streams…</p> : paySettingsError ? <div>
@@ -321,6 +408,7 @@ export default function RunwayDashboard() {
             </div>
             <p runway-id={`runway.income-manage.stream.${stream.id}.amount`} className="font-currency-md font-semibold">{formatPHP(stream.net_pay_cents)} <span runway-id={`runway.income-manage.stream.${stream.id}.amount-period`} className="font-body-sm text-body-sm font-normal">per payment</span></p>
             <p runway-id={`runway.income-manage.stream.${stream.id}.schedule`} className="text-body-sm text-on-surface-variant">{scheduleDescription(stream)} · {stream.is_enabled ? "Next income" : "Scheduled date"}: {stream.next_pay_date}</p>
+            <p runway-id={`runway.income-manage.stream.${stream.id}.destination`} className="text-body-sm text-on-surface-variant">Deposits to {destinationAccountName(stream.destination_account_id)}</p>
             <div className="flex flex-wrap gap-3">
               <button runway-id={`runway.income-manage.stream.${stream.id}.edit`} type="button" disabled={!!streamActionId} onClick={() => openPaySettings(stream)} aria-label={`Edit ${stream.name}`} className="min-h-11 px-4 rounded-full bg-white/80 text-secondary font-semibold disabled:opacity-50">Edit</button>
               <button runway-id={`runway.income-manage.stream.${stream.id}.toggle`} type="button" disabled={!!streamActionId} onClick={() => handleToggleStream(stream)} aria-label={`${stream.is_enabled ? "Pause" : "Resume"} ${stream.name}`} className="min-h-11 px-4 rounded-full bg-white/80 text-secondary font-semibold disabled:opacity-50">{streamActionId === stream.id ? "Saving…" : stream.is_enabled ? "Pause" : "Resume"}</button>
@@ -341,6 +429,19 @@ export default function RunwayDashboard() {
               onChange={(event) => setNetPayInput(event.target.value)} aria-describedby="net-pay-hint"
               className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md" />
             <p runway-id="runway.income-form.net-pay-hint" id="net-pay-hint" className="text-body-sm text-on-surface-variant">The amount deposited after deductions, per payment.</p>
+          </div>
+          <div className="space-y-2">
+            <label runway-id="runway.income-form.destination-label" htmlFor="income-destination-input" className="block text-body-md font-semibold">Deposit account</label>
+            <select runway-id="runway.income-form.destination" id="income-destination-input" required value={payDestinationAccountId}
+              disabled={!accountsAvailable || activeLiquidAccounts.length === 0 || isPaySaving}
+              onChange={event => setPayDestinationAccountId(event.target.value)} aria-describedby="income-destination-hint"
+              className="w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md disabled:opacity-50">
+              <option runway-id="runway.income-form.destination.placeholder" value="">Choose an account</option>
+              {activeLiquidAccounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+            <p runway-id="runway.income-form.destination-hint" id="income-destination-hint" className="text-body-sm text-on-surface-variant">
+              {accountsAvailable ? activeLiquidAccounts.length ? "Only active liquid accounts can receive income." : "Add an active liquid account before setting up income streams." : "Active liquid accounts are unavailable. Reload the page and try again."}
+            </p>
           </div>
           <div className="space-y-2">
             <label runway-id="runway.income-form.schedule-label" htmlFor="pay-schedule-input" className="block text-body-md font-semibold">Pay schedule</label>
@@ -370,7 +471,7 @@ export default function RunwayDashboard() {
             ? "Repeats on this day each month, using the last day in shorter months. The original day is preserved."
             : "Repeats from this date at your selected interval."} {payScheduleKind !== "calendar" && "A past date rolls forward to the next income date."}</p>
           {editingStream?.schedule_kind === "calendar" && payScheduleKind !== "calendar" && <p runway-id="runway.income-form.calendar-notice" className="text-body-sm text-on-surface-variant">Saving replaces this stream’s calendar schedule with the selected schedule.</p>}
-          <p runway-id="runway.income-form.disclaimer" className="text-body-sm text-on-surface-variant">This updates your forecast. It does not record a deposit or change account balances.</p>
+          <p runway-id="runway.income-form.disclaimer" className="text-body-sm text-on-surface-variant">Runway automatically credits this account on or after payday the next time it processes a request. Paydays during a pause are skipped.</p>
           {payFormError && <p runway-id="runway.income-form.error" className="text-body-md text-error" role="alert">{payFormError}</p>}
           <div className="grid grid-cols-2 gap-3">
             <button runway-id="runway.income-form.cancel" type="button" disabled={isPaySaving} onClick={() => transitionIncomeDialog("manage")} className="min-h-11 rounded-full bg-surface-container-low text-body-md disabled:opacity-50">Cancel</button>

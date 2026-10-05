@@ -28,9 +28,10 @@ export default function InboxPage() {
   const [isParsing, setIsParsing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "assistant">("pending");
 
-  // Tactical assistant simulation
   const [queryText, setQueryText] = useState("");
   const [assistantReply, setAssistantReply] = useState<string | null>(null);
+  const [assistantError, setAssistantError] = useState<string | null>(null);
+  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -106,32 +107,38 @@ export default function InboxPage() {
 
   const handleAssistantQuery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryText.trim()) return;
+    const query = queryText.trim();
+    if (!query || isAssistantLoading) return;
 
+    setIsAssistantLoading(true);
+    setAssistantError(null);
+    setAssistantReply(null);
     try {
-      const forecastRes = await fetch("/api/runway/forecast");
-      const forecast = await forecastRes.json();
-
-      // Extract amount from query if mentioned
-      const numMatch = queryText.match(/([\d,]+(?:\.\d{2})?)/);
-      const amountPesos = numMatch ? parseFloat(numMatch[1].replace(/,/g, "")) : 5000;
-      const amountCents = amountPesos * 100;
-
-      const buffer = forecast.net_projected_buffer;
-      const remainingBuffer = buffer - amountCents;
-      const isSolvent = remainingBuffer >= 0;
-
-      if (isSolvent) {
-        setAssistantReply(
-          `✅ Scenario Approved: Spending ${formatPHP(amountCents)} leaves you with a safe reserve of ${formatPHP(remainingBuffer)} before your ${forecast.next_payday_date} payday. Your daily allowance would adjust from ${formatPHP(forecast.daily_allowance)} to ${formatPHP(Math.floor(remainingBuffer / forecast.days_to_payday))}/day.`
-        );
-      } else {
-        setAssistantReply(
-          `⚠️ Deficit Alert: Spending ${formatPHP(amountCents)} exceeds your safe runway by ${formatPHP(Math.abs(remainingBuffer))}. This would cause an impending shortfall before your ${forecast.next_payday_date} salary arrives.`
-        );
+      const response = await fetch("/api/runway/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("Unable to answer this Runway question.");
       }
-    } catch {
-      setAssistantReply("Unable to calculate scenario at this time.");
+      const responseBody = typeof data === "object" && data !== null
+        ? data as { answer?: unknown; error?: unknown }
+        : null;
+      if (!response.ok) {
+        throw new Error(typeof responseBody?.error === "string" ? responseBody.error : "Unable to answer this Runway question.");
+      }
+      if (typeof responseBody?.answer !== "string") {
+        throw new Error("The Runway AI response was invalid. Please try again.");
+      }
+      setAssistantReply(responseBody.answer);
+    } catch (error) {
+      setAssistantError(error instanceof Error ? error.message : "Unable to answer this Runway question.");
+    } finally {
+      setIsAssistantLoading(false);
     }
   };
 
@@ -159,7 +166,7 @@ export default function InboxPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
-      <Header title="AI Staging Inbox" />
+      <Header title="Inbox" />
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-md select-none">
@@ -403,17 +410,25 @@ export default function InboxPage() {
                   aria-label="Runway scenario"
                   placeholder="e.g. Can I buy a ₱12,000 monitor this weekend?"
                   value={queryText}
-                  onChange={(e) => setQueryText(e.target.value)}
+                  onChange={(e) => {
+                    setQueryText(e.target.value);
+                    setAssistantError(null);
+                  }}
                   className="h-11 px-3 rounded-lg bg-surface-container-low border border-outline-variant/40 font-body-md text-body-md text-on-surface"
                 />
                 <button
                   runway-id="inbox.assistant.evaluate"
                   type="submit"
+                  disabled={isAssistantLoading || !queryText.trim()}
                   className="h-10 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
                 >
-                  Evaluate Runway Impact
+                  {isAssistantLoading ? "Thinking…" : "Ask Runway AI"}
                 </button>
               </form>
+
+              {assistantError && (
+                <p role="alert" className="text-body-sm text-error">{assistantError}</p>
+              )}
 
               {assistantReply && (
                 <div runway-id="inbox.assistant.reply" className="p-space-md rounded-xl bg-surface-container-low text-on-surface font-body-sm text-body-sm border border-outline-variant/30 leading-relaxed animate-in fade-in duration-200">

@@ -86,7 +86,7 @@ export default function AccountsPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
-      <Header title="Accounts Ledger" />
+      <Header title="Accounts" />
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">

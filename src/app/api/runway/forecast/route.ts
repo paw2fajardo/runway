@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { accounts, projectionSettings, incomeStreams, billInstances, bills } from "@/db/schema";
+import { accounts, projectionSettings, incomeStreams, incomeStreamDeposits, billInstances, bills } from "@/db/schema";
 import { calculateRunwayForecast } from "@/lib/runway";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { DateOnlySchema } from "@/lib/types";
+import { applyDueIncomeStreamDeposits } from "@/lib/income-stream-deposits";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,6 +15,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Use a valid reference date and a horizon between 1 and 366 days." }, { status: 400 });
     }
     const referenceDate = dateParam ? new Date(`${dateParam}T00:00:00`) : new Date();
+
+    // Apply due scheduled income before reading the current balance snapshot.
+    await applyDueIncomeStreamDeposits();
 
     // 1. Fetch liquid accounts
     const liquidAccounts = await db
@@ -34,6 +38,12 @@ export async function GET(req: NextRequest) {
     const expectedSalaryAmount = proj.expectedSalaryAmount;
     const salaryCycleDays = proj.salaryCycleDays;
     const dailyDiscretionaryBurn = proj.dailyDiscretionaryBurn;
+
+    const timelineEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate() + horizonDays - 1);
+    const dateOnly = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const depositedIncomeOccurrences = await db.select({ incomeStreamId: incomeStreamDeposits.incomeStreamId, scheduledDate: incomeStreamDeposits.scheduledDate })
+      .from(incomeStreamDeposits)
+      .where(and(gte(incomeStreamDeposits.scheduledDate, dateOnly(referenceDate)), lte(incomeStreamDeposits.scheduledDate, dateOnly(timelineEnd))));
 
     // 3. Fetch active bills and instances
     const billList = await db
@@ -58,6 +68,7 @@ export async function GET(req: NextRequest) {
       payIntervalDays: proj.payIntervalDays,
       expectedSalaryAmount,
       incomeStreams: streams,
+      depositedIncomeOccurrences,
       dailyDiscretionaryBurn,
       bills: billList,
       referenceDate,
