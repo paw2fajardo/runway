@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { formatPHP } from "@/lib/currency";
 import { queueOfflineTransaction } from "@/lib/offline-db";
@@ -32,6 +32,20 @@ const DEFAULT_CATEGORIES = [
 const LAST_ACCOUNT_BY_CATEGORY_KEY = "runway.quick-log.last-source-account-by-category";
 const categoryStorageKey = (category: string) => category.trim().toLocaleLowerCase();
 
+function parseAmountToCents(value: string) {
+  const [pesos = "0", fraction = ""] = value.split(".");
+  const cents = Number(pesos || "0") * 100 + Number(fraction.padEnd(2, "0") || "0");
+  return Number.isSafeInteger(cents) ? cents : 0;
+}
+
+function normalizeAmountInput(value: string) {
+  const normalized = value.replace(/,/g, "").replace(/[^\d.]/g, "");
+  const decimalIndex = normalized.indexOf(".");
+  return decimalIndex < 0
+    ? normalized
+    : `${normalized.slice(0, decimalIndex)}.${normalized.slice(decimalIndex + 1).replace(/\./g, "").slice(0, 2)}`;
+}
+
 interface RapidExpenseDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,11 +62,12 @@ export function RapidExpenseDrawer({
   daysToPayday,
 }: RapidExpenseDrawerProps) {
   const [mode, setMode] = useState<"expense" | "transfer" | "inflow">("expense");
-  const [rawDigits, setRawDigits] = useState<string>("0");
+  const [rawAmount, setRawAmount] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState<string>("");
   const [selectedDestId, setSelectedDestId] = useState<string>("");
   const [selectedFee, setSelectedFee] = useState<number>(0);
   const [isCustomFee, setIsCustomFee] = useState<boolean>(false);
+  const [rawCustomFee, setRawCustomFee] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -67,6 +82,8 @@ export function RapidExpenseDrawer({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
+  const categoryMenuRef = useRef<HTMLDivElement>(null);
+  const customFeeInputRef = useRef<HTMLInputElement>(null);
 
   // Set default source account
   useEffect(() => {
@@ -101,13 +118,90 @@ export function RapidExpenseDrawer({
   useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
+    setRawAmount("");
+    setSelectedFee(0);
+    setIsCustomFee(false);
+    setRawCustomFee("");
+    setSubmitError(null);
+    setMode("expense");
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isOpen) {
       setIsCategoryOpen(false);
       setCategorySearch("");
       return;
     }
-    if (isCategoryOpen) categorySearchRef.current?.focus();
+    if (isCategoryOpen && !window.matchMedia("(pointer: coarse)").matches) categorySearchRef.current?.focus();
   }, [isOpen, isCategoryOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !isCategoryOpen) return;
+    const menu = categoryMenuRef.current;
+    const trigger = categoryTriggerRef.current;
+    if (!menu || !trigger) return;
+    const viewport = window.visualViewport;
+
+    const positionMenu = () => {
+      const anchor = trigger.getBoundingClientRect();
+      const dialog = trigger.closest("dialog");
+      const dialogBounds = dialog?.getBoundingClientRect();
+      const footer = dialog?.querySelector<HTMLElement>(".quick-log-footer");
+      const footerTop = footer?.getBoundingClientRect().top ?? dialogBounds?.bottom ?? window.innerHeight;
+      const topLimit = Math.max(8, dialogBounds?.top ?? 8);
+      const bottomLimit = Math.min(window.innerHeight - 8, footerTop - 8);
+      const below = bottomLimit - anchor.bottom - 8;
+      const above = anchor.top - topLimit - 8;
+      const placeAbove = below < 220 && above > below;
+      const available = Math.max(120, placeAbove ? above : below);
+      const maxHeight = Math.min(320, available);
+      const width = Math.min(anchor.width, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(anchor.left, window.innerWidth - width - 12));
+
+      menu.style.left = `${left}px`;
+      menu.style.top = `${placeAbove ? Math.max(topLimit, anchor.top - maxHeight - 8) : anchor.bottom + 8}px`;
+      menu.style.width = `${width}px`;
+      menu.style.maxHeight = `${maxHeight}px`;
+    };
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !menu.contains(target) && !trigger.contains(target)) {
+        setIsCategoryOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setIsCategoryOpen(false);
+      setCategorySearch("");
+      trigger.focus();
+    };
+
+    positionMenu();
+    menu.showPopover();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    viewport?.addEventListener("resize", positionMenu);
+    viewport?.addEventListener("scroll", positionMenu);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+      viewport?.removeEventListener("resize", positionMenu);
+      viewport?.removeEventListener("scroll", positionMenu);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      if (menu.matches(":popover-open")) menu.hidePopover();
+    };
+  }, [isOpen, isCategoryOpen]);
+
+  useEffect(() => {
+    if (isCustomFee) customFeeInputRef.current?.focus({ preventScroll: true });
+  }, [isCustomFee]);
 
   useEffect(() => {
     try {
@@ -124,7 +218,7 @@ export function RapidExpenseDrawer({
   }, []);
   if (!isOpen) return null;
 
-  const baseCents = parseInt(rawDigits || "0", 10);
+  const baseCents = parseAmountToCents(rawAmount);
   const totalCents =
     mode === "expense" || mode === "transfer"
       ? baseCents + selectedFee
@@ -135,17 +229,13 @@ export function RapidExpenseDrawer({
     ? (totalCents / daysToPayday)
     : 0;
 
-  const handleKeyClick = (val: string) => {
-    if (rawDigits.length >= 8) return;
-    setRawDigits((prev) => (prev === "0" ? val : prev + val));
-  };
-
-  const handleBackspace = () => {
-    setRawDigits((prev) => (prev.length > 1 ? prev.slice(0, -1) : "0"));
+  const handleAmountChange = (value: string) => {
+    setRawAmount(normalizeAmountInput(value));
   };
 
   const handleConfirm = async () => {
-    if (baseCents <= 0) return;
+    if (isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
+      (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")) return;
     setSubmitError(null);
     setIsSubmitting(true);
 
@@ -258,10 +348,9 @@ export function RapidExpenseDrawer({
 
   return (
     <Dialog open={isOpen} onClose={onClose} title="Quick log" className="app-dialog-quick-log">
-      <div className="flex h-full min-h-0 flex-col select-none pb-safe">
-        {/* Drag Handle and Mode Selector Header */}
-        <div className="flex flex-col items-center pt-space-sm pb-space-xs relative shrink-0">
-          <div className="w-12 h-1 rounded-full bg-on-surface-variant/20 mb-space-sm" />
+      <div className="flex h-full min-h-0 flex-col pb-safe">
+        {/* Transaction Type Selector */}
+        <div className="relative shrink-0 pb-space-xs">
           <div className="flex items-center justify-between w-full">
             {/* Segmented Mode Control */}
             <div className="grid grid-cols-3 w-full p-1 bg-surface-container rounded-full gap-1">
@@ -310,71 +399,63 @@ export function RapidExpenseDrawer({
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain pr-1">
+        <div className="quick-log-scroll flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1">
           {/* Amount Display & Runway Impact */}
-          <div className="flex flex-col items-center pt-space-xs pb-space-xs text-center">
-            <div className="inline-flex items-baseline justify-center gap-1">
-              <span runway-id="quick-log.amount.currency" className="font-currency-lg text-currency-lg text-primary-container font-semibold">
-                ₱
-              </span>
-              <div className="relative">
-                <span runway-id="quick-log.amount.value" className="font-currency-display text-[clamp(24px,7vw,40px)] text-primary-container tracking-tight">
-                  {formatPHP(baseCents, false)}
-                </span>
-                <span className="inline-block w-0.5 h-7 ml-0.5 bg-secondary align-middle animate-pulse" />
-              </div>
+          <section className="flex flex-col gap-2" aria-labelledby="quick-log-amount-label">
+            <label id="quick-log-amount-label" htmlFor="quick-log-amount" className="text-sm font-semibold text-on-surface">
+              Amount
+            </label>
+            <div className="flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
+              <span runway-id="quick-log.amount.currency" aria-hidden="true" className="text-xl font-semibold text-on-surface-variant">₱</span>
+              <input
+                runway-id="quick-log.amount.value"
+                id="quick-log-amount"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                maxLength={18}
+                value={rawAmount}
+                onChange={(event) => handleAmountChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void handleConfirm();
+                  }
+                }}
+                aria-label="Amount in Philippine pesos"
+                aria-describedby="quick-log-amount-hint"
+                placeholder="0.00"
+                className="min-w-0 flex-1 bg-transparent py-2 text-3xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
+              />
             </div>
+            <p id="quick-log-amount-hint" runway-id="quick-log.amount.hint" className="text-sm text-on-surface-variant">
+              Enter an amount in pesos.
+            </p>
 
             {/* Runway Impact Readout */}
             {mode === "expense" && daysToPayday !== undefined && daysToPayday > 0 && baseCents > 0 && (
-              <div className="mt-space-xs inline-flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">
+              <div className="inline-flex items-center gap-2 self-start rounded-lg bg-surface-container px-3 py-2 text-sm text-on-surface-variant">
                 <span runway-id="quick-log.runway-impact.icon" className="material-symbols-outlined text-error text-[14px]">
                   trending_down
                 </span>
                 <span runway-id="quick-log.runway-impact.label">
-                  Impact on Runway:{" "}
-                  <strong runway-id="quick-log.runway-impact.value" className="text-error font-currency-sm text-currency-sm">
+                  Estimated runway impact: {" "}
+                  <strong runway-id="quick-log.runway-impact.value" className="font-semibold text-error">
                     -{formatPHP(impactPerDay)}/day
                   </strong>{" "}
                 </span>
               </div>
             )}
-          </div>
-
-          {/* Numeric Touch Keypad */}
-          <p runway-id="quick-log.amount.hint" className="text-center text-label-sm text-on-surface-variant">Enter digits in cents (for example, 1250 = ₱12.50).</p>
-          <div className="grid grid-cols-3 gap-2 pt-space-xs select-none">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((k) => (
-              <React.Fragment key={k}>
-                {k === "0" && <span aria-hidden="true" />}
-                <button
-                  runway-id={`quick-log.key.${k}`}
-                  type="button"
-                  onClick={() => handleKeyClick(k)}
-                  className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface font-currency-lg text-currency-lg active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center font-bold"
-                >
-                  {k}
-                </button>
-              </React.Fragment>
-            ))}
-            <button
-              runway-id="quick-log.key.backspace"
-              type="button"
-              onClick={handleBackspace}
-              aria-label="Backspace"
-              className="h-16 rounded-[24px] border border-white/80 bg-white/70 text-on-surface active:bg-surface-container transition-transform active:scale-95 flex items-center justify-center"
-            >
-              <span runway-id="quick-log.key.backspace.icon" className="material-symbols-outlined text-[22px]">backspace</span>
-            </button>
-          </div>
+          </section>
 
           {/* Category Allocation (if Expense) */}
-          {mode === "expense" && (
-            <div className="flex flex-col gap-space-xs">
-              <span runway-id="quick-log.category.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-                Category Allocation
-              </span>
-              <div className="relative">
+          <div className={`quick-log-core-fields${mode === "inflow" ? " quick-log-core-fields-single" : ""}`}>
+            {mode === "expense" && (
+              <div className="flex min-w-0 flex-col gap-2">
+                <span runway-id="quick-log.category.label" className="text-sm font-semibold text-on-surface">
+                  Category
+                </span>
+                <div className="relative">
                 <button
                   runway-id="quick-log.category.select"
                   ref={categoryTriggerRef}
@@ -395,7 +476,12 @@ export function RapidExpenseDrawer({
                 </button>
 
                 {isCategoryOpen && (
-                  <div runway-id="quick-log.category.menu" className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-white/80 bg-surface-container-lowest p-2 shadow-xl">
+                  <div
+                    runway-id="quick-log.category.menu"
+                    ref={categoryMenuRef}
+                    popover="manual"
+                    className="quick-log-category-popover flex flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-lg"
+                  >
                     <div className="relative">
                       <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                       <input
@@ -426,7 +512,7 @@ export function RapidExpenseDrawer({
                       />
                     </div>
 
-                    <ul id="quick-log-category-options" runway-id="quick-log.category.options" role="listbox" aria-label="Categories" className="mt-2 max-h-52 overflow-y-auto overscroll-contain">
+                    <ul id="quick-log-category-options" runway-id="quick-log.category.options" role="listbox" aria-label="Categories" className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain">
                       {filteredCategories.map((category, index) => {
                         const isSelected = category === selectedCategory;
                         const optionId = `quick-log-category-option-${categoriesList.indexOf(category)}`;
@@ -483,16 +569,16 @@ export function RapidExpenseDrawer({
                     {categoryError && <div className="px-3 py-2"><p role="alert" className="text-body-sm text-error">{categoryError}</p><button type="button" onClick={() => void loadCategories()} className="min-h-11 text-secondary underline">Retry saved categories</button></div>}
                   </div>
                 )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Source Account Selector */}
-          <div className="flex flex-col gap-space-xs">
-            <label runway-id="quick-log.source-account.label" htmlFor="quick-log-source-account" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-              {mode === "inflow" ? "Destination Account" : "Source Account"}
-            </label>
-            <div className="relative">
+            {/* Source Account Selector */}
+            <div className="flex min-w-0 flex-col gap-2">
+              <label runway-id="quick-log.source-account.label" htmlFor="quick-log-source-account" className="text-sm font-semibold text-on-surface">
+                {mode === "inflow" ? "Deposit to" : mode === "transfer" ? "Transfer from" : "Paid from"}
+              </label>
+              <div className="relative">
               <select
                 runway-id="quick-log.source-account.select"
                 id="quick-log-source-account"
@@ -509,14 +595,14 @@ export function RapidExpenseDrawer({
                 ))}
               </select>
               <ChevronDown size={18} aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              </div>
             </div>
-          </div>
 
           {/* Destination Account (if Transfer mode) */}
           {mode === "transfer" && (
-            <div className="flex flex-col gap-space-xs">
-              <span runway-id="quick-log.destination-account.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-                Destination Account
+            <div className="flex min-w-0 flex-col gap-2">
+              <span runway-id="quick-log.destination-account.label" className="text-sm font-semibold text-on-surface">
+                Transfer to
               </span>
               <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 scrollbar-none">
                 {accounts
@@ -546,32 +632,35 @@ export function RapidExpenseDrawer({
                   })}
               </div>
             </div>
-          )}
+            )}
+          </div>
 
           {/* Instant Fee Chips (Only for Expense & Transfer) */}
           {mode !== "inflow" && (
-            <div className="flex flex-col gap-space-xs">
-              <div className="flex items-center justify-between">
-                <span runway-id="quick-log.fee.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-                  Instant Fee / Surcharge
+            <div className="flex flex-col gap-3 border-t border-outline-variant/70 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <span runway-id="quick-log.fee.label" className="text-sm font-semibold text-on-surface">
+                  Fee
                 </span>
                 <span runway-id="quick-log.fee.selected-label" className="font-label-sm text-label-sm text-on-tertiary-container font-currency-sm">
-                  {selectedFee === 1800
+                  {isCustomFee
+                    ? "Custom fee"
+                    : selectedFee === 1800
                     ? "External ATM fee"
                     : selectedFee === 1500
                     ? "InstaPay fee"
-                    : selectedFee === 0
-                    ? "Zero fee"
-                    : "Custom fee"}
+                    : "No fee"}
                 </span>
               </div>
               <div className="grid grid-cols-4 gap-space-xs">
                 <button
                   runway-id="quick-log.fee.zero"
                   type="button"
+                  aria-pressed={selectedFee === 0 && !isCustomFee}
                   onClick={() => {
                     setSelectedFee(0);
                     setIsCustomFee(false);
+                    setRawCustomFee("");
                   }}
                   className={`min-h-11 rounded-full font-label-md text-label-md transition-colors ${
                     selectedFee === 0 && !isCustomFee
@@ -584,9 +673,11 @@ export function RapidExpenseDrawer({
                 <button
                   runway-id="quick-log.fee.instapay"
                   type="button"
+                  aria-pressed={selectedFee === 1500 && !isCustomFee}
                   onClick={() => {
                     setSelectedFee(1500);
                     setIsCustomFee(false);
+                    setRawCustomFee("");
                   }}
                   className={`min-h-11 rounded-full font-label-md text-label-md transition-colors ${
                     selectedFee === 1500 && !isCustomFee
@@ -599,9 +690,11 @@ export function RapidExpenseDrawer({
                 <button
                   runway-id="quick-log.fee.atm"
                   type="button"
+                  aria-pressed={selectedFee === 1800 && !isCustomFee}
                   onClick={() => {
                     setSelectedFee(1800);
                     setIsCustomFee(false);
+                    setRawCustomFee("");
                   }}
                   className={`min-h-11 rounded-full font-label-md text-label-md transition-colors flex items-center justify-center gap-1 ${
                     selectedFee === 1800 && !isCustomFee
@@ -616,15 +709,13 @@ export function RapidExpenseDrawer({
                   runway-id="quick-log.fee.custom"
                   type="button"
                   onClick={() => {
-                    const custom = prompt("Enter custom fee in Pesos:", "25.00");
-                    if (custom !== null) {
-                      const parsed = parseFloat(custom);
-                      if (!isNaN(parsed) && parsed >= 0) {
-                        setSelectedFee(Math.round(parsed * 100));
-                        setIsCustomFee(true);
-                      }
+                    if (!isCustomFee) {
+                      setSelectedFee(0);
+                      setRawCustomFee("");
                     }
+                    setIsCustomFee(true);
                   }}
+                  aria-pressed={isCustomFee}
                   className={`min-h-11 rounded-full font-label-md text-label-md transition-colors flex items-center justify-center gap-0.5 ${
                     isCustomFee
                       ? "bg-primary text-white font-semibold shadow-sm"
@@ -632,33 +723,62 @@ export function RapidExpenseDrawer({
                   }`}
                 >
                   <span runway-id="quick-log.fee.custom.icon" className="material-symbols-outlined text-[14px]">edit</span>
-                  {isCustomFee ? `+₱${(selectedFee / 100).toFixed(0)}` : "Custom"}
+                  Custom
                 </button>
               </div>
+              {isCustomFee && (
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="quick-log-custom-fee" className="text-sm font-semibold text-on-surface">
+                    Custom fee amount
+                  </label>
+                  <div className="flex min-h-12 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
+                    <span aria-hidden="true" className="text-base font-semibold text-on-surface-variant">₱</span>
+                    <input
+                      id="quick-log-custom-fee"
+                      runway-id="quick-log.fee.custom.amount"
+                      ref={customFeeInputRef}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      maxLength={18}
+                      value={rawCustomFee}
+                      onChange={(event) => {
+                        const value = normalizeAmountInput(event.target.value);
+                        setRawCustomFee(value);
+                        setSelectedFee(parseAmountToCents(value));
+                      }}
+                      aria-label="Custom fee in Philippine pesos"
+                      placeholder="0.00"
+                      className="min-w-0 flex-1 bg-transparent py-2 text-lg font-semibold tabular-nums text-on-surface outline-none placeholder:text-outline-variant"
+                    />
+                  </div>
+                  <p className="text-sm text-on-surface-variant">Enter 0 if there’s no fee.</p>
+                </div>
+              )}
             </div>
           )}
 
         </div>
 
         {/* Confirm Button Area */}
-        <div className="shrink-0 border-t border-white/70 bg-surface-container-lowest/80 pt-space-xs">
+        <div className="quick-log-footer mt-4 shrink-0 border-t border-outline-variant/70 pt-4">
           {submitError && <p runway-id="quick-log.submit.error" role="alert" className="mb-space-xs text-center text-body-sm text-error">{submitError}</p>}
           <div className="flex flex-col gap-space-xs pb-space-xs">
             <button
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError))}
+              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
               className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">
                 <span runway-id="quick-log.confirm.icon" className="material-symbols-outlined text-[18px]">verified</span>
                 <span runway-id="quick-log.confirm.label">
                   {mode === "expense"
-                    ? "Confirm Outflow"
+                    ? "Save expense"
                     : mode === "transfer"
-                    ? "Confirm Transfer"
-                    : "Confirm Inflow"}
+                    ? "Save transfer"
+                    : "Save income"}
                 </span>
               </div>
               <div className="flex items-center gap-space-xs">
