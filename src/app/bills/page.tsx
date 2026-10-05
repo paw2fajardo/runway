@@ -22,12 +22,24 @@ interface BillItem {
   isAutoPay: boolean;
   dueDayOfMonth: number;
   gracePeriodDays: number;
+  frequency: "weekly" | "biweekly" | "monthly" | "every_2_months" | "every_3_months" | "every_6_months" | "annually";
+  occurrenceLimit: number | null;
   sourceAccountId?: string | null;
   sourceAccountName?: string | null;
   sourceAccountBalance?: number | null;
   categoryId?: string | null;
   categoryName?: string | null;
 }
+
+const billFrequencyLabels: Record<BillItem["frequency"], string> = {
+  weekly: "Weekly",
+  biweekly: "Biweekly",
+  monthly: "Monthly",
+  every_2_months: "Every 2 months",
+  every_3_months: "Every 3 months",
+  every_6_months: "Every 6 months",
+  annually: "Annual",
+};
 
 export default function BillsPage() {
   const [bills, setBills] = useState<BillItem[]>([]);
@@ -45,6 +57,8 @@ export default function BillsPage() {
   const [newBillName, setNewBillName] = useState("");
   const [newBillAmount, setNewBillAmount] = useState("");
   const [newBillDay, setNewBillDay] = useState("15");
+  const [newBillFrequency, setNewBillFrequency] = useState("monthly");
+  const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
   const [newBillType, setNewBillType] = useState<
     "fixed_subscription" | "variable_utility" | "credit_card_statement" | "loan_installment"
@@ -119,6 +133,8 @@ export default function BillsPage() {
           type: newBillType,
           amount: Math.round(parseFloat(newBillAmount) * 100),
           due_day_of_month: parseInt(newBillDay, 10),
+          frequency: newBillFrequency,
+          occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
         }),
       });
@@ -503,7 +519,7 @@ export default function BillsPage() {
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.amount.label" htmlFor="bill-amount" className="font-label-sm text-label-sm text-on-surface-variant">
-                Monthly Amount (₱)
+                Amount per occurrence (₱)
               </label>
               <input
                 runway-id="bills.add.amount.input" id="bill-amount"
@@ -515,6 +531,42 @@ export default function BillsPage() {
                 onChange={(e) => setNewBillAmount(e.target.value)}
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-currency-md text-currency-md"
               />
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <label runway-id="bills.add.frequency.label" htmlFor="bill-frequency" className="font-label-sm text-label-sm text-on-surface-variant">
+                Frequency
+              </label>
+              <select
+                runway-id="bills.add.frequency.input" id="bill-frequency"
+                value={newBillFrequency}
+                onChange={(e) => setNewBillFrequency(e.target.value)}
+                className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
+              >
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="every_2_months">Every 2 months</option>
+                <option value="every_3_months">Every 3 months</option>
+                <option value="every_6_months">Every 6 months</option>
+                <option value="annually">Annual</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <label runway-id="bills.add.occurrence-limit.label" htmlFor="bill-occurrence-limit" className="font-label-sm text-label-sm text-on-surface-variant">
+                Number of payments (optional)
+              </label>
+              <input
+                runway-id="bills.add.occurrence-limit.input" id="bill-occurrence-limit"
+                type="number" inputMode="numeric" min="1" max="600" step="1"
+                placeholder="Ongoing"
+                value={newBillOccurrenceLimit}
+                onChange={(e) => setNewBillOccurrenceLimit(e.target.value)}
+                aria-describedby="bill-occurrence-limit-hint"
+                className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
+              />
+              <p id="bill-occurrence-limit-hint" className="text-body-sm text-on-surface-variant">Leave blank for an ongoing obligation. The obligation ends after this many payments.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -572,6 +624,8 @@ export default function BillsPage() {
         {detailBill && <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
           <div><dt runway-id={`bills.details.due-date.label.${detailBill.instanceId}`}>Due date</dt><dd runway-id={`bills.details.due-date.value.${detailBill.instanceId}`}>{detailBill.dueDate}</dd></div>
           <div><dt runway-id={`bills.details.grace.label.${detailBill.instanceId}`}>Grace period</dt><dd runway-id={`bills.details.grace.value.${detailBill.instanceId}`}>{detailBill.gracePeriodDays} days</dd></div>
+          <div><dt runway-id={`bills.details.frequency.label.${detailBill.instanceId}`}>Frequency</dt><dd runway-id={`bills.details.frequency.value.${detailBill.instanceId}`}>{billFrequencyLabels[detailBill.frequency]}</dd></div>
+          {detailBill.occurrenceLimit !== null && <div><dt runway-id={`bills.details.occurrence-limit.label.${detailBill.instanceId}`}>Total payments</dt><dd runway-id={`bills.details.occurrence-limit.value.${detailBill.instanceId}`}>{detailBill.occurrenceLimit}</dd></div>}
           <div><dt runway-id={`bills.details.source.label.${detailBill.instanceId}`}>Source account</dt><dd runway-id={`bills.details.source.value.${detailBill.instanceId}`}>{detailBill.sourceAccountName || "Not specified"}</dd></div>
           <div><dt runway-id={`bills.details.balance.label.${detailBill.instanceId}`}>Wallet balance</dt><dd runway-id={`bills.details.balance.value.${detailBill.instanceId}`}>{detailBill.sourceAccountBalance == null ? "Not available" : formatPHP(detailBill.sourceAccountBalance)}</dd></div>
           <div><dt runway-id={`bills.details.autopay.label.${detailBill.instanceId}`}>Auto-pay</dt><dd runway-id={`bills.details.autopay.value.${detailBill.instanceId}`}>{detailBill.isAutoPay ? "Enabled" : "Manual payment"}</dd></div>
