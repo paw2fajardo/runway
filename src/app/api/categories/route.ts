@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { db } from "../../../db";
 import { categories } from "../../../db/schema";
 import { CategoryCreateSchema } from "../../../lib/types";
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const includeArchived = req.nextUrl.searchParams.get("include_archived") === "true";
     const result = await db.select().from(categories).orderBy(asc(categories.name));
-    return NextResponse.json(includeArchived ? result : result.filter(category => !category.isArchived));
+    return NextResponse.json((includeArchived ? result : result.filter(category => !category.isArchived && !category.isSystemFee)));
   } catch {
     return NextResponse.json({ error: "Unable to access categories." }, { status: 500 });
   }

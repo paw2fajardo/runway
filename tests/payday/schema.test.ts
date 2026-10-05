@@ -10,12 +10,14 @@ import {
 } from "../../src/db/schema";
 
 describe("payday persistence schema", () => {
-  it("keeps existing income streams valid without an account link", () => {
+  it("keeps income stream destination account links optional", () => {
     const config = getTableConfig(incomeStreams);
-    const accountId = config.columns.find((column) => column.name === "account_id");
+    const destinationAccountId = config.columns.find(
+      (column) => column.name === "destination_account_id"
+    );
 
-    expect(accountId).toBeDefined();
-    expect(accountId?.notNull).toBe(false);
+    expect(destinationAccountId).toBeDefined();
+    expect(destinationAccountId?.notNull).toBe(false);
     expect(
       config.foreignKeys.some(
         (foreignKey) => foreignKey.onDelete === "set null"
@@ -95,7 +97,6 @@ describe("payday persistence schema", () => {
     for (const fragment of [
       "create type paycheck_occurrence_kind as enum ('scheduled', 'retry')",
       "create type paycheck_occurrence_status",
-      "add column account_id uuid references accounts(id) on delete set null",
       "create table paycheck_occurrences",
       "income_stream_id uuid not null references income_streams(id) on delete restrict",
       "account_id uuid references accounts(id) on delete set null",
@@ -109,6 +110,7 @@ describe("payday persistence schema", () => {
     ]) {
       expect(migration).toContain(fragment);
     }
+    expect(migration).not.toContain("alter table income_streams");
     expect(migration).not.toMatch(/update\s+income_streams\s+set\s+account_id/i);
     expect(migration).not.toContain("on delete cascade");
   });

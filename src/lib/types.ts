@@ -7,6 +7,7 @@ export const CompoundTransactionSchema = z.object({
   source_account_id: z.string().uuid().optional().nullable(),
   destination_account_id: z.string().uuid().optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
+  category_name: z.string().trim().min(1).max(100).optional(),
   gross_outflow: z.number().int().nonnegative().optional().default(0), // in cents
   net_inflow: z.number().int().nonnegative().optional().default(0), // in cents
   fee_amount: z.number().int().nonnegative().optional().default(0), // in cents
@@ -43,24 +44,24 @@ export const PaySettingsSchema = z.object({
 });
 
 export type PaySettingsInput = z.infer<typeof PaySettingsSchema>;
-
+export const MAX_DAILY_DISCRETIONARY_BURN_CENTS = Math.floor(Number.MAX_SAFE_INTEGER / 366);
 export const DailyDiscretionaryBurnSchema = z.object({
-  daily_discretionary_burn_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  daily_discretionary_burn_cents: z.number().int().nonnegative().max(MAX_DAILY_DISCRETIONARY_BURN_CENTS),
 }).strict();
 export type DailyDiscretionaryBurnInput = z.infer<typeof DailyDiscretionaryBurnSchema>;
 
 export const CategoryCreateSchema = z.object({ name: z.string().trim().min(1).max(100), is_income: z.boolean().default(false) }).strict();
 export const CategoryPatchSchema = z.object({ name: z.string().trim().min(1).max(100).optional(), is_income: z.boolean().optional(), is_archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0);
 const incomeStreamFields = {
-  account_id: z.string().uuid("Choose a valid account"),
   name: z.string().trim().min(1).max(100),
   net_pay_cents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   next_pay_date: DateOnlySchema,
   schedule_kind: PayScheduleKindSchema,
   interval_days: z.number().int().min(1).max(366).optional(),
   is_enabled: z.boolean().optional(),
+  destination_account_id: z.string().uuid().nullable().optional(),
 };
-export const IncomeStreamCreateSchema = z.object(incomeStreamFields).strict().superRefine((value, ctx) => {
+export const IncomeStreamCreateSchema = z.object({ ...incomeStreamFields, destination_account_id: z.string().uuid("Choose a valid account") }).strict().superRefine((value, ctx) => {
   if (value.schedule_kind === "custom" ? value.interval_days === undefined : value.interval_days !== undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["interval_days"], message: "Custom schedules require an interval from 1 to 366 days." });
   }
@@ -76,13 +77,13 @@ export interface IncomeStreamResponse {
   interval_days: number | null;
   salary_cycle_days: string;
   is_enabled: boolean;
+  destination_account_id: string | null;
   next_pay_date: string;
-  account_id?: string | null;
-  account_summary?: IncomeStreamAccountSummary | null;
 }
 export interface IncomeStreamsResponse { streams: IncomeStreamResponse[] }
-export type PaySettingsResponse = { configured: false } | {
+export type PaySettingsResponse = { configured: false; daily_discretionary_burn_cents: number } | {
   configured: true;
+  daily_discretionary_burn_cents: number;
   net_pay_cents: number;
   schedule_kind: PayScheduleKind | "calendar";
   interval_days: number | null;
@@ -90,7 +91,6 @@ export type PaySettingsResponse = { configured: false } | {
   next_pay_date: string;
   salary_cycle_days: string;
   is_enabled?: boolean;
-  daily_discretionary_burn_cents: number;
 };
 
 // Runway Forecast Types

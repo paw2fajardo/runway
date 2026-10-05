@@ -87,7 +87,7 @@ describe("payday confirmation", () => {
 
     const account: PostingAccount = { id: retry.accountId!, name: "Payroll", type: "liquid", isActive: true };
     const stream: PostingStream = { id: retry.incomeStreamId, name: "Main salary", isEnabled: false,
-      scheduleKind: "monthly", paydayAnchor: "2026-10-15", accountId: "other-account", netPayCents: 90_000 };
+      scheduleKind: "monthly", paydayAnchor: "2026-10-15", destinationAccountId: "other-account", netPayCents: 90_000 };
     const postingTransaction: OccurrenceTransaction = {
       lockStream: async id => id === stream.id ? stream : null,
       lockOccurrence: async id => id === retry.id ? retry as PostingOccurrence : null,

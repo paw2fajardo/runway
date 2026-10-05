@@ -26,9 +26,12 @@ export async function GET(req: NextRequest) {
     if (req.nextUrl.searchParams.get("field") === "daily_discretionary_burn_cents") {
       return NextResponse.json({ daily_discretionary_burn_cents: settings?.dailyDiscretionaryBurn ?? 0 });
     }
-    if (!settings) return NextResponse.json({ configured: false });
-    const [stream] = await db.select().from(incomeStreams).where(and(eq(incomeStreams.id, settings.id), eq(incomeStreams.projectionSettingsId, settings.id))).limit(1);
-    return NextResponse.json(stream ? responseFor(stream, settings.dailyDiscretionaryBurn) : { configured: false });
+    if (!settings) return NextResponse.json({ configured: false, daily_discretionary_burn_cents: 0 });
+    const [stream] = await db.select().from(incomeStreams)
+      .where(and(eq(incomeStreams.id, settings.id), eq(incomeStreams.projectionSettingsId, settings.id))).limit(1);
+    return NextResponse.json(stream
+      ? responseFor(stream, settings.dailyDiscretionaryBurn)
+      : { configured: false, daily_discretionary_burn_cents: settings.dailyDiscretionaryBurn });
   } catch (error) { return settingsError(error); }
 }
 
@@ -38,17 +41,16 @@ export async function PATCH(req: NextRequest) {
   const owner = await requireOwner(req);
   if (owner instanceof Response) return owner;
   const parsed = DailyDiscretionaryBurnSchema.safeParse(await req.json().catch(() => undefined));
-  if (!parsed.success) return NextResponse.json({ error: "Enter a nonnegative daily allowance in whole cents." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: "Enter planned spending as a nonnegative whole-cent amount." }, { status: 400 });
   try {
     const dailyDiscretionaryBurn = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
       let [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
-      if (!settings) {
-        [settings] = await tx.insert(projectionSettings).values({ expectedSalaryAmount: 0 }).returning();
-      }
-      await tx.update(projectionSettings)
-        .set({ dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents, updatedAt: new Date() })
-        .where(eq(projectionSettings.id, settings.id));
+      if (!settings) [settings] = await tx.insert(projectionSettings).values({ expectedSalaryAmount: 0 }).returning();
+      await tx.update(projectionSettings).set({
+        dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents,
+        updatedAt: new Date(),
+      }).where(eq(projectionSettings.id, settings.id));
       return parsed.data.daily_discretionary_burn_cents;
     });
     return NextResponse.json({ daily_discretionary_burn_cents: dailyDiscretionaryBurn });
@@ -70,17 +72,20 @@ export async function PUT(req: NextRequest) {
       const scope = and(eq(incomeStreams.id, settings.id), eq(incomeStreams.projectionSettingsId, settings.id));
       const [existing] = await tx.select().from(incomeStreams).where(scope).limit(1);
       const values = {
-        netPayCents: parsed.data.net_pay_cents, paydayAnchor: parsed.data.next_pay_date,
+        netPayCents: parsed.data.net_pay_cents,
+        paydayAnchor: parsed.data.next_pay_date,
         scheduleKind: parsed.data.schedule_kind ?? "biweekly",
         intervalDays: parsed.data.schedule_kind === "custom" ? parsed.data.interval_days! : null,
         updatedAt: new Date(),
       };
       if (parsed.data.daily_discretionary_burn_cents !== undefined) {
-        await tx.update(projectionSettings).set({ dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents, updatedAt: new Date() }).where(eq(projectionSettings.id, settings.id));
+        await tx.update(projectionSettings).set({ dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents, updatedAt: new Date() })
+          .where(eq(projectionSettings.id, settings.id));
       }
       const [stream] = existing
         ? await tx.update(incomeStreams).set(values).where(scope).returning()
-        : await tx.insert(incomeStreams).values({ id: settings.id, projectionSettingsId: settings.id, name: "Primary income", salaryCycleDays: settings.salaryCycleDays, ...values }).returning();
+        : await tx.insert(incomeStreams).values({ id: settings.id, projectionSettingsId: settings.id,
+            name: "Primary income", salaryCycleDays: settings.salaryCycleDays, ...values }).returning();
       return { stream, dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents ?? settings.dailyDiscretionaryBurn };
     });
     return NextResponse.json(responseFor(saved.stream, saved.dailyDiscretionaryBurn));

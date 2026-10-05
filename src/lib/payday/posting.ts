@@ -28,7 +28,7 @@ export interface PostingOccurrence {
 
 export interface PostingStream {
   id: string; name: string; isEnabled: boolean; scheduleKind: string | null;
-  paydayAnchor: string | null; accountId: string | null; netPayCents: number;
+  paydayAnchor: string | null; destinationAccountId: string | null; netPayCents: number;
 }
 
 export interface PostingAccount { id: string; name: string; type: string; isActive: boolean }
@@ -130,7 +130,7 @@ async function postOne(candidate: DuePaycheck, now: Date, store: OccurrencePosti
 
     if (candidate.kind === "scheduled") {
       stream = await tx.lockStream(candidate.incomeStreamId);
-      if (!stream || !stream.scheduleKind || !stream.paydayAnchor || stream.accountId === null) return false;
+      if (!stream || !stream.scheduleKind || !stream.paydayAnchor || stream.destinationAccountId === null) return false;
     } else {
       occurrence = await tx.lockOccurrence(candidate.occurrenceId!);
       if (!occurrence || occurrence.kind !== "retry" || occurrence.transactionId || !occurrence.retryDate ||
@@ -143,7 +143,7 @@ async function postOne(candidate: DuePaycheck, now: Date, store: OccurrencePosti
       if (!stream) return false;
     }
 
-    const accountId = candidate.kind === "scheduled" ? stream.accountId! : occurrence!.accountId!;
+    const accountId = candidate.kind === "scheduled" ? stream.destinationAccountId! : occurrence!.accountId!;
     const account = await tx.lockAccount(accountId);
     if (!account || !account.isActive || account.type !== "liquid") return false;
 

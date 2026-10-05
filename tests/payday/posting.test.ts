@@ -18,7 +18,7 @@ const scheduled: DuePaycheck = {
 class MemoryPostingStore implements OccurrencePostingStore {
   stream: PostingStream = {
     id: "stream-1", name: "Main salary", isEnabled: true, scheduleKind: "monthly",
-    paydayAnchor: "2026-01-15", accountId: "account-1", netPayCents: 125000,
+    paydayAnchor: "2026-01-15", destinationAccountId: "account-1", netPayCents: 125000,
   };
   account: PostingAccount = { id: "account-1", name: "Payroll", type: "liquid", isActive: true };
   occurrences: PostingOccurrence[] = [];

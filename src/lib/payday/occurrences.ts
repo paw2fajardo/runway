@@ -31,24 +31,31 @@ export async function getDueOccurrences(now: Date): Promise<DuePaycheck[]> {
   const scheduled = occurrences.filter(row => row.kind === "scheduled");
   const due: DuePaycheck[] = [];
   for (const stream of streams) {
-    // Legacy streams without a complete schedule continue to forecast but are not auto-posted.
-    if (!stream.scheduleKind || !stream.paydayAnchor) continue;
+    // Streams begin automatic deposits only after a destination was linked.
+    if (!stream.scheduleKind || !stream.paydayAnchor || !stream.destinationAccountId) continue;
     const alreadyCreated = scheduled
       .filter(row => row.incomeStreamId === stream.id)
       .map(row => row.dueDate)
       .sort()
       .at(-1);
+    const linkedOn = stream.destinationAccountSetDate
+      ? new Date(`${stream.destinationAccountSetDate}T00:00:00Z`)
+      : null;
+    const eligibilityStart = linkedOn
+      ? new Date(linkedOn.getTime() - 86400000).toISOString().slice(0, 10)
+      : undefined;
+    const afterDate = [alreadyCreated, eligibilityStart].filter((date): date is string => Boolean(date)).sort().at(-1);
     const dates = getDuePaydayOccurrences({
       scheduleKind: stream.scheduleKind as "weekly" | "biweekly" | "monthly" | "custom",
       anchorDate: stream.paydayAnchor,
       salaryCycleDays: stream.salaryCycleDays,
       intervalDays: stream.intervalDays ?? undefined,
-    }, now, alreadyCreated);
+    }, now, afterDate);
     due.push(...dates.map(({ dueDate }) => ({
       kind: "scheduled" as const,
       incomeStreamId: stream.id,
       dueDate,
-      accountId: stream.accountId,
+      accountId: stream.destinationAccountId,
       amount: stream.netPayCents,
     })));
   }

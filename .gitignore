@@ -1,5 +1,6 @@
 # Dependencies
 /node_modules
+/.venv/
 /.pnp
 .pnp.js
 
@@ -53,3 +54,5 @@ yarn-error.log*
 
 # Drizzle SQLite/Studio temp
 .drizzle
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

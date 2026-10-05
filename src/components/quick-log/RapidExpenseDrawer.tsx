@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import { formatPHP } from "@/lib/currency";
 import { queueOfflineTransaction } from "@/lib/offline-db";
 import { Dialog } from "@/components/ui/Dialog";
@@ -9,6 +10,7 @@ interface CategoryOption {
   id: string;
   name: string;
   isIncome: boolean;
+  isSystemFee: boolean;
   isArchived: boolean;
 }
 
@@ -18,6 +20,17 @@ interface AccountOption {
   type: string;
   currentBalance: number;
 }
+
+const DEFAULT_CATEGORIES = [
+  "ATM / Pocket Cash",
+  "Food & Groceries",
+  "Utilities",
+  "Transit / Grab",
+  "Subscriptions",
+  "General Living",
+];
+const LAST_ACCOUNT_BY_CATEGORY_KEY = "runway.quick-log.last-source-account-by-category";
+const categoryStorageKey = (category: string) => category.trim().toLocaleLowerCase();
 
 interface RapidExpenseDrawerProps {
   isOpen: boolean;
@@ -44,7 +57,15 @@ export function RapidExpenseDrawer({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ATM / Pocket Cash");
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [lastAccountByCategory, setLastAccountByCategory] = useState<Record<string, string>>({});
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const categorySearchRef = useRef<HTMLInputElement>(null);
+  const categoryTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Set default source account
   useEffect(() => {
@@ -56,25 +77,50 @@ export function RapidExpenseDrawer({
     }
   }, [accounts, selectedSourceId, selectedDestId]);
 
-  const loadCategories = useCallback(async () => {
+  const loadCategories = async () => {
     setIsCategoriesLoading(true);
     try {
       const response = await fetch("/api/categories");
       if (!response.ok) throw new Error("Categories are unavailable. Retry before logging an expense.");
       const items = await response.json() as CategoryOption[];
-      const activeExpenses = items.filter((item) => !item.isArchived && !item.isIncome);
+      const activeExpenses = items.filter((item) => !item.isArchived && !item.isIncome && !item.isSystemFee);
       setCategories(activeExpenses);
       setSelectedCategoryId((current) => activeExpenses.some((item) => item.id === current) ? current : activeExpenses[0]?.id ?? "");
+      setSelectedCategory((current) => activeExpenses.some((item) => item.id === selectedCategoryId)
+        ? activeExpenses.find((item) => item.id === selectedCategoryId)?.name ?? current
+        : activeExpenses[0]?.name ?? current);
       setCategoryError(null);
     } catch {
       setCategories([]);
       setSelectedCategoryId("");
       setCategoryError("Categories are unavailable. Retry before logging an expense.");
     } finally { setIsCategoriesLoading(false); }
+  };
+
+  useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCategoryOpen(false);
+      setCategorySearch("");
+      return;
+    }
+    if (isCategoryOpen) categorySearchRef.current?.focus();
+  }, [isOpen, isCategoryOpen]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(LAST_ACCOUNT_BY_CATEGORY_KEY);
+      if (!stored) return;
+      const parsed: unknown = JSON.parse(stored);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const validEntries = Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string");
+        setLastAccountByCategory(Object.fromEntries(validEntries));
+      }
+    } catch {
+      // Ignore unavailable storage or stale preference data.
+    }
   }, []);
-
-  useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen, loadCategories]);
-
   if (!isOpen) return null;
 
   const baseCents = parseInt(rawDigits || "0", 10);
@@ -110,7 +156,7 @@ export function RapidExpenseDrawer({
         mode === "transfer"
           ? `${sourceAcc?.name || "Source"} to ${destAcc?.name || "Destination"}`
           : mode === "expense"
-          ? categories.find((category) => category.id === selectedCategoryId)?.name || "Expense"
+          ? selectedCategory || "Expense"
           : "Salary / Inflow";
 
       const transactionType = mode === "inflow" ? ("income" as const) : mode;
@@ -129,8 +175,22 @@ export function RapidExpenseDrawer({
         net_inflow: baseCents,
         fee_amount: selectedFee,
         category_id: transactionType === "expense" ? selectedCategoryId : undefined,
+        category_name: transactionType === "expense" && !selectedCategoryId ? selectedCategory : undefined,
         transacted_at: new Date().toISOString(),
       });
+
+      if (mode === "expense" && selectedSourceId) {
+        const nextPreferences = {
+          ...lastAccountByCategory,
+          [categoryStorageKey(selectedCategory)]: selectedSourceId,
+        };
+        setLastAccountByCategory(nextPreferences);
+        try {
+          window.localStorage.setItem(LAST_ACCOUNT_BY_CATEGORY_KEY, JSON.stringify(nextPreferences));
+        } catch {
+          // Keep the queued expense even when preference storage is unavailable.
+        }
+      }
 
       if (onSuccess) onSuccess();
       onClose();
@@ -138,6 +198,59 @@ export function RapidExpenseDrawer({
       console.error("Failed to queue transaction:", err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const categoriesList = [...new Map(
+    [...DEFAULT_CATEGORIES, ...categories.map((category) => category.name), ...customCategories].map((category) => [category.toLocaleLowerCase(), category])
+  ).values()];
+  const filteredCategories = categoriesList.filter((category) =>
+    category.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase())
+  );
+  const normalizedCategorySearch = categorySearch.trim();
+  const exactCategory = categoriesList.find((category) =>
+    category.toLocaleLowerCase() === normalizedCategorySearch.toLocaleLowerCase()
+  );
+  const canAddCategory = normalizedCategorySearch.length > 0 && !exactCategory;
+  const activeCategory = filteredCategories[activeCategoryIndex];
+  const selectCategory = (category: string) => {
+    setSelectedCategory(category);
+    const savedCategory = categories.find((item) => item.name.toLocaleLowerCase() === category.toLocaleLowerCase());
+    setSelectedCategoryId(savedCategory?.id ?? "");
+    const rememberedAccount = lastAccountByCategory[categoryStorageKey(category)];
+    if (rememberedAccount && accounts.some((account) => account.id === rememberedAccount)) {
+      setSelectedSourceId(rememberedAccount);
+    }
+    setIsCategoryOpen(false);
+    setCategorySearch("");
+    categoryTriggerRef.current?.focus();
+  };
+  const addCategory = (category: string) => {
+    const normalized = category.trim();
+    if (!normalized) return;
+    const existing = categoriesList.find((name) => name.toLocaleLowerCase() === normalized.toLocaleLowerCase());
+    const selected = existing ?? normalized;
+    if (!existing) setCustomCategories((current) => [...current, selected]);
+    selectCategory(selected);
+  };
+  const handleCategorySearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveCategoryIndex((index) => Math.min(index + 1, filteredCategories.length - (canAddCategory ? 0 : 1)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveCategoryIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter" && canAddCategory && activeCategoryIndex === filteredCategories.length) {
+      event.preventDefault();
+      addCategory(normalizedCategorySearch);
+    } else if (event.key === "Enter" && activeCategory) {
+      event.preventDefault();
+      selectCategory(activeCategory);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setIsCategoryOpen(false);
+      setCategorySearch("");
+      categoryTriggerRef.current?.focus();
     }
   };
 
@@ -226,40 +339,147 @@ export function RapidExpenseDrawer({
             )}
           </div>
 
+          {/* Category Allocation (if Expense) */}
+          {mode === "expense" && (
+            <div className="flex flex-col gap-space-xs">
+              <span runway-id="quick-log.category.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
+                Category Allocation
+              </span>
+              <div className="relative">
+                <button
+                  runway-id="quick-log.category.select"
+                  ref={categoryTriggerRef}
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={isCategoryOpen}
+                  aria-controls="quick-log-category-options"
+                  aria-label={`Category allocation: ${selectedCategory}`}
+                  onClick={() => {
+                    setCategorySearch("");
+                    setActiveCategoryIndex(categoriesList.indexOf(selectedCategory));
+                    setIsCategoryOpen((open) => !open);
+                  }}
+                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/75 px-4 text-left text-body-md text-on-surface shadow-sm transition-colors hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  <span className="truncate">{selectedCategory}</span>
+                  <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-on-surface-variant transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {isCategoryOpen && (
+                  <div runway-id="quick-log.category.menu" className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-white/80 bg-surface-container-lowest p-2 shadow-xl">
+                    <div className="relative">
+                      <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                      <input
+                        runway-id="quick-log.category.search"
+                        ref={categorySearchRef}
+                        type="search"
+                        maxLength={100}
+                        role="combobox"
+                        aria-label="Search categories"
+                        aria-autocomplete="list"
+                        aria-expanded="true"
+                        aria-controls="quick-log-category-options"
+                        aria-activedescendant={canAddCategory && activeCategoryIndex === filteredCategories.length
+                          ? "quick-log-category-option-create"
+                          : activeCategory ? `quick-log-category-option-${categoriesList.indexOf(activeCategory)}` : undefined}
+                        value={categorySearch}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          const trimmedValue = value.trim();
+                          const hasExactMatch = categoriesList.some((category) => category.toLocaleLowerCase() === trimmedValue.toLocaleLowerCase());
+                          const matchingCategories = categoriesList.filter((category) => category.toLocaleLowerCase().includes(trimmedValue.toLocaleLowerCase()));
+                          setCategorySearch(value);
+                          setActiveCategoryIndex(trimmedValue && !hasExactMatch ? matchingCategories.length : 0);
+                        }}
+                        onKeyDown={handleCategorySearchKeyDown}
+                        placeholder="Search categories"
+                        className="min-h-11 w-full rounded-xl bg-surface-container-low pl-10 pr-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                      />
+                    </div>
+
+                    <ul id="quick-log-category-options" runway-id="quick-log.category.options" role="listbox" aria-label="Categories" className="mt-2 max-h-52 overflow-y-auto overscroll-contain">
+                      {filteredCategories.map((category, index) => {
+                        const isSelected = category === selectedCategory;
+                        const optionId = `quick-log-category-option-${categoriesList.indexOf(category)}`;
+                        return (
+                          <li key={category} role="presentation">
+                            <button
+                              id={optionId}
+                              runway-id={`quick-log.category.option.${categoriesList.indexOf(category)}`}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              tabIndex={-1}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onMouseEnter={() => setActiveCategoryIndex(index)}
+                              onClick={() => selectCategory(category)}
+                              className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-body-md transition-colors ${
+                                index === activeCategoryIndex ? "bg-primary/10 text-primary" : "text-on-surface hover:bg-surface-container-low"
+                              }`}
+                            >
+                              <span>{category}</span>
+                              {isSelected && <Check size={17} aria-hidden="true" className="shrink-0 text-primary" />}
+                            </button>
+                          </li>
+                        );
+                      })}
+                      {canAddCategory && (
+                        <li role="presentation">
+                          <button
+                            id="quick-log-category-option-create"
+                            runway-id="quick-log.category.add"
+                            type="button"
+                            role="option"
+                            aria-selected={activeCategoryIndex === filteredCategories.length}
+                            tabIndex={-1}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onMouseEnter={() => setActiveCategoryIndex(filteredCategories.length)}
+                            onClick={() => addCategory(normalizedCategorySearch)}
+                            className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-body-md transition-colors ${
+                              activeCategoryIndex === filteredCategories.length ? "bg-primary/10 text-primary" : "text-on-surface hover:bg-surface-container-low"
+                            }`}
+                          >
+                            <span aria-hidden="true" className="text-lg leading-none">+</span>
+                            <span>Add category “{normalizedCategorySearch}”</span>
+                          </button>
+                        </li>
+                      )}
+                      {filteredCategories.length === 0 && !canAddCategory && (
+                        <li runway-id="quick-log.category.no-results" role="option" aria-selected="false" className="px-3 py-3 text-body-sm text-on-surface-variant">
+                          No categories found.
+                        </li>
+                      )}
+                    </ul>
+                    {isCategoriesLoading && <p role="status" className="px-3 py-2 text-body-sm text-on-surface-variant">Loading saved categories…</p>}
+                    {categoryError && <div className="px-3 py-2"><p role="alert" className="text-body-sm text-error">{categoryError}</p><button type="button" onClick={() => void loadCategories()} className="min-h-11 text-secondary underline">Retry saved categories</button></div>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Source Account Selector */}
           <div className="flex flex-col gap-space-xs">
-            <div className="flex items-center justify-between">
-              <span runway-id="quick-log.source-account.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-                {mode === "inflow" ? "Destination Account" : "Source Account"}
-              </span>
-            </div>
-            <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 scrollbar-none">
-              {accounts.map((acc) => {
-                const isSelected = acc.id === selectedSourceId;
-                return (
-                  <button
-                    runway-id={`quick-log.source-account.${acc.id}`}
-                    key={acc.id}
-                    type="button"
-                    aria-pressed={isSelected} onClick={() => setSelectedSourceId(acc.id)}
-                    className={`flex-shrink-0 flex items-center gap-space-xs min-h-11 px-space-md py-space-xs rounded-full font-label-md text-label-md transition-colors ${
-                      isSelected
-                        ? "bg-primary text-white shadow-sm border border-primary font-semibold"
-                        : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    {isSelected && (
-                      <span runway-id={`quick-log.source-account.${acc.id}.selected-icon`} className="material-symbols-outlined hidden min-[400px]:inline text-[16px] text-white">
-                        check_circle
-                      </span>
-                    )}
-                    <span runway-id={`quick-log.source-account.${acc.id}.name`}>{acc.name}</span>
-                    <span runway-id={`quick-log.source-account.${acc.id}.balance`} className={`font-currency-sm text-currency-sm ${isSelected ? "text-white/80" : "text-on-surface-variant"}`}>
-                      ₱{(acc.currentBalance / 100000).toFixed(1)}k
-                    </span>
-                  </button>
-                );
-              })}
+            <label runway-id="quick-log.source-account.label" htmlFor="quick-log-source-account" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
+              {mode === "inflow" ? "Destination Account" : "Source Account"}
+            </label>
+            <div className="relative">
+              <select
+                runway-id="quick-log.source-account.select"
+                id="quick-log-source-account"
+                value={selectedSourceId}
+                disabled={accounts.length === 0}
+                onChange={(event) => setSelectedSourceId(event.target.value)}
+                className="min-h-12 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+              >
+                {accounts.length === 0 && <option value="">No accounts available</option>}
+                {accounts.map((account) => (
+                  <option runway-id={`quick-log.source-account.option.${account.id}`} key={account.id} value={account.id}>
+                    {account.name} · ₱{(account.currentBalance / 100000).toFixed(1)}k
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={18} aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             </div>
           </div>
 
@@ -389,41 +609,6 @@ export function RapidExpenseDrawer({
             </div>
           )}
 
-          {/* Category Chips (if Expense) */}
-          {mode === "expense" && (
-            <div className="flex flex-col gap-space-xs">
-              <span runway-id="quick-log.category.label" className="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">
-                Category Allocation
-              </span>
-              <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 scrollbar-none">
-                {categories.map((cat) => {
-                  const isSelected = cat.id === selectedCategoryId;
-                  return (
-                    <button
-                      runway-id={`quick-log.category.${cat.id}`}
-                      key={cat.id}
-                      type="button"
-                      aria-pressed={isSelected} onClick={() => setSelectedCategoryId(cat.id)}
-                      className={`flex-shrink-0 flex items-center gap-1 min-h-11 px-space-md py-1 rounded-full font-label-md text-label-md transition-colors ${
-                        isSelected
-                          ? "bg-primary-container text-surface-container-lowest shadow-sm"
-                          : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
-                      }`}
-                    >
-                      {isSelected && (
-                        <span runway-id={`quick-log.category.${cat.id}.selected-icon`} className="material-symbols-outlined text-[14px]">check</span>
-                      )}
-                      <span runway-id={`quick-log.category.${cat.id}.label`}>{cat.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {isCategoriesLoading && <p role="status" className="text-body-sm text-on-surface-variant">Loading categories…</p>}
-              {categoryError && <div><p role="alert" className="text-body-sm text-error">{categoryError}</p><button type="button" onClick={() => void loadCategories()} className="min-h-11 text-secondary underline">Retry categories</button></div>}
-              {!isCategoriesLoading && !categoryError && categories.length === 0 && <p className="text-body-sm text-on-surface-variant">No active expense categories. Add one in Settings before logging an expense.</p>}
-            </div>
-          )}
-
           {/* Numeric Touch Keypad */}
           <div className="grid grid-cols-3 gap-2 pt-space-xs select-none">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((k) => (
@@ -454,7 +639,7 @@ export function RapidExpenseDrawer({
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (!selectedCategoryId || isCategoriesLoading || !!categoryError))}
+              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError))}
               className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">

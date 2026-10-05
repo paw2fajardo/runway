@@ -7,9 +7,6 @@ CREATE TYPE paycheck_occurrence_status AS ENUM (
   'reversed_awaiting_retry'
 );
 
-ALTER TABLE income_streams
-  ADD COLUMN account_id uuid REFERENCES accounts(id) ON DELETE SET NULL;
-
 CREATE TABLE paycheck_occurrences (
   id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
   income_stream_id uuid NOT NULL REFERENCES income_streams(id) ON DELETE RESTRICT,

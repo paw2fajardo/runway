@@ -40,6 +40,39 @@ export async function POST(req: NextRequest) {
 
     // Execute atomic compound transaction
     const result = await db.transaction(async (tx) => {
+      let categoryId = parsed.category_id || null;
+      if (parsed.type === "expense" && parsed.category_name) {
+        const [createdCategory] = await tx
+          .insert(categories)
+          .values({ name: parsed.category_name, isIncome: false, isSystemFee: false })
+          .onConflictDoNothing({ target: categories.name })
+          .returning({ id: categories.id });
+
+        if (createdCategory) {
+          categoryId = createdCategory.id;
+        } else {
+          const [existingCategory] = await tx
+            .select({
+              id: categories.id,
+              isIncome: categories.isIncome,
+              isSystemFee: categories.isSystemFee,
+              isArchived: categories.isArchived,
+            })
+            .from(categories)
+            .where(
+              and(
+                eq(categories.name, parsed.category_name),
+                eq(categories.isArchived, false),
+                eq(categories.isIncome, false),
+                eq(categories.isSystemFee, false),
+              ),
+            )
+            .limit(1);
+          if (!existingCategory) throw new Error("Unable to resolve expense category.");
+          categoryId = existingCategory.id;
+        }
+      }
+
       // 1. Insert parent transaction envelope
       const [parentTx] = await tx
         .insert(transactions)
@@ -139,7 +172,7 @@ export async function POST(req: NextRequest) {
           .insert(transactionLegs)
           .values({
             transactionId: parentTx.id,
-            categoryId: parsed.category_id || null,
+            categoryId,
             amount: netExpense,
           })
           .returning();

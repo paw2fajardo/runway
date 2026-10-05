@@ -47,9 +47,9 @@ import { GET, POST } from "../../src/app/api/runway/income-streams/route";
 import { PATCH } from "../../src/app/api/runway/income-streams/[id]/route";
 
 const activeAccount = { id: ids.liquid, name: "Salary account", type: "liquid", currency: "PHP", isActive: true };
-const legacyStream = { id: ids.stream, projectionSettingsId: ids.settings, accountId: null, name: "Legacy job", netPayCents: 500000,
+const legacyStream = { id: ids.stream, projectionSettingsId: ids.settings, destinationAccountId: null, destinationAccountSetDate: null, name: "Legacy job", netPayCents: 500000,
   scheduleKind: null, paydayAnchor: null, intervalDays: null, salaryCycleDays: "15,30", isEnabled: true };
-const bodyBase = { name: "New job", account_id: ids.liquid, net_pay_cents: 500000, next_pay_date: "2026-10-15", schedule_kind: "biweekly" };
+const bodyBase = { name: "New job", destination_account_id: ids.liquid, net_pay_cents: 500000, next_pay_date: "2026-10-15", schedule_kind: "biweekly" };
 const request = (url: string, method: string, body?: unknown) => new NextRequest(url, { method, headers: { "Content-Type": "application/json", Origin: "http://localhost" },
   ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const patch = (body: unknown) => PATCH(request(`http://localhost/api/runway/income-streams/${ids.stream}`, "PATCH", body), { params: Promise.resolve({ id: ids.stream }) });
@@ -60,8 +60,8 @@ beforeEach(() => {
 });
 
 describe("income stream account links", () => {
-  it("requires an account on create and writes nothing when it is missing", async () => {
-    const { account_id: _omitted, ...invalid } = bodyBase;
+  it("requires a destination account on create and writes nothing when it is missing", async () => {
+    const { destination_account_id: _omitted, ...invalid } = bodyBase;
     const response = await POST(request("http://localhost/api/runway/income-streams", "POST", invalid));
     expect(response.status).toBe(400);
     expect(store.writes).toEqual([]);
@@ -72,33 +72,33 @@ describe("income stream account links", () => {
     { ...activeAccount, id: ids.invalid, type: "revolving_credit" },
   ])("rejects inactive or non-liquid account before creating any records", async account => {
     store.accounts = [account]; store.settings = []; store.streams = [];
-    const response = await POST(request("http://localhost/api/runway/income-streams", "POST", { ...bodyBase, account_id: ids.invalid }));
+    const response = await POST(request("http://localhost/api/runway/income-streams", "POST", { ...bodyBase, destination_account_id: ids.invalid }));
     expect(response.status).toBe(400);
     expect(store.settings).toHaveLength(0);
     expect(store.streams).toHaveLength(0);
     expect(store.writes).toEqual([]);
   });
 
-  it("creates a linked stream and returns only the display-safe account summary", async () => {
+  it("creates a linked stream using the canonical destination account field", async () => {
     const response = await POST(request("http://localhost/api/runway/income-streams", "POST", bodyBase));
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ account_id: ids.liquid, account_summary: { id: ids.liquid, name: "Salary account", type: "liquid", currency: "PHP" } });
-    expect(store.streams.find(stream => stream.name === "New job")?.accountId).toBe(ids.liquid);
+    expect(await response.json()).toMatchObject({ destination_account_id: ids.liquid });
+    expect(store.streams.find(stream => stream.name === "New job")?.destinationAccountId).toBe(ids.liquid);
   });
 
   it("rejects invalid account changes without updating a legacy stream", async () => {
     store.accounts = [{ ...activeAccount, id: ids.invalid, type: "installment_loan" }];
-    const response = await patch({ account_id: ids.invalid });
+    const response = await patch({ destination_account_id: ids.invalid });
     expect(response.status).toBe(400);
-    expect(store.streams[0].accountId).toBeNull();
+    expect(store.streams[0].destinationAccountId).toBeNull();
     expect(store.writes).toEqual([]);
   });
 
   it("keeps legacy unlinked streams editable and visible", async () => {
     const response = await patch({ name: "Renamed legacy income" });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ name: "Renamed legacy income", account_id: null, account_summary: null });
+    expect(await response.json()).toMatchObject({ name: "Renamed legacy income", destination_account_id: null });
     const listing = await GET(request("http://localhost/api/runway/income-streams", "GET"));
-    expect(await listing.json()).toMatchObject({ streams: [{ account_id: null, account_summary: null }] });
+    expect(await listing.json()).toMatchObject({ streams: [{ destination_account_id: null }] });
   });
 });

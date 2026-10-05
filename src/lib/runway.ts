@@ -4,6 +4,7 @@ const msPerDay = 86400000;
 
 export interface IncomeStreamSchedule {
   id?: string;
+  destinationAccountId?: string | null;
   name: string;
   netPayCents: number;
   scheduleKind?: string | null;
@@ -19,6 +20,7 @@ export function incomeStreamResponse(stream: IncomeStreamSchedule & { id: string
     schedule_kind: schedule.kind, payday_anchor: stream.paydayAnchor ?? null,
     interval_days: schedule.kind === "custom" ? stream.intervalDays! : null,
     salary_cycle_days: stream.salaryCycleDays ?? "15,30", is_enabled: stream.isEnabled,
+    destination_account_id: stream.destinationAccountId ?? null,
     next_pay_date: getNextPaydayDate(new Date(), stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays) };
 }
 
@@ -89,6 +91,46 @@ export function getNextPaydayDate(referenceDate: Date, salaryCycleDays = "15,30"
     }
   }
   return formatLocalDate(new Date(year, month + 1, Math.min(cycleDays[0] || 15, new Date(year, month + 2, 0).getDate())));
+}
+
+export function getScheduledPayDatesThrough(
+  throughDate: string,
+  salaryCycleDays: string,
+  anchor?: string | null,
+  kind?: string | null,
+  interval?: number | null,
+  fromDate?: string | null,
+): string[] {
+  const schedule = resolvePaySchedule(kind, anchor, interval);
+  const startDate = fromDate ?? anchor ?? throughDate;
+  if (schedule.kind === "calendar") {
+    const paydayDays = new Set(salaryCycleDays.split(",").map(Number).filter(day => day >= 1 && day <= 31));
+    const dates: string[] = [];
+    for (let day = calendarDay(startDate); day <= calendarDay(throughDate); day++) {
+      const date = new Date(day * msPerDay).toISOString().slice(0, 10);
+      if (paydayDays.has(Number(date.slice(8)))) dates.push(date);
+    }
+    return dates;
+  }
+  const start = calendarDay(anchor!);
+  const end = calendarDay(throughDate);
+  if (start > end) return [];
+  if (schedule.kind === "monthly") {
+    const dates: string[] = [];
+    const earliest = Math.max(start, calendarDay(startDate));
+    const monthOffset = (Number(startDate.slice(0, 4)) - Number(anchor!.slice(0, 4))) * 12 + Number(startDate.slice(5, 7)) - Number(anchor!.slice(5, 7));
+    let index = Math.max(0, monthOffset);
+    while (true) {
+      const payday = monthlyPayday(anchor!, index++);
+      if (payday > throughDate) return dates;
+      if (calendarDay(payday) >= earliest) dates.push(payday);
+    }
+  }
+  const dates: string[] = [];
+  const earliest = Math.max(start, calendarDay(startDate));
+  const first = start + Math.max(0, Math.ceil((earliest - start) / schedule.interval!)) * schedule.interval!;
+  for (let day = first; day <= end; day += schedule.interval!) dates.push(new Date(day * msPerDay).toISOString().slice(0, 10));
+  return dates;
 }
 
 interface BillItem {
@@ -196,7 +238,6 @@ export function calculateRunwayForecast({
   let shortfallAmount = 0;
   const timeline: TimelineDay[] = [];
   let confirmed_inflows = 0;
-
   for (let i = 0; i < horizonDays; i++) {
     const dayDate = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + i);
     const dateStr = formatLocalDate(dayDate);

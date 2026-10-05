@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateRunwayForecast, getNextPaydayDate } from "../src/lib/runway";
+import { calculateRunwayForecast, getNextPaydayDate, getScheduledPayDatesThrough } from "../src/lib/runway";
 
 describe("Predictive Cash Runway & Forward Solvency Engine", () => {
   const mockBills = [
@@ -122,6 +122,30 @@ describe("Biweekly take-home pay", () => {
 });
 
 describe("Configurable pay recurrence", () => {
+  it("enumerates every missed recurring payday through today", () => {
+    expect(getScheduledPayDatesThrough("2026-10-18", "15,30", "2026-10-02", "weekly")).toEqual([
+      "2026-10-02", "2026-10-09", "2026-10-16",
+    ]);
+    expect(getScheduledPayDatesThrough("2026-10-18", "15,30", "2026-10-02", "weekly", null, "2026-10-10")).toEqual(["2026-10-16"]);
+    expect(getScheduledPayDatesThrough("2026-10-18", "15,30", null, null, null, "2026-10-12")).toEqual(["2026-10-15"]);
+  });
+
+  it("does not count income already credited to its account balance again", () => {
+    const forecast = calculateRunwayForecast({
+      currentLiquidCash: 1500000,
+      expectedSalaryAmount: 500000,
+      dailyDiscretionaryBurn: 0,
+      bills: [],
+      incomeStreams: [{ id: "stream-1", name: "Salary", netPayCents: 500000, scheduleKind: "weekly", paydayAnchor: "2026-10-02", intervalDays: null, salaryCycleDays: "15,30", isEnabled: true }],
+      paycheckOccurrences: [{ id: "occ-1", incomeStreamId: "stream-1", kind: "scheduled", dueDate: "2026-10-02",
+        retryDate: null, amountCents: 500000, transactionId: "tx-1", status: "pending_confirmation", parentOccurrenceId: null }],
+      referenceDate: new Date(2026, 9, 2),
+      horizonDays: 1,
+    });
+    expect(forecast.current_liquid_cash).toBe(1500000);
+    expect(forecast.timeline[0].inflow).toBe(0);
+    expect(forecast.timeline[0].balance).toBe(1500000);
+  });
   const forecast = (kind: string, anchor: string, reference: Date, interval?: number, horizonDays = 100) => calculateRunwayForecast({
     currentLiquidCash: 100000, expectedSalaryAmount: 10000, dailyDiscretionaryBurn: 100, bills: [],
     payScheduleKind: kind, biweeklyPaydayAnchor: anchor, payIntervalDays: interval, referenceDate: reference, horizonDays,
