@@ -10,6 +10,36 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# One-off owner password recovery image with only the CLI's runtime packages.
+FROM node:22-alpine AS auth-recovery
+WORKDIR /app
+ENV NODE_ENV=production
+ENV npm_config_cache=/tmp/npm-cache
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 recovery
+RUN npm init -y \
+    && npm pkg set 'scripts.auth:reset-owner-password=tsx scripts/reset-owner-password.ts' \
+    && npm install --omit=dev --no-save --package-lock=false tsx@4.23.15 drizzle-orm@0.40.1 postgres@3.4.9 dotenv@16.6.1
+COPY --chown=recovery:nodejs scripts/reset-owner-password.ts ./scripts/reset-owner-password.ts
+COPY --chown=recovery:nodejs src/db/index.ts ./src/db/index.ts
+COPY --chown=recovery:nodejs src/db/schema.ts ./src/db/schema.ts
+COPY --chown=recovery:nodejs src/lib/auth/password.ts ./src/lib/auth/password.ts
+USER recovery
+CMD ["npm", "run", "auth:reset-owner-password"]
+
+# Standalone payday scheduler and push delivery worker.
+FROM base AS payday-worker
+WORKDIR /app
+ENV NODE_ENV=production
+ENV npm_config_cache=/tmp/npm-cache
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 worker
+COPY --from=deps /app/node_modules ./node_modules
+COPY --chown=worker:nodejs package.json tsconfig.json ./
+COPY --chown=worker:nodejs src ./src
+USER worker
+CMD ["npm", "run", "payday:worker"]
+
 # Stage 2: Builder
 FROM base AS builder
 WORKDIR /app

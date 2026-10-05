@@ -6,6 +6,14 @@ import { formatPHP } from "@/lib/currency";
 import { queueOfflineTransaction } from "@/lib/offline-db";
 import { Dialog } from "@/components/ui/Dialog";
 
+interface CategoryOption {
+  id: string;
+  name: string;
+  isIncome: boolean;
+  isSystemFee: boolean;
+  isArchived: boolean;
+}
+
 interface AccountOption {
   id: string;
   name: string;
@@ -45,8 +53,11 @@ export function RapidExpenseDrawer({
   const [selectedDestId, setSelectedDestId] = useState<string>("");
   const [selectedFee, setSelectedFee] = useState<number>(0);
   const [isCustomFee, setIsCustomFee] = useState<boolean>(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("ATM / Pocket Cash");
-  const [savedCategories, setSavedCategories] = useState<string[]>([]);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [lastAccountByCategory, setLastAccountByCategory] = useState<Record<string, string>>({});
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -66,6 +77,28 @@ export function RapidExpenseDrawer({
     }
   }, [accounts, selectedSourceId, selectedDestId]);
 
+  const loadCategories = async () => {
+    setIsCategoriesLoading(true);
+    try {
+      const response = await fetch("/api/categories");
+      if (!response.ok) throw new Error("Categories are unavailable. Retry before logging an expense.");
+      const items = await response.json() as CategoryOption[];
+      const activeExpenses = items.filter((item) => !item.isArchived && !item.isIncome && !item.isSystemFee);
+      setCategories(activeExpenses);
+      setSelectedCategoryId((current) => activeExpenses.some((item) => item.id === current) ? current : activeExpenses[0]?.id ?? "");
+      setSelectedCategory((current) => activeExpenses.some((item) => item.id === selectedCategoryId)
+        ? activeExpenses.find((item) => item.id === selectedCategoryId)?.name ?? current
+        : activeExpenses[0]?.name ?? current);
+      setCategoryError(null);
+    } catch {
+      setCategories([]);
+      setSelectedCategoryId("");
+      setCategoryError("Categories are unavailable. Retry before logging an expense.");
+    } finally { setIsCategoriesLoading(false); }
+  };
+
+  useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) {
       setIsCategoryOpen(false);
@@ -74,27 +107,6 @@ export function RapidExpenseDrawer({
     }
     if (isCategoryOpen) categorySearchRef.current?.focus();
   }, [isOpen, isCategoryOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    let isCurrent = true;
-    fetch("/api/categories")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load categories.");
-        return response.json() as Promise<{ name: string }[]>;
-      })
-      .then((categories) => {
-        if (isCurrent && Array.isArray(categories)) {
-          setSavedCategories(categories.map((category) => category.name));
-        }
-      })
-      .catch((error: unknown) => console.error("Fetch categories failed:", error));
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     try {
@@ -109,7 +121,6 @@ export function RapidExpenseDrawer({
       // Ignore unavailable storage or stale preference data.
     }
   }, []);
-
   if (!isOpen) return null;
 
   const baseCents = parseInt(rawDigits || "0", 10);
@@ -145,7 +156,7 @@ export function RapidExpenseDrawer({
         mode === "transfer"
           ? `${sourceAcc?.name || "Source"} to ${destAcc?.name || "Destination"}`
           : mode === "expense"
-          ? selectedCategory
+          ? selectedCategory || "Expense"
           : "Salary / Inflow";
 
       const transactionType = mode === "inflow" ? ("income" as const) : mode;
@@ -163,7 +174,8 @@ export function RapidExpenseDrawer({
         gross_outflow: totalCents,
         net_inflow: baseCents,
         fee_amount: selectedFee,
-        category_name: transactionType === "expense" ? selectedCategory : undefined,
+        category_id: transactionType === "expense" ? selectedCategoryId : undefined,
+        category_name: transactionType === "expense" && !selectedCategoryId ? selectedCategory : undefined,
         transacted_at: new Date().toISOString(),
       });
 
@@ -190,7 +202,7 @@ export function RapidExpenseDrawer({
   };
 
   const categoriesList = [...new Map(
-    [...DEFAULT_CATEGORIES, ...savedCategories, ...customCategories].map((category) => [category.toLocaleLowerCase(), category])
+    [...DEFAULT_CATEGORIES, ...categories.map((category) => category.name), ...customCategories].map((category) => [category.toLocaleLowerCase(), category])
   ).values()];
   const filteredCategories = categoriesList.filter((category) =>
     category.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase())
@@ -203,6 +215,8 @@ export function RapidExpenseDrawer({
   const activeCategory = filteredCategories[activeCategoryIndex];
   const selectCategory = (category: string) => {
     setSelectedCategory(category);
+    const savedCategory = categories.find((item) => item.name.toLocaleLowerCase() === category.toLocaleLowerCase());
+    setSelectedCategoryId(savedCategory?.id ?? "");
     const rememberedAccount = lastAccountByCategory[categoryStorageKey(category)];
     if (rememberedAccount && accounts.some((account) => account.id === rememberedAccount)) {
       setSelectedSourceId(rememberedAccount);
@@ -436,6 +450,8 @@ export function RapidExpenseDrawer({
                         </li>
                       )}
                     </ul>
+                    {isCategoriesLoading && <p role="status" className="px-3 py-2 text-body-sm text-on-surface-variant">Loading saved categories…</p>}
+                    {categoryError && <div className="px-3 py-2"><p role="alert" className="text-body-sm text-error">{categoryError}</p><button type="button" onClick={() => void loadCategories()} className="min-h-11 text-secondary underline">Retry saved categories</button></div>}
                   </div>
                 )}
               </div>
@@ -623,7 +639,7 @@ export function RapidExpenseDrawer({
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || baseCents <= 0}
+              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError))}
               className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">

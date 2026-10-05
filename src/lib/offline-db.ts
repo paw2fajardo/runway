@@ -65,6 +65,16 @@ export async function queueOfflineTransaction(
  * Flush all pending offline transactions to the server sequentially.
  */
 export async function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
+  // The protected accounts endpoint validates the current HttpOnly owner session.
+  // Do this before changing any local queue state so signed-out rows stay pending.
+  try {
+    const authCheck = await fetch("/api/accounts", { cache: "no-store" });
+    if (!authCheck.ok) return { synced: 0, failed: 0 };
+  } catch {
+    // A network/auth check failure must never turn queued work into a sync failure.
+    return { synced: 0, failed: 0 };
+  }
+
   if (!offlineDB) return { synced: 0, failed: 0 };
 
   const pending = await offlineDB.queuedTransactions
@@ -90,6 +100,10 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
       });
 
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          await offlineDB.queuedTransactions.update(item.id, { status: "pending" });
+          break;
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `HTTP ${res.status}`);
       }

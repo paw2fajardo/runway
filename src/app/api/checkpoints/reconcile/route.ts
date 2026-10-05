@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db } from "../../../../db";
 import {
   accounts,
   balanceCheckpoints,
   transactions,
   transactionLegs,
-} from "@/db/schema";
-import { CheckpointReconcileSchema } from "@/lib/types";
+} from "../../../../db/schema";
+import { CheckpointReconcileSchema } from "../../../../lib/types";
 import { eq } from "drizzle-orm";
+import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = CheckpointReconcileSchema.parse(body);

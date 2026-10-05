@@ -33,6 +33,9 @@ export function Header({ title, showBack = false }: HeaderProps) {
     };
 
     checkQueue();
+    if (navigator.onLine) {
+      flushOfflineQueue().then(() => checkQueue());
+    }
     const interval = setInterval(checkQueue, 5000);
 
     return () => {
@@ -93,9 +96,9 @@ export function Header({ title, showBack = false }: HeaderProps) {
 
         <div className="flex shrink-0 items-center gap-space-sm">
           <Link
-            href="/accounts"
-            runway-id="runway.header.accounts"
-            aria-label="View accounts"
+            href="/settings"
+            runway-id="runway.header.settings"
+            aria-label="Settings"
             className="w-11 h-11 rounded-full bg-white/60 border border-white/70 text-primary flex items-center justify-center hover:bg-white active:scale-95 transition-transform"
           >
             <UserRound size={20} aria-hidden="true" />

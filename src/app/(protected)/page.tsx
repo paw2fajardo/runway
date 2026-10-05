@@ -12,6 +12,7 @@ import { ReconcileModal } from "@/components/accounts/ReconcileModal";
 import { IncomeStreamCreateSchema, IncomeStreamPatchSchema, MAX_DAILY_DISCRETIONARY_BURN_CENTS, type PayScheduleKind, type IncomeStreamResponse, type IncomeStreamsResponse, type RunwayForecastResponse } from "@/lib/types";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatPHP } from "@/lib/currency";
+import { PendingPaychecks } from "@/components/payday/PendingPaychecks";
 
 interface AccountData {
   id: string;
@@ -328,6 +329,8 @@ export default function RunwayDashboard() {
           {negativeDay && <p runway-id="runway.dashboard.forecast-warning" className="rounded-xl bg-error-container p-4 text-on-error-container text-body-md" role="status">
             Forecast warning: your balance falls below zero on {negativeDay.date}.
           </p>}
+
+          <PendingPaychecks />
 
           <section className="glass-panel p-5 space-y-3">
             <div className="flex items-center justify-between gap-4">

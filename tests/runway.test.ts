@@ -137,7 +137,8 @@ describe("Configurable pay recurrence", () => {
       dailyDiscretionaryBurn: 0,
       bills: [],
       incomeStreams: [{ id: "stream-1", name: "Salary", netPayCents: 500000, scheduleKind: "weekly", paydayAnchor: "2026-10-02", intervalDays: null, salaryCycleDays: "15,30", isEnabled: true }],
-      depositedIncomeOccurrences: [{ incomeStreamId: "stream-1", scheduledDate: "2026-10-02" }],
+      paycheckOccurrences: [{ id: "occ-1", incomeStreamId: "stream-1", kind: "scheduled", dueDate: "2026-10-02",
+        retryDate: null, amountCents: 500000, transactionId: "tx-1", status: "pending_confirmation", parentOccurrenceId: null }],
       referenceDate: new Date(2026, 9, 2),
       horizonDays: 1,
     });

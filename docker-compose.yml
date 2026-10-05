@@ -13,8 +13,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    networks:
+      - default
+      - password-recovery
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app_user -d finance_platform"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,6 +38,45 @@ services:
       PORT: 3000
     ports:
       - "127.0.0.1:3000:3000"
+
+  payday-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: payday-worker
+    container_name: payday_worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-change_me_secure_pw}@db:5432/${POSTGRES_DB:-finance_platform}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@localhost}
+
+  # Explicit one-off recovery tool; excluded from normal `docker compose up`.
+  # Run interactively with: docker compose run --build --rm -it auth-password-reset
+  auth-password-reset:
+    profiles: ["recovery"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: auth-recovery
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-change_me_secure_pw}@db:5432/${POSTGRES_DB:-finance_platform}
+    command: ["npm", "run", "auth:reset-owner-password"]
+    stdin_open: true
+    tty: true
+    networks:
+      - password-recovery
+
+networks:
+  password-recovery:
+    internal: true
 
 volumes:
   postgres_data:

@@ -150,11 +150,24 @@ interface RunwayCalculationParams {
   payIntervalDays?: number | null;
   expectedSalaryAmount: number;
   incomeStreams?: IncomeStreamSchedule[];
-  depositedIncomeOccurrences?: { incomeStreamId: string; scheduledDate: string }[];
+  paycheckOccurrences?: ForecastPaycheckOccurrence[];
   dailyDiscretionaryBurn: number;
   bills: BillItem[];
   referenceDate?: Date;
   horizonDays?: number;
+}
+
+export interface ForecastPaycheckOccurrence {
+  id: string;
+  incomeStreamId: string;
+  kind: "scheduled" | "retry";
+  dueDate: string;
+  retryDate: string | null;
+  amountCents: number;
+  transactionId: string | null;
+  status: string;
+  parentOccurrenceId: string | null;
+  parentStatus?: string | null;
 }
 
 export function calculateRunwayForecast({
@@ -165,7 +178,7 @@ export function calculateRunwayForecast({
   payIntervalDays,
   expectedSalaryAmount,
   incomeStreams,
-  depositedIncomeOccurrences = [],
+  paycheckOccurrences = [],
   dailyDiscretionaryBurn,
   bills,
   referenceDate = new Date(),
@@ -181,6 +194,17 @@ export function calculateRunwayForecast({
   for (const stream of activeStreams) {
     if (safeCents(stream.netPayCents) <= 0) throw new Error("Income must be positive");
   }
+  const occurrenceById = new Map(paycheckOccurrences.map(occurrence => [occurrence.id, occurrence]));
+  const settledScheduledDates = new Set(paycheckOccurrences
+    .filter(occurrence => occurrence.kind === "scheduled" &&
+      (occurrence.transactionId !== null || occurrence.status === "reversed_awaiting_retry"))
+    .map(occurrence => `${occurrence.incomeStreamId}:${occurrence.dueDate}`));
+  const forecastRetries = paycheckOccurrences.filter(occurrence => {
+    if (occurrence.kind !== "retry" || occurrence.transactionId !== null || !occurrence.retryDate ||
+        !occurrence.parentOccurrenceId) return false;
+    const parent = occurrenceById.get(occurrence.parentOccurrenceId);
+    return (occurrence.parentStatus ?? parent?.status) === "reversed_awaiting_retry";
+  });
   const nextPaydayStr = activeStreams.map(stream => getNextPaydayDate(ref, stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays)).sort()[0];
   const daysToPayday = Math.max(0,
     calendarDay(nextPaydayStr) - calendarDay(formatLocalDate(ref)));
@@ -214,16 +238,18 @@ export function calculateRunwayForecast({
   let shortfallAmount = 0;
   const timeline: TimelineDay[] = [];
   let confirmed_inflows = 0;
-  const depositedOccurrenceKeys = new Set(depositedIncomeOccurrences.map(item => `${item.incomeStreamId}:${item.scheduledDate}`));
-
   for (let i = 0; i < horizonDays; i++) {
     const dayDate = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + i);
     const dateStr = formatLocalDate(dayDate);
     let dayInflow = 0;
-    const payingStreams = activeStreams.filter(stream => isScheduledPayday(dateStr, stream.salaryCycleDays ?? "15,30", stream.paydayAnchor, stream.scheduleKind, stream.intervalDays)
-      && !(stream.id && depositedOccurrenceKeys.has(`${stream.id}:${dateStr}`)));
-    const isPayday = payingStreams.length > 0;
-    dayInflow = payingStreams.reduce((sum, stream) => safeCents(sum + stream.netPayCents), 0);
+    const payingStreams = activeStreams.filter(stream => isScheduledPayday(dateStr, stream.salaryCycleDays ?? "15,30", stream.paydayAnchor, stream.scheduleKind, stream.intervalDays) &&
+      !(stream.id && settledScheduledDates.has(`${stream.id}:${dateStr}`)));
+    const retryOccurrences = forecastRetries.filter(occurrence => occurrence.retryDate === dateStr);
+    const isPayday = payingStreams.length > 0 || retryOccurrences.length > 0;
+    dayInflow = safeCents(
+      payingStreams.reduce((sum, stream) => safeCents(sum + stream.netPayCents), 0) +
+      retryOccurrences.reduce((sum, occurrence) => safeCents(sum + occurrence.amountCents), 0),
+    );
     confirmed_inflows = safeCents(confirmed_inflows + dayInflow);
 
     // Bills due on this exact date
@@ -253,7 +279,10 @@ export function calculateRunwayForecast({
       hasDues: dayBills.length > 0,
       isGraceActive: dayBills.some((b) => b.status === "grace_period"),
       duesDescription: dayBills.map((b) => b.name),
-      incomeDescription: payingStreams.map(stream => stream.name),
+      incomeDescription: [
+        ...payingStreams.map(stream => stream.name),
+        ...retryOccurrences.map(occurrence => `${activeStreams.find(stream => stream.id === occurrence.incomeStreamId)?.name ?? "Income"} retry`),
+      ],
     });
   }
 
