@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { accounts, projectionSettings, incomeStreams, billInstances, bills } from "@/db/schema";
-import { calculateRunwayForecast } from "@/lib/runway";
+import { db } from "../../../../db";
+import { accounts, projectionSettings, incomeStreams, paycheckOccurrences, billInstances, bills } from "../../../../db/schema";
+import { calculateRunwayForecast } from "../../../../lib/runway";
 import { eq, and } from "drizzle-orm";
-import { DateOnlySchema } from "@/lib/types";
+import { DateOnlySchema } from "../../../../lib/types";
+import { requireOwner } from "../../../../lib/auth/guard";
 
 export async function GET(req: NextRequest) {
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
   try {
     const { searchParams } = new URL(req.url);
     const horizonDays = Number(searchParams.get("horizon_days") || "14");
@@ -31,6 +34,24 @@ export async function GET(req: NextRequest) {
     if (!proj) return NextResponse.json({ error: "Set up your pay schedule to calculate your runway.", code: "PAY_SCHEDULE_NOT_CONFIGURED" }, { status: 409 });
     const streams = await db.select().from(incomeStreams).where(and(eq(incomeStreams.projectionSettingsId, proj.id), eq(incomeStreams.isEnabled, true)));
     if (!streams.length) return NextResponse.json({ error: "Add or enable an income stream to calculate your runway.", code: "NO_ENABLED_INCOME_STREAMS" }, { status: 409 });
+    const occurrences = await db.select({
+      id: paycheckOccurrences.id,
+      incomeStreamId: paycheckOccurrences.incomeStreamId,
+      kind: paycheckOccurrences.kind,
+      dueDate: paycheckOccurrences.dueDate,
+      retryDate: paycheckOccurrences.retryDate,
+      amountCents: paycheckOccurrences.amountSnapshot,
+      transactionId: paycheckOccurrences.transactionId,
+      status: paycheckOccurrences.status,
+      parentOccurrenceId: paycheckOccurrences.parentOccurrenceId,
+    }).from(paycheckOccurrences);
+    const occurrenceById = new Map(occurrences.map(occurrence => [occurrence.id, occurrence]));
+    const forecastOccurrences = occurrences.map(occurrence => ({
+      ...occurrence,
+      parentStatus: occurrence.parentOccurrenceId
+        ? occurrenceById.get(occurrence.parentOccurrenceId)?.status ?? null
+        : null,
+    }));
     const expectedSalaryAmount = proj.expectedSalaryAmount;
     const salaryCycleDays = proj.salaryCycleDays;
     const dailyDiscretionaryBurn = proj.dailyDiscretionaryBurn;
@@ -58,6 +79,7 @@ export async function GET(req: NextRequest) {
       payIntervalDays: proj.payIntervalDays,
       expectedSalaryAmount,
       incomeStreams: streams,
+      paycheckOccurrences: forecastOccurrences,
       dailyDiscretionaryBurn,
       bills: billList,
       referenceDate,

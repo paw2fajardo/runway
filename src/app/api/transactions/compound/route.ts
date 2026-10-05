@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db } from "../../../../db";
 import {
   transactions,
   transactionLegs,
   accounts,
   categories,
-} from "@/db/schema";
-import { CompoundTransactionSchema } from "@/lib/types";
-import { eq, sql } from "drizzle-orm";
+} from "../../../../db/schema";
+import { CompoundTransactionSchema } from "../../../../lib/types";
+import { and, eq, sql } from "drizzle-orm";
+import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = CompoundTransactionSchema.parse(body);
+
+    if (parsed.category_id) {
+      const [category] = await db.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
+      if (!category || category.isArchived) throw new Error("Selected category is unavailable.");
+    }
 
     // Look up System Fee category for friction legs
     let systemFeeCategoryId: string | null = null;
@@ -20,7 +31,7 @@ export async function POST(req: NextRequest) {
       const feeCat = await db
         .select()
         .from(categories)
-        .where(eq(categories.isSystemFee, true))
+        .where(and(eq(categories.isSystemFee, true), eq(categories.isArchived, false)))
         .limit(1);
       if (feeCat.length > 0) {
         systemFeeCategoryId = feeCat[0].id;

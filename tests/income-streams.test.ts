@@ -1,19 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { incomeStreams, projectionSettings } from "../src/db/schema";
+import { accounts, incomeStreams, projectionSettings } from "../src/db/schema";
 
-const store = vi.hoisted(() => ({ settings: [] as Record<string, unknown>[], streams: [] as Record<string, unknown>[], writes: [] as unknown[], locked: false }));
+const store = vi.hoisted(() => ({ settings: [] as Record<string, unknown>[], streams: [] as Record<string, unknown>[], accounts: [] as Record<string, unknown>[], writes: [] as unknown[], locked: false }));
+const authMocks = vi.hoisted(() => ({
+  requireOwner: vi.fn().mockResolvedValue({ id: 1, username: "owner", passwordHash: "hash" }),
+  assertSameOrigin: vi.fn().mockReturnValue(null),
+}));
 vi.mock("drizzle-orm", async importOriginal => {
   const actual = await importOriginal<typeof import("drizzle-orm")>();
   const key = (name: string) => name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
   return { ...actual,
     eq: (column: { name: string }, value: unknown) => (row: Record<string, unknown>) => row[key(column.name)] === value,
+    inArray: (column: { name: string }, values: unknown[]) => (row: Record<string, unknown>) => values.includes(row[key(column.name)]),
     and: (...conditions: ((row: Record<string, unknown>) => boolean)[]) => (row: Record<string, unknown>) => conditions.every(condition => condition(row)),
   };
 });
 vi.mock("../src/db", async () => {
   const schema = await import("../src/db/schema");
-  const rows = (table: unknown) => table === schema.projectionSettings ? store.settings : store.streams;
+  const rows = (table: unknown) => table === schema.projectionSettings ? store.settings : table === schema.accounts ? store.accounts : store.streams;
   const tx = {
     execute: async () => { store.locked = true; },
     select: () => ({ from: (table: unknown) => {
@@ -36,6 +41,7 @@ vi.mock("../src/db", async () => {
   };
   return { db: { ...tx, transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) } };
 });
+vi.mock("../src/lib/auth/guard", () => authMocks);
 
 import { GET, POST } from "../src/app/api/runway/income-streams/route";
 import { PATCH } from "../src/app/api/runway/income-streams/[id]/route";
@@ -44,13 +50,19 @@ import { GET as settingsGET, PUT } from "../src/app/api/runway/settings/route";
 const primaryId = "00000000-0000-4000-8000-000000000001";
 const secondId = "00000000-0000-4000-8000-000000000002";
 const foreignId = "00000000-0000-4000-8000-000000000003";
-const request = (body: unknown, method = "POST") => new NextRequest("http://localhost/api/runway/income-streams", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const accountId = "00000000-0000-4000-8000-000000000004";
+const request = (body: unknown, method = "POST") => new NextRequest("http://localhost/api/runway/income-streams", {
+  method,
+  headers: { "Content-Type": "application/json" },
+  ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
+});
 const patch = (body: unknown, id = primaryId) => PATCH(request(body, "PATCH"), { params: Promise.resolve({ id }) });
-const valid = { name: "Freelance", net_pay_cents: 123456, next_pay_date: "2028-01-31", schedule_kind: "monthly" };
+const valid = { name: "Freelance", account_id: accountId, net_pay_cents: 123456, next_pay_date: "2028-01-31", schedule_kind: "monthly" };
 
 beforeEach(() => {
   store.settings = [{ id: primaryId, expectedSalaryAmount: 999999, salaryCycleDays: "15,30", dailyDiscretionaryBurn: 85000 }];
-  store.streams = [{ id: primaryId, projectionSettingsId: primaryId, name: "Primary income", netPayCents: 10000,
+  store.accounts = [{ id: accountId, name: "Main account", type: "liquid", currency: "PHP", isActive: true }];
+  store.streams = [{ id: primaryId, projectionSettingsId: primaryId, accountId, name: "Primary income", netPayCents: 10000,
     scheduleKind: null, paydayAnchor: null, intervalDays: null, salaryCycleDays: "15,30", isEnabled: true }];
   store.writes = []; store.locked = false;
 });
@@ -58,18 +70,20 @@ beforeEach(() => {
 describe("Income stream API", () => {
   it("lists paused streams and preserves legacy calendar schedules", async () => {
     store.streams[0].isEnabled = false;
-    expect(await (await GET()).json()).toMatchObject({ streams: [{ id: primaryId, is_enabled: false, schedule_kind: "calendar" }] });
+    expect(await (await GET(request(undefined, "GET"))).json()).toMatchObject({ streams: [{ id: primaryId, is_enabled: false, schedule_kind: "calendar" }] });
     expect(store.writes).toEqual([]);
   });
   it("returns an empty list without a settings profile", async () => {
     store.settings = [];
-    expect(await (await GET()).json()).toEqual({ streams: [] });
+    expect(await (await GET(request(undefined, "GET"))).json()).toEqual({ streams: [] });
   });
   it.each(["weekly", "biweekly", "monthly", "custom"])("creates and reads %s streams", async kind => {
     const response = await POST(request({ ...valid, schedule_kind: kind, ...(kind === "custom" ? { interval_days: 10 } : {}) }));
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ name: "Freelance", schedule_kind: kind, interval_days: kind === "custom" ? 10 : null });
-    expect((await (await GET()).json()).streams).toHaveLength(2);
+    expect(await response.json()).toMatchObject({ name: "Freelance", account_id: accountId,
+      account_summary: { id: accountId, name: "Main account", type: "liquid", currency: "PHP" },
+      schedule_kind: kind, interval_days: kind === "custom" ? 10 : null });
+    expect((await (await GET(request(undefined, "GET"))).json()).streams).toHaveLength(2);
     expect(store.locked).toBe(true);
     expect(store.writes).toEqual([incomeStreams]);
     expect(store.settings[0].dailyDiscretionaryBurn).toBe(85000);
@@ -79,6 +93,14 @@ describe("Income stream API", () => {
     expect((await POST(request(valid))).status).toBe(201);
     expect(store.settings).toHaveLength(1);
     expect(store.writes).toEqual([projectionSettings, incomeStreams]);
+  });
+  it("requires an active liquid account before creating a stream", async () => {
+    const { account_id: _accountId, ...withoutAccount } = valid;
+    expect((await POST(request(withoutAccount))).status).toBe(400);
+    expect(store.writes).toEqual([]);
+    store.accounts[0].isActive = false;
+    expect((await POST(request(valid))).status).toBe(400);
+    expect(store.writes).toEqual([]);
   });
   it.each([{ ...valid, name: "  " }, { ...valid, name: "x".repeat(101) }, { ...valid, net_pay_cents: 0 },
     { ...valid, net_pay_cents: 1.5 }, { ...valid, net_pay_cents: Number.MAX_SAFE_INTEGER + 1 },
@@ -129,11 +151,11 @@ describe("Income stream API", () => {
 
 describe("Primary pay compatibility adapter", () => {
   it("reads the migrated stream rather than obsolete settings amounts", async () => {
-    expect(await (await settingsGET()).json()).toMatchObject({ configured: true, net_pay_cents: 10000, schedule_kind: "calendar" });
+    expect(await (await settingsGET(request(undefined, "GET"))).json()).toMatchObject({ configured: true, net_pay_cents: 10000, schedule_kind: "calendar" });
   });
   it("does not resurrect an absent primary stream from old salary fields", async () => {
     store.streams = [];
-    expect(await (await settingsGET()).json()).toEqual({ configured: false });
+    expect(await (await settingsGET(request(undefined, "GET"))).json()).toEqual({ configured: false });
   });
   it("preserves a paused primary while an old request defaults to biweekly", async () => {
     store.streams[0].isEnabled = false;

@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../db";
-import { incomeStreams, projectionSettings } from "../../../../../db/schema";
-import { IncomeStreamPatchSchema, PaySettingsSchema } from "../../../../../lib/types";
+import { accounts, incomeStreams, projectionSettings } from "../../../../../db/schema";
+import { IncomeStreamPatchSchema, PaySettingsSchema, type IncomeStreamAccountSummary } from "../../../../../lib/types";
 import { incomeStreamResponse } from "../../../../../lib/runway";
+import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
+
+function streamResponse(stream: typeof incomeStreams.$inferSelect, account: typeof accounts.$inferSelect | null) {
+  return { ...incomeStreamResponse(stream), account_id: stream.accountId,
+    account_summary: account ? { id: account.id, name: account.name, type: account.type, currency: account.currency } satisfies IncomeStreamAccountSummary : null };
+}
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
   const { id } = await context.params;
   const parsed = IncomeStreamPatchSchema.safeParse(await req.json().catch(() => undefined));
   if (!z.string().uuid().safeParse(id).success || !parsed.success) return NextResponse.json({ error: "Provide a valid income stream and changes." }, { status: 400 });
@@ -19,6 +29,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const [existing] = await tx.select().from(incomeStreams).where(scope).limit(1);
       if (!existing) return { status: 404, error: "Income stream not found." };
       const change = parsed.data;
+      const accountId = change.account_id ?? existing.accountId;
+      const [account] = accountId ? await tx.select().from(accounts).where(eq(accounts.id, accountId)).limit(1) : [];
+      if (change.account_id !== undefined && (!account || account.type !== "liquid" || !account.isActive)) return { status: 400, error: "Choose an active liquid account." };
       const kind = change.schedule_kind ?? existing.scheduleKind;
       const anchor = change.next_pay_date ?? existing.paydayAnchor;
       const interval = kind === "custom" ? change.interval_days ?? existing.intervalDays : null;
@@ -30,12 +43,12 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const [saved] = await tx.update(incomeStreams).set({
         name: change.name ?? existing.name, netPayCents: change.net_pay_cents ?? existing.netPayCents,
         scheduleKind: kind, paydayAnchor: anchor, intervalDays: interval,
-        isEnabled: change.is_enabled ?? existing.isEnabled, updatedAt: new Date(),
+        accountId, isEnabled: change.is_enabled ?? existing.isEnabled, updatedAt: new Date(),
       }).where(scope).returning();
-      return { status: 200, stream: saved };
+      return { status: 200, stream: saved, account: account ?? null };
     });
     return "stream" in result && result.stream
-      ? NextResponse.json(incomeStreamResponse(result.stream))
+      ? NextResponse.json(streamResponse(result.stream, result.account))
       : NextResponse.json({ error: result.error }, { status: result.status });
   } catch {
     return NextResponse.json({ error: "Unable to update income stream. Your changes have not been saved." }, { status: 503 });

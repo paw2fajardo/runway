@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { db } from "../../../../../db";
 import {
   inboxItems,
   accounts,
   categories,
   transactions,
   transactionLegs,
-} from "@/db/schema";
+} from "../../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
-import { ParsedInboxItem } from "@/lib/types";
+import { ParsedInboxItem } from "../../../../../lib/types";
+import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
   try {
     const { id } = await params;
     const [item] = await db
@@ -60,12 +65,12 @@ export async function POST(
 
     // Resolve Category
     const allCategories = await db.select().from(categories);
-    let cat = allCategories.find(
+    let cat = allCategories.filter((category) => !category.isArchived).find(
       (c) =>
         c.id === categoryHint ||
         (categoryHint && c.name.toLowerCase().includes(categoryHint.toLowerCase()))
     );
-    const systemFeeCat = allCategories.find((c) => c.isSystemFee);
+    const systemFeeCat = allCategories.find((c) => c.isSystemFee && !c.isArchived);
 
     const grossOutflow = data.amount_cents;
     const feeAmount = data.fee_cents || 0;

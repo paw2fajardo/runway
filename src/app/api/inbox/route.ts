@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { inboxItems } from "@/db/schema";
+import { db } from "../../../db";
+import { inboxItems } from "../../../db/schema";
 import { desc, eq } from "drizzle-orm";
+import { requireOwner } from "../../../lib/auth/guard";
 
 export async function GET(req: NextRequest) {
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
   try {
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get("status") as "pending" | "approved" | "discarded" | null;

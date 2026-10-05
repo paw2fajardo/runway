@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { formatPHP } from "@/lib/currency";
 import { queueOfflineTransaction } from "@/lib/offline-db";
 import { Dialog } from "@/components/ui/Dialog";
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  isIncome: boolean;
+  isArchived: boolean;
+}
 
 interface AccountOption {
   id: string;
@@ -33,7 +40,10 @@ export function RapidExpenseDrawer({
   const [selectedDestId, setSelectedDestId] = useState<string>("");
   const [selectedFee, setSelectedFee] = useState<number>(0);
   const [isCustomFee, setIsCustomFee] = useState<boolean>(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("ATM / Pocket Cash");
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Set default source account
@@ -45,6 +55,25 @@ export function RapidExpenseDrawer({
       setSelectedDestId(accounts[1].id);
     }
   }, [accounts, selectedSourceId, selectedDestId]);
+
+  const loadCategories = useCallback(async () => {
+    setIsCategoriesLoading(true);
+    try {
+      const response = await fetch("/api/categories");
+      if (!response.ok) throw new Error("Categories are unavailable. Retry before logging an expense.");
+      const items = await response.json() as CategoryOption[];
+      const activeExpenses = items.filter((item) => !item.isArchived && !item.isIncome);
+      setCategories(activeExpenses);
+      setSelectedCategoryId((current) => activeExpenses.some((item) => item.id === current) ? current : activeExpenses[0]?.id ?? "");
+      setCategoryError(null);
+    } catch {
+      setCategories([]);
+      setSelectedCategoryId("");
+      setCategoryError("Categories are unavailable. Retry before logging an expense.");
+    } finally { setIsCategoriesLoading(false); }
+  }, []);
+
+  useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen, loadCategories]);
 
   if (!isOpen) return null;
 
@@ -81,7 +110,7 @@ export function RapidExpenseDrawer({
         mode === "transfer"
           ? `${sourceAcc?.name || "Source"} to ${destAcc?.name || "Destination"}`
           : mode === "expense"
-          ? selectedCategory
+          ? categories.find((category) => category.id === selectedCategoryId)?.name || "Expense"
           : "Salary / Inflow";
 
       const transactionType = mode === "inflow" ? ("income" as const) : mode;
@@ -99,6 +128,7 @@ export function RapidExpenseDrawer({
         gross_outflow: totalCents,
         net_inflow: baseCents,
         fee_amount: selectedFee,
+        category_id: transactionType === "expense" ? selectedCategoryId : undefined,
         transacted_at: new Date().toISOString(),
       });
 
@@ -110,15 +140,6 @@ export function RapidExpenseDrawer({
       setIsSubmitting(false);
     }
   };
-
-  const categoriesList = [
-    "ATM / Pocket Cash",
-    "Food & Groceries",
-    "Utilities",
-    "Transit / Grab",
-    "Subscriptions",
-    "General Living",
-  ];
 
   return (
     <Dialog open={isOpen} onClose={onClose} title="Quick log">
@@ -375,14 +396,14 @@ export function RapidExpenseDrawer({
                 Category Allocation
               </span>
               <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 scrollbar-none">
-                {categoriesList.map((cat) => {
-                  const isSelected = cat === selectedCategory;
+                {categories.map((cat) => {
+                  const isSelected = cat.id === selectedCategoryId;
                   return (
                     <button
-                      runway-id={`quick-log.category.${cat}`}
-                      key={cat}
+                      runway-id={`quick-log.category.${cat.id}`}
+                      key={cat.id}
                       type="button"
-                      aria-pressed={isSelected} onClick={() => setSelectedCategory(cat)}
+                      aria-pressed={isSelected} onClick={() => setSelectedCategoryId(cat.id)}
                       className={`flex-shrink-0 flex items-center gap-1 min-h-11 px-space-md py-1 rounded-full font-label-md text-label-md transition-colors ${
                         isSelected
                           ? "bg-primary-container text-surface-container-lowest shadow-sm"
@@ -390,13 +411,16 @@ export function RapidExpenseDrawer({
                       }`}
                     >
                       {isSelected && (
-                        <span runway-id={`quick-log.category.${cat}.selected-icon`} className="material-symbols-outlined text-[14px]">check</span>
+                        <span runway-id={`quick-log.category.${cat.id}.selected-icon`} className="material-symbols-outlined text-[14px]">check</span>
                       )}
-                      <span runway-id={`quick-log.category.${cat}.label`}>{cat}</span>
+                      <span runway-id={`quick-log.category.${cat.id}.label`}>{cat.name}</span>
                     </button>
                   );
                 })}
               </div>
+              {isCategoriesLoading && <p role="status" className="text-body-sm text-on-surface-variant">Loading categories…</p>}
+              {categoryError && <div><p role="alert" className="text-body-sm text-error">{categoryError}</p><button type="button" onClick={() => void loadCategories()} className="min-h-11 text-secondary underline">Retry categories</button></div>}
+              {!isCategoriesLoading && !categoryError && categories.length === 0 && <p className="text-body-sm text-on-surface-variant">No active expense categories. Add one in Settings before logging an expense.</p>}
             </div>
           )}
 
@@ -430,7 +454,7 @@ export function RapidExpenseDrawer({
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || baseCents <= 0}
+              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (!selectedCategoryId || isCategoriesLoading || !!categoryError))}
               className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">

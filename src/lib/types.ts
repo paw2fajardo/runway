@@ -35,6 +35,7 @@ export const PaySettingsSchema = z.object({
   next_pay_date: DateOnlySchema,
   schedule_kind: PayScheduleKindSchema.optional(),
   interval_days: z.number().int().min(1).max(366).optional(),
+  daily_discretionary_burn_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.schedule_kind === "custom" ? value.interval_days === undefined : value.interval_days !== undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["interval_days"], message: "Only custom schedules require an interval from 1 to 366 days." });
@@ -42,7 +43,16 @@ export const PaySettingsSchema = z.object({
 });
 
 export type PaySettingsInput = z.infer<typeof PaySettingsSchema>;
+
+export const DailyDiscretionaryBurnSchema = z.object({
+  daily_discretionary_burn_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+}).strict();
+export type DailyDiscretionaryBurnInput = z.infer<typeof DailyDiscretionaryBurnSchema>;
+
+export const CategoryCreateSchema = z.object({ name: z.string().trim().min(1).max(100), is_income: z.boolean().default(false) }).strict();
+export const CategoryPatchSchema = z.object({ name: z.string().trim().min(1).max(100).optional(), is_income: z.boolean().optional(), is_archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0);
 const incomeStreamFields = {
+  account_id: z.string().uuid("Choose a valid account"),
   name: z.string().trim().min(1).max(100),
   net_pay_cents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   next_pay_date: DateOnlySchema,
@@ -56,6 +66,7 @@ export const IncomeStreamCreateSchema = z.object(incomeStreamFields).strict().su
   }
 });
 export const IncomeStreamPatchSchema = z.object(incomeStreamFields).partial().strict().refine(value => Object.keys(value).length > 0, "Provide a change");
+export interface IncomeStreamAccountSummary { id: string; name: string; type: string; currency: string }
 export interface IncomeStreamResponse {
   id: string;
   name: string;
@@ -66,6 +77,8 @@ export interface IncomeStreamResponse {
   salary_cycle_days: string;
   is_enabled: boolean;
   next_pay_date: string;
+  account_id?: string | null;
+  account_summary?: IncomeStreamAccountSummary | null;
 }
 export interface IncomeStreamsResponse { streams: IncomeStreamResponse[] }
 export type PaySettingsResponse = { configured: false } | {
@@ -77,6 +90,7 @@ export type PaySettingsResponse = { configured: false } | {
   next_pay_date: string;
   salary_cycle_days: string;
   is_enabled?: boolean;
+  daily_discretionary_burn_cents: number;
 };
 
 // Runway Forecast Types

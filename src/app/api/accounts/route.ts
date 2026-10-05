@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { accounts, balanceCheckpoints } from "@/db/schema";
+import { db } from "../../../db";
+import { accounts, balanceCheckpoints } from "../../../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 
 const AccountCreateSchema = z.object({
   name: z.string().min(1),
@@ -14,7 +15,10 @@ const AccountCreateSchema = z.object({
   payment_due_day: z.number().int().min(1).max(31).optional().nullable(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
+  const owner = await requireOwner(request);
+  if (owner instanceof Response) return owner;
+
   try {
     const allAccounts = await db
       .select()
@@ -31,6 +35,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
   try {
     const body = await req.json();
     const parsed = AccountCreateSchema.parse(body);

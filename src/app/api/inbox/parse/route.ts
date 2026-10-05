@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { inboxItems } from "@/db/schema";
-import { parseInboxText } from "@/lib/ai-parser";
+import { db } from "../../../../db";
+import { inboxItems } from "../../../../db/schema";
+import { parseInboxText } from "../../../../lib/ai-parser";
 import { z } from "zod";
+import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 
 const ParseRequestSchema = z.object({
   raw_payload: z.string().min(1, "Payload cannot be empty"),
@@ -12,6 +13,10 @@ const ParseRequestSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
   try {
     const body = await req.json();
     const parsedInput = ParseRequestSchema.parse(body);
