@@ -54,3 +54,5 @@ yarn-error.log*
 
 # Drizzle SQLite/Studio temp
 .drizzle
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
