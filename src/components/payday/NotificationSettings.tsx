@@ -30,7 +30,8 @@ async function currentSubscription() {
 export async function clearPrivatePageCaches() {
   if (!("caches" in window)) return;
   const staticPath = (pathname: string) => pathname === "/manifest.json" ||
-    pathname === "/logo.jpg" || pathname.startsWith("/_next/static/");
+    pathname === "/logo.svg" || pathname === "/logo-192.png" ||
+    pathname === "/logo-512.png" || pathname.startsWith("/_next/static/");
   const names = await caches.keys();
   await Promise.all(names.map(async (name) => {
     const cache = await caches.open(name);

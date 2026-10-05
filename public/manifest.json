@@ -1,7 +1,7 @@
 {
-  "name": "LedgerFlow",
-  "short_name": "LedgerFlow",
-  "description": "High-Performance Personal Finance Platform & Cash Runway Engine",
+  "name": "Runway",
+  "short_name": "Runway",
+  "description": "Private personal finance and cash runway forecasting",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f9ff",
@@ -9,14 +9,16 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo.jpg",
+      "src": "/logo-192.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/logo.jpg",
+      "src": "/logo-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

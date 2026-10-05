@@ -305,7 +305,7 @@ export default function RunwayDashboard() {
     <div className="flex flex-col min-h-screen bg-transparent">
       <Header />
 
-      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
+      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin gap-6 pb-space-xl">
           <div className="space-y-2 pt-2">
             <h1 runway-id="runway.dashboard.title" className="text-headline-lg font-semibold tracking-tight">Cash Runway</h1>
@@ -367,9 +367,9 @@ export default function RunwayDashboard() {
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" />
             </section>}
             {ordinaryDues.length > 0 && <UpcomingDuesList dues={ordinaryDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" />}
-            {unpaidDues.length === 0 && <p runway-id="runway.dashboard.no-upcoming-dues" className="text-body-md text-on-surface-variant">No upcoming dues.</p>}
-            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All upcoming dues ({unpaidDues.length}) →</button>
-          </> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">{isLoading ? "Loading upcoming dues…" : "Upcoming dues unavailable."}</p>}
+            {unpaidDues.length === 0 && <p runway-id="runway.dashboard.no-upcoming-dues" className="text-body-md text-on-surface-variant">No unpaid bills.</p>}
+            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All unpaid bills ({unpaidDues.length}) →</button>
+          </> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">{isLoading ? "Loading unpaid bills…" : "Unpaid bills unavailable."}</p>}
         </div>
       </main>
 
@@ -492,10 +492,10 @@ export default function RunwayDashboard() {
           ? <LiquidAccountsStrip accounts={accounts} onReconcileClick={handleReconcileClick} idPrefix="runway.balances" />
           : <p runway-id="runway.balances-empty" className="text-body-md">No accounts yet.</p>}
       </Dialog>
-      <Dialog open={isDuesOpen} onClose={() => setIsDuesOpen(false)} title="All upcoming dues">
+      <Dialog open={isDuesOpen} onClose={() => setIsDuesOpen(false)} title="All unpaid bills">
         {!duesAvailable ? <p runway-id="runway.all-dues.unavailable" className="text-body-md">Upcoming dues unavailable.</p> : unpaidDues.length > 0
           ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" />
-          : <p runway-id="runway.all-dues.empty" className="text-body-md">No upcoming dues.</p>}
+          : <p runway-id="runway.all-dues.empty" className="text-body-md">No unpaid bills.</p>}
       </Dialog>
 
       {/* Bottom Tab Navigation */}

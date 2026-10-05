@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Runway">
+  <rect width="512" height="512" rx="112" fill="#072821"/>
+  <path d="M256 86v340" fill="none" stroke="#bbedd7" stroke-width="12" stroke-linecap="round" stroke-dasharray="8 25" opacity=".8"/>
+  <path d="M184 152h72M256 256h72M184 360h72" fill="none" stroke="#bbedd7" stroke-width="10" stroke-linecap="round" opacity=".6"/>
+  <circle cx="256" cy="152" r="29" fill="#bbedd7"/>
+  <circle cx="256" cy="256" r="38" fill="#e6ac59"/>
+  <circle cx="256" cy="256" r="13" fill="#072821"/>
+  <circle cx="256" cy="360" r="29" fill="#bbedd7"/>
+</svg>

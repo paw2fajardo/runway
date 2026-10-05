@@ -14,6 +14,15 @@ export interface DueItem {
   sourceAccountName?: string | null;
 }
 
+function formatDueDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 interface UpcomingDuesListProps {
   dues: DueItem[];
   onPayClick?: (due: DueItem) => void;
@@ -37,14 +46,14 @@ export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1.5">
           <h2 runway-id={`${idPrefix}.title`} className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-            Upcoming Dues
+            Upcoming bills
           </h2>
           <span runway-id={`${idPrefix}.count`} className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-bold">
             {dues.length}
           </span>
         </div>
         <span runway-id={`${idPrefix}.description`} className="font-label-sm text-label-sm text-on-surface-variant font-medium">
-          Recorded dues
+          Unpaid bills
         </span>
       </div>
 
@@ -61,7 +70,7 @@ export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming
             >
               <div className="flex items-center space-x-space-sm min-w-0">
                 <div className="w-9 h-9 rounded-lg bg-surface-container-low flex items-center justify-center text-primary shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[20px]">{icon}</span>
                 </div>
                 <div className="min-w-0 flex flex-col">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -70,7 +79,7 @@ export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming
                     </span>
                     {isGrace ? (
                       <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container">
-                        Grace Active
+                        In grace period
                       </span>
                     ) : due.isAutoPay ? (
                       <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container text-on-surface-variant">
@@ -80,10 +89,10 @@ export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming
                   </div>
                   <span runway-id={`${idPrefix}.item.${due.id}.schedule`} className="font-body-sm text-body-sm text-on-surface-variant">
                     {isGrace
-                      ? `Grace period · Due ${due.dueDate}`
+                      ? `In grace period · Due ${formatDueDate(due.dueDate)}`
                       : due.isAutoPay
-                      ? `Via ${due.sourceAccountName || "Auto-debit"} on ${due.dueDate}`
-                      : `Due ${due.dueDate} • Manual`}
+                      ? `Auto-pay from ${due.sourceAccountName || "linked account"} · ${formatDueDate(due.dueDate)}`
+                      : `Due ${formatDueDate(due.dueDate)} · Pay manually`}
                   </span>
                 </div>
               </div>
@@ -93,7 +102,7 @@ export function UpcomingDuesList({ dues, onPayClick, idPrefix = "runway.upcoming
                   {formatPHP(due.amountDue)}
                 </span>
                 {due.isAutoPay ? (
-                  <span className="material-symbols-outlined text-secondary text-[18px]">
+                  <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[18px]">
                     autorenew
                   </span>
                 ) : (

@@ -136,7 +136,7 @@ export default function AccountsPage() {
     <div className="flex flex-col min-h-screen bg-transparent">
       <Header title="Accounts" />
 
-      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
+      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">
           {/* Top KPI Bento */}
           <div className="grid grid-cols-2 gap-2 pt-space-xs">
@@ -165,6 +165,7 @@ export default function AccountsPage() {
             </div>
           </div>
 
+          <div className="grid gap-space-lg md:grid-cols-2">
           {/* Section 1: Liquid Accounts */}
           <section runway-id="accounts.liquid.section" className="flex flex-col gap-space-sm">
             <div className="flex items-center justify-between">
@@ -291,6 +292,7 @@ export default function AccountsPage() {
               </div>
             </section>
           )}
+          </div>
 
           {/* Add Account Action */}
           <button

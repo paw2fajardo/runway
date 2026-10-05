@@ -79,7 +79,7 @@ export function SolvencyHero({
 
         <div className="min-w-0">
           <span runway-id="runway.breakdown-upcoming-dues-label" className="font-label-sm text-label-sm text-white/70">
-            Upcoming Dues
+            Bills due by payday
           </span>
           <div runway-id="runway.breakdown-upcoming-dues" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
             {formatPHP(upcomingDues)}

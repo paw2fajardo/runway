@@ -1,5 +1,5 @@
-const CACHE_NAME = "ledgerflow-cache-v2";
-const STATIC_ASSETS = ["/manifest.json", "/logo.jpg"];
+const CACHE_NAME = "runway-cache-v3";
+const STATIC_ASSETS = ["/manifest.json", "/logo.svg", "/logo-192.png", "/logo-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
@@ -26,7 +26,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate" || url.pathname.startsWith("/api/")) return;
 
   const safeStaticAsset = url.pathname === "/manifest.json" ||
-    url.pathname === "/logo.jpg" || url.pathname.startsWith("/_next/static/");
+    url.pathname === "/logo.svg" || url.pathname === "/logo-192.png" ||
+    url.pathname === "/logo-512.png" || url.pathname.startsWith("/_next/static/");
   if (!safeStaticAsset) return;
 
   event.respondWith(
@@ -65,7 +66,7 @@ self.addEventListener("push", (event) => {
   const title = typeof payload.title === "string" ? payload.title : "Runway";
   const options = {
     body: typeof payload.body === "string" ? payload.body : "A paycheck update is ready.",
-    icon: "/logo.jpg",
+    icon: "/logo-192.png",
     data: { url: notificationTarget(payload.url) },
   };
   event.waitUntil(self.registration.showNotification(title, options));

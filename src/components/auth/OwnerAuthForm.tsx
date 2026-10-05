@@ -282,7 +282,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
               </>
             )}
 
-            <p className="mt-8 font-mono text-[10px] tracking-wide text-outline">YOUR DATA STAYS ON YOUR RUNWAY SERVER</p>
+            <p className="mt-8 font-body-sm text-body-sm text-on-surface-variant">YOUR DATA STAYS ON YOUR RUNWAY SERVER</p>
           </div>
         </section>
       </div>

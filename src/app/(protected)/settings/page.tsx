@@ -137,7 +137,7 @@ export default function SettingsPage() {
 
   return <div className="flex min-h-screen flex-col bg-transparent">
     <Header title="Settings" />
-    <main className="app-bottom-clearance mx-auto flex min-h-screen w-full max-w-[480px] flex-1 flex-col bg-transparent px-margin pb-space-xl pt-20">
+    <main className="app-bottom-clearance mx-auto flex min-h-screen w-full max-w-[480px] md:max-w-3xl flex-1 flex-col bg-transparent px-margin pb-space-xl pt-20">
       <div className="space-y-2 py-2"><h1 className="text-headline-lg font-semibold tracking-tight">Settings</h1><p className="text-body-md text-on-surface-variant">Set your daily spending allowance and organize categories.</p></div>
       <section className="glass-panel mt-4 space-y-4 p-5" aria-labelledby="runway-settings-heading">
         <div><h2 id="runway-settings-heading" className="text-body-lg font-semibold">Daily spending allowance</h2><p className="text-body-sm text-on-surface-variant">Baseline discretionary spending for your runway calculation.</p></div>

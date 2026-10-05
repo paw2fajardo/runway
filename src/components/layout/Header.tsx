@@ -47,7 +47,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
 
   return (
     <header runway-id="runway.header" className="glass-chrome fixed top-0 w-full z-50 pt-safe border-b border-white/40">
-      <div className="h-16 px-margin flex items-center justify-between gap-3 max-w-[480px] mx-auto">
+      <div className="h-16 px-margin flex items-center justify-between gap-3 max-w-[480px] md:max-w-5xl mx-auto">
         <div className="flex items-center gap-space-sm min-w-0">
           {showBack ? (
             <button
@@ -63,7 +63,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
           <Link href="/" runway-id="runway.header.home" className="flex min-w-0 min-h-11 items-center gap-2.5">
             <div className="relative w-9 h-9 shrink-0 rounded-full overflow-hidden border border-white/70 flex items-center justify-center bg-white">
               <Image
-                src="/logo.jpg"
+                src="/logo.svg"
                 alt=""
                 width={32}
                 height={32}
@@ -75,21 +75,19 @@ export function Header({ title, showBack = false }: HeaderProps) {
               <span runway-id="runway.header.title" className="font-headline-sm text-headline-sm truncate font-semibold text-on-surface leading-tight tracking-tight">
                 {title || "Runway"}
               </span>
-              <div className="flex items-center gap-1">
-                <span
-                  runway-id="runway.header.connection-indicator"
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isOnline ? "bg-secondary" : "bg-amber-500 animate-pulse"
-                  }`}
-                />
-                <span runway-id="runway.header.connection-status" className="font-label-sm text-label-sm text-secondary font-semibold">
-                  {isOnline
-                    ? pendingCount > 0
-                      ? `${pendingCount} pending`
-                      : "Offline-Ready"
-                    : `Offline (${pendingCount} queued)`}
-                </span>
-              </div>
+              {!isOnline || pendingCount > 0 ? (
+                <div className="flex items-center gap-1">
+                  <span
+                    runway-id="runway.header.connection-indicator"
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isOnline ? "bg-secondary" : "bg-amber-500 animate-pulse"
+                    }`}
+                  />
+                  <span runway-id="runway.header.connection-status" className="font-label-sm text-label-sm text-secondary font-semibold">
+                    {isOnline ? `${pendingCount} pending` : `Offline (${pendingCount} queued)`}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </Link>
         </div>

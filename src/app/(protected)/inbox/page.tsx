@@ -168,7 +168,7 @@ export default function InboxPage() {
     <div className="flex flex-col min-h-screen bg-transparent">
       <Header title="Inbox" />
 
-      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen">
+      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-md select-none">
           <div className="flex items-center justify-between gap-3 py-2">
             <button runway-id="inbox.approval-required" type="button" onClick={() => setIsGuardrailOpen(true)} className="min-h-11 text-body-md text-secondary">Approval required ⓘ</button>
@@ -212,7 +212,7 @@ export default function InboxPage() {
                 type="button"
                 onClick={() => handleParseSubmit()}
                 disabled={isParsing || !inputText.trim()}
-                className="h-10 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-50"
+                className="min-h-11 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-50"
               >
                 <span runway-id="inbox.add-alert.parse-icon" className="material-symbols-outlined text-[16px]">
                   auto_awesome
@@ -233,7 +233,7 @@ export default function InboxPage() {
                     type="button"
                     onClick={() => handleParseSubmit(preset.text)}
                     disabled={isParsing}
-                    className="flex-shrink-0 px-2.5 py-1 bg-surface-container-low hover:bg-surface-container rounded-full text-on-surface-variant text-[11px] font-medium border border-outline-variant/20 transition"
+                    className="min-h-11 inline-flex flex-shrink-0 items-center px-2.5 py-1 bg-surface-container-low hover:bg-surface-container rounded-full text-on-surface-variant text-[11px] font-medium border border-outline-variant/20 transition"
                   >
                     + {preset.label}
                   </button>
@@ -249,7 +249,7 @@ export default function InboxPage() {
               runway-id="inbox.tab.pending"
               type="button"
               onClick={() => setActiveTab("pending")}
-              className={`flex-1 py-1.5 text-center rounded font-label-md text-label-md font-semibold transition ${
+              className={`flex min-h-11 flex-1 items-center justify-center py-1.5 text-center rounded font-label-md text-label-md font-semibold transition ${
                 activeTab === "pending"
                   ? "bg-primary text-on-primary shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -261,7 +261,7 @@ export default function InboxPage() {
               runway-id="inbox.tab.approved"
               type="button"
               onClick={() => setActiveTab("approved")}
-              className={`flex-1 py-1.5 text-center rounded font-label-md text-label-md font-semibold transition ${
+              className={`flex min-h-11 flex-1 items-center justify-center py-1.5 text-center rounded font-label-md text-label-md font-semibold transition ${
                 activeTab === "approved"
                   ? "bg-primary text-on-primary shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -273,7 +273,7 @@ export default function InboxPage() {
               runway-id="inbox.tab.assistant"
               type="button"
               onClick={() => setActiveTab("assistant")}
-              className={`flex-1 py-1.5 text-center rounded font-label-md text-label-md font-semibold transition flex items-center justify-center gap-1 ${
+              className={`flex min-h-11 flex-1 py-1.5 text-center rounded font-label-md text-label-md font-semibold transition items-center justify-center gap-1 ${
                 activeTab === "assistant"
                   ? "bg-primary text-on-primary shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -340,7 +340,7 @@ export default function InboxPage() {
                           runway-id={`inbox.pending.item.${item.id}.discard`}
                           type="button"
                           onClick={() => handleDiscard(item.id)}
-                          className="h-10 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md font-semibold hover:bg-surface-container active:scale-95 transition"
+                          className="min-h-11 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md font-semibold hover:bg-surface-container active:scale-95 transition"
                         >
                           Discard
                         </button>
@@ -348,7 +348,7 @@ export default function InboxPage() {
                           runway-id={`inbox.pending.item.${item.id}.approve`}
                           type="button"
                           onClick={() => handleApprove(item.id)}
-                          className="h-10 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition"
+                          className="min-h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition"
                         >
                           <span runway-id={`inbox.pending.item.${item.id}.approve-icon`} className="material-symbols-outlined text-[16px]">
                             check
@@ -420,7 +420,7 @@ export default function InboxPage() {
                   runway-id="inbox.assistant.evaluate"
                   type="submit"
                   disabled={isAssistantLoading || !queryText.trim()}
-                  className="h-10 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
+                  className="min-h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
                 >
                   {isAssistantLoading ? "Thinking…" : "Ask Runway AI"}
                 </button>

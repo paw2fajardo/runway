@@ -7,8 +7,8 @@ export const metadata: Metadata = {
     "Self-hosted personal finance platform with forward cash runway forecasting, atomic compound transactions, and offline capture.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/logo.jpg",
-    apple: "/logo.jpg",
+    icon: "/logo.svg",
+    apple: "/logo-512.png",
   },
 };
 

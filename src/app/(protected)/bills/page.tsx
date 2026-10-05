@@ -33,12 +33,12 @@ interface BillItem {
 
 const billFrequencyLabels: Record<BillItem["frequency"], string> = {
   weekly: "Weekly",
-  biweekly: "Biweekly",
+  biweekly: "Every 2 weeks",
   monthly: "Monthly",
   every_2_months: "Every 2 months",
   every_3_months: "Every 3 months",
   every_6_months: "Every 6 months",
-  annually: "Annual",
+  annually: "Every year",
 };
 
 export default function BillsPage() {
@@ -69,7 +69,7 @@ export default function BillsPage() {
     setIsBillsLoading(true);
     try {
       const res = await fetch("/api/bills");
-      if (!res.ok) throw new Error("Unable to load obligations.");
+      if (!res.ok) throw new Error("Unable to load bills.");
       const data = await res.json();
       setBills(data);
       setBillsAvailable(true);
@@ -77,7 +77,7 @@ export default function BillsPage() {
     } catch (err) {
       console.error("Failed to load bills:", err);
       setBillsAvailable(false);
-      setBillsError("Your obligations are unavailable. Please retry.");
+      setBillsError("Your bills could not be loaded. Please retry.");
     } finally {
       setIsBillsLoading(false);
     }
@@ -175,23 +175,15 @@ export default function BillsPage() {
     <div className="flex flex-col min-h-screen bg-transparent" runway-id="bills.page">
       <Header title="Bills" />
 
-      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] mx-auto min-h-screen" runway-id="bills.main">
+      <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-4xl mx-auto min-h-screen" runway-id="bills.main">
         <div className="flex flex-col w-full px-margin pb-6 gap-6">
           {/* View Switcher & Title Block */}
           <section className="flex flex-col gap-space-sm pt-space-xs">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <h1 runway-id="bills.title" className="font-headline-lg text-headline-lg font-semibold text-on-surface tracking-tight leading-tight">
-                  Upcoming Obligations
-                </h1>
-                <span runway-id="bills.summary.count" className="shrink-0 text-label-sm font-medium text-primary bg-primary/5 px-3 py-2 rounded-full">
-                  {isBillsLoading ? "Loading…" : billsAvailable ? `${activeBills.length} dues` : "Unavailable"}
-                </span>
-              </div>
-            </div>
+            <h1 runway-id="bills.title" className="font-headline-lg text-headline-lg font-semibold text-on-surface tracking-tight leading-tight">
+              Bills and subscriptions
+            </h1>
             <p runway-id="bills.description" className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-              Contractual dates mapped against grace windows to safeguard operational
-              liquidity.
+              Manage recurring costs and payment dates in one place.
             </p>
 
             {/* Segmented Control */}
@@ -206,7 +198,7 @@ export default function BillsPage() {
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                Due This Pay Cycle
+                Due by Next Payday
               </button>
               <button
                 type="button"
@@ -218,15 +210,15 @@ export default function BillsPage() {
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                All Bills &amp; Subs
+                All Bills &amp; Subscriptions
               </button>
             </div>
             {tab === "due" && <p className="text-body-sm text-on-surface-variant" role="status">
               {isForecastLoading
-                ? "Checking your next payday to define this pay cycle…"
+                ? "Finding your next payday…"
                 : nextPaydayDate
-                  ? `Showing unpaid obligations due by ${nextPaydayDate}, including overdue items.`
-                  : "Next payday is unavailable. Showing overdue unpaid obligations only; all bills remain available in All Bills & Subs."}
+                  ? `Showing unpaid bills due on or before ${nextPaydayDate}, including past-due bills.`
+                  : "Next payday is unavailable. Showing past-due bills only. Choose All Bills & Subscriptions to see every unpaid bill."}
             </p>}
           </section>
 
@@ -235,7 +227,7 @@ export default function BillsPage() {
             <div className="flex flex-wrap justify-between items-start gap-3">
               <div className="flex flex-col">
                 <span runway-id="bills.summary.committed.label" className="font-label-sm text-label-sm uppercase tracking-wide text-secondary-fixed font-medium">
-                  Committed obligations
+                  Unpaid bills total
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
                   <span runway-id="bills.summary.committed.value" className="font-currency-display text-currency-display text-white font-semibold break-all">
@@ -245,8 +237,8 @@ export default function BillsPage() {
               </div>
               <div className="flex items-center gap-1.5 bg-white/10 border border-white/15 text-secondary-fixed px-3 py-2 rounded-full">
                 <CalendarDays size={15} aria-hidden="true" />
-                <span runway-id="bills.summary.open-count" className="font-label-sm text-label-sm font-semibold">
-                  {isBillsLoading ? "Loading…" : billsAvailable ? `${activeBills.length} open` : "Unavailable"}
+                <span runway-id="bills.summary.count" className="font-label-sm text-label-sm font-semibold">
+                  {isBillsLoading ? "Loading…" : billsAvailable ? `${activeBills.length} unpaid ${activeBills.length === 1 ? "item" : "items"}` : "Unavailable"}
                 </span>
               </div>
             </div>
@@ -255,7 +247,7 @@ export default function BillsPage() {
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="flex min-w-0 flex-col p-4 rounded-[24px] border border-white/10 bg-white/5">
                 <span runway-id="bills.summary.utilities.label" className="font-label-sm text-label-sm text-secondary-fixed">
-                  Essential Utilities
+                  Utilities
                 </span>
                 <span runway-id="bills.summary.utilities.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all">
                   {!isBillsLoading && billsAvailable ? formatPHP(utilitiesTotal) : "—"}
@@ -263,7 +255,7 @@ export default function BillsPage() {
               </div>
               <div className="flex min-w-0 flex-col p-4 rounded-[24px] border border-white/10 bg-white/5">
                 <span runway-id="bills.summary.subscriptions.label" className="font-label-sm text-label-sm text-secondary-fixed">
-                  Subs &amp; Cards
+                  Other bills
                 </span>
                 <span runway-id="bills.summary.subscriptions.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all">
                   {!isBillsLoading && billsAvailable ? formatPHP(subsTotal) : "—"}
@@ -272,23 +264,23 @@ export default function BillsPage() {
             </div>
 
             {/* Runway Diagnostic Line */}
-            {isBillsLoading ? <p runway-id="bills.status.loading" className="text-body-sm text-secondary-fixed" role="status">Loading recorded obligations…</p>
+            {isBillsLoading ? <p runway-id="bills.status.loading" className="text-body-sm text-secondary-fixed" role="status">Loading bills…</p>
               : billsError ? <div>
                 <p runway-id="bills.status.error" className="text-body-sm text-secondary-fixed" role="alert">{billsError}</p>
                 <button runway-id="bills.action.retry" type="button" onClick={fetchBills} className="min-h-11 mt-2 px-4 rounded-full bg-white text-primary text-label-md font-semibold">Retry</button>
-              </div> : <p runway-id="bills.summary.note" className="text-body-sm text-secondary-fixed">Totals reflect your recorded outstanding obligations.</p>}
+              </div> : <p runway-id="bills.summary.note" className="text-body-sm text-secondary-fixed">This total includes unpaid items outside the selected pay cycle.</p>}
           </section>
 
           {/* Obligation Groups Stream */}
           {!isBillsLoading && billsAvailable && <div className="flex flex-col gap-space-lg">
             {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
               {tab === "due" && nextPaydayDate
-                ? `No outstanding obligations are due by ${nextPaydayDate}.`
+                ? `No unpaid bills are due on or before ${nextPaydayDate}.`
                 : tab === "due" && isForecastLoading
-                  ? "Checking your next payday before listing this pay cycle’s obligations…"
+                  ? "Finding your next payday…"
                 : tab === "due" && !isForecastLoading
-                  ? "No overdue obligations to show. The pay cycle cannot be determined without a next payday."
-                  : "No outstanding obligations."}
+                  ? "No past-due bills. A next payday is needed to show bills due this cycle. Choose All Bills & Subscriptions to see every unpaid bill."
+                  : "No unpaid bills."}
             </p>}
             {/* Group A: Critical / Grace Window */}
             {graceBills.length > 0 && (
@@ -297,11 +289,11 @@ export default function BillsPage() {
                   <div className="flex items-center gap-1.5">
                     <TriangleAlert size={17} className="text-amber-800" aria-hidden="true" />
                     <span runway-id="bills.group.grace.title" className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
-                      Grace Window Active
+                      In grace period
                     </span>
                   </div>
                   <span runway-id="bills.group.grace.badge" className="font-label-sm text-label-sm font-medium px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                    Critical Attention
+                    Past due
                   </span>
                 </div>
 
@@ -364,7 +356,7 @@ export default function BillsPage() {
                     </span>
                   </div>
                   <span runway-id="bills.group.due.count" className="font-label-sm text-label-sm font-medium text-on-surface-variant">
-                    {dueThisWeekBills.length} Obligations
+                    {dueThisWeekBills.length} {dueThisWeekBills.length === 1 ? "item" : "items"}
                   </span>
                 </div>
 
@@ -470,9 +462,9 @@ export default function BillsPage() {
               </div>
               <div className="flex flex-col min-w-0">
                   <span runway-id="bills.reserve.title" className="font-label-sm text-label-sm font-semibold text-on-surface">
-                  Safe-to-spend reserve
+                  Safe to spend
                 </span>
-                <span runway-id="bills.reserve.description" className="text-body-sm text-on-surface-variant">See your current forecast</span>
+                <span runway-id="bills.reserve.description" className="text-body-sm text-on-surface-variant">See your cash forecast</span>
               </div>
             </div>
             <Link runway-id="bills.reserve.link" href="/" className="min-h-11 shrink-0 flex items-center rounded-full bg-secondary-container/60 px-3 text-label-sm text-primary font-semibold">Runway <ArrowRight size={14} className="ml-1" aria-hidden="true" /></Link>
@@ -485,7 +477,7 @@ export default function BillsPage() {
             runway-id="bills.action.add" className="w-full min-h-12 rounded-full bg-white/85 border border-white shadow-sm text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-white active:scale-[0.99] transition-colors"
           >
             <CirclePlus size={18} aria-hidden="true" />
-            Add Recurring Obligation
+            Add a recurring bill
           </button>
         </div>
       </main>
@@ -499,7 +491,7 @@ export default function BillsPage() {
       />
 
       {/* Add Recurring Modal */}
-      <Dialog open={isAddBillOpen} onClose={() => setIsAddBillOpen(false)} title="New recurring obligation">
+      <Dialog open={isAddBillOpen} onClose={() => setIsAddBillOpen(false)} title="Add a recurring bill">
           <form
             onSubmit={handleCreateBill}
               runway-id="bills.add.form" className="flex flex-col space-y-4"
@@ -507,7 +499,7 @@ export default function BillsPage() {
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.name.label" htmlFor="bill-name" className="font-label-sm text-label-sm text-on-surface-variant">
-                Obligation Name
+                Bill or subscription name
               </label>
               <input
                 runway-id="bills.add.name.input" id="bill-name"
@@ -522,7 +514,7 @@ export default function BillsPage() {
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.amount.label" htmlFor="bill-amount" className="font-label-sm text-label-sm text-on-surface-variant">
-                Amount per occurrence (₱)
+                Amount due each time (₱)
               </label>
               <input
                 runway-id="bills.add.amount.input" id="bill-amount"
@@ -547,18 +539,18 @@ export default function BillsPage() {
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
               >
                 <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
+                <option value="biweekly">Every 2 weeks</option>
                 <option value="monthly">Monthly</option>
                 <option value="every_2_months">Every 2 months</option>
                 <option value="every_3_months">Every 3 months</option>
                 <option value="every_6_months">Every 6 months</option>
-                <option value="annually">Annual</option>
+                <option value="annually">Every year</option>
               </select>
             </div>
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.occurrence-limit.label" htmlFor="bill-occurrence-limit" className="font-label-sm text-label-sm text-on-surface-variant">
-                Number of payments (optional)
+                Stop after this many payments (optional)
               </label>
               <input
                 runway-id="bills.add.occurrence-limit.input" id="bill-occurrence-limit"
@@ -569,13 +561,13 @@ export default function BillsPage() {
                 aria-describedby="bill-occurrence-limit-hint"
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
               />
-              <p id="bill-occurrence-limit-hint" className="text-body-sm text-on-surface-variant">Leave blank for an ongoing obligation. The obligation ends after this many payments.</p>
+              <p id="bill-occurrence-limit-hint" className="text-body-sm text-on-surface-variant">Leave blank if it should keep repeating.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col space-y-1">
                 <label runway-id="bills.add.due-day.label" htmlFor="bill-day" className="font-label-sm text-label-sm text-on-surface-variant">
-                  {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? "Due day of week" : "Due Day of Month"}
+                  {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? "Due day of week" : "Due day of month"}
                 </label>
                 {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? (
                   <select
@@ -609,7 +601,7 @@ export default function BillsPage() {
 
               <div className="flex flex-col space-y-1">
                 <label runway-id="bills.add.grace.label" htmlFor="bill-grace" className="font-label-sm text-label-sm text-on-surface-variant">
-                  Grace Period (Days)
+                  Grace period after due date (days)
                 </label>
                 <input
                   runway-id="bills.add.grace.input" id="bill-grace"
@@ -636,7 +628,7 @@ export default function BillsPage() {
                 type="submit"
                 runway-id="bills.add.save" className="h-11 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold"
               >
-                Save Obligation
+                Save bill
               </button>
             </div>
           </form>
@@ -644,7 +636,7 @@ export default function BillsPage() {
       <Dialog open={detailBill !== null} onClose={() => setDetailBill(null)} title={detailBill?.name || "Bill details"}>
         {detailBill && <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
           <div><dt runway-id={`bills.details.due-date.label.${detailBill.instanceId}`}>Due date</dt><dd runway-id={`bills.details.due-date.value.${detailBill.instanceId}`}>{detailBill.dueDate}</dd></div>
-          <div><dt runway-id={`bills.details.grace.label.${detailBill.instanceId}`}>Grace period</dt><dd runway-id={`bills.details.grace.value.${detailBill.instanceId}`}>{detailBill.gracePeriodDays} days</dd></div>
+          <div><dt runway-id={`bills.details.grace.label.${detailBill.instanceId}`}>Grace period after due date</dt><dd runway-id={`bills.details.grace.value.${detailBill.instanceId}`}>{detailBill.gracePeriodDays} days</dd></div>
           <div><dt runway-id={`bills.details.frequency.label.${detailBill.instanceId}`}>Frequency</dt><dd runway-id={`bills.details.frequency.value.${detailBill.instanceId}`}>{billFrequencyLabels[detailBill.frequency]}</dd></div>
           {detailBill.occurrenceLimit !== null && <div><dt runway-id={`bills.details.occurrence-limit.label.${detailBill.instanceId}`}>Total payments</dt><dd runway-id={`bills.details.occurrence-limit.value.${detailBill.instanceId}`}>{detailBill.occurrenceLimit}</dd></div>}
           <div><dt runway-id={`bills.details.source.label.${detailBill.instanceId}`}>Source account</dt><dd runway-id={`bills.details.source.value.${detailBill.instanceId}`}>{detailBill.sourceAccountName || "Not specified"}</dd></div>
