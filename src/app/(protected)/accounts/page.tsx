@@ -301,13 +301,23 @@ export default function AccountsPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-end">
+                        <div className="flex flex-wrap items-start justify-end gap-x-4 gap-y-1">
+                          <div className="flex flex-col items-end">
+                            <span runway-id={`accounts.credit.account.${acc.id}.available-to-spend`} className="font-currency-md text-currency-md font-bold text-secondary">
+                              {acc.creditLimit == null ? "—" : formatPHP(acc.creditLimit - acc.currentBalance)}
+                            </span>
+                            <span runway-id={`accounts.credit.account.${acc.id}.available-to-spend-label`} className="font-label-sm text-label-sm text-on-surface-variant">
+                              Available to spend
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
                           <span runway-id={`accounts.credit.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-error">
                             {formatPHP(acc.currentBalance)}
                           </span>
                           <span runway-id={`accounts.credit.account.${acc.id}.balance-label`} className="font-label-sm text-label-sm text-on-surface-variant">
                             Running Balance
                           </span>
+                          </div>
                         </div>
                       </div>
 
