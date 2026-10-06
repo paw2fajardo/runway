@@ -3,12 +3,16 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Runway - Personal Finance Platform",
+  applicationName: "Runway",
   description:
     "Self-hosted personal finance platform with forward cash runway forecasting, atomic compound transactions, and offline capture.",
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=4",
   icons: {
     icon: "/logo.svg",
     apple: "/logo-512.png",
+  },
+  appleWebApp: {
+    title: "Runway",
   },
 };
 

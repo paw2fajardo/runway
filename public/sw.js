@@ -1,4 +1,4 @@
-const CACHE_NAME = "runway-cache-v3";
+const CACHE_NAME = "runway-cache-v4";
 const STATIC_ASSETS = ["/manifest.json", "/logo.svg", "/logo-192.png", "/logo-512.png"];
 
 self.addEventListener("install", (event) => {
