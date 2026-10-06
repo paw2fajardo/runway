@@ -328,7 +328,7 @@ export function RapidExpenseDrawer({
         gross_outflow: totalCents,
         net_inflow: baseCents,
         fee_amount: selectedFee,
-        category_id: transactionType === "expense" ? selectedCategoryId : undefined,
+        category_id: transactionType === "expense" ? selectedCategoryId || undefined : undefined,
         category_name: transactionType === "expense" && !selectedCategoryId ? selectedCategory : undefined,
         transacted_at: new Date().toISOString(),
       });

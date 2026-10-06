@@ -89,12 +89,14 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
     if (!item.id) continue;
     try {
       await offlineDB.queuedTransactions.update(item.id, { status: "syncing" });
+      const { category_id, ...payload } = item.payload;
 
       const res = await fetch("/api/transactions/compound", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...item.payload,
+          ...payload,
+          ...(category_id ? { category_id } : {}),
           client_uuid: item.clientUuid,
         }),
       });

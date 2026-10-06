@@ -65,4 +65,30 @@ describe("offline queue authentication boundary", () => {
     expect(state.records[0]).toMatchObject({ id: 1, status: "synced" });
     expect(fetch).toHaveBeenCalledTimes(4);
   });
+
+  it("omits an empty optional category id before syncing an expense", async () => {
+    state.records = [{
+      id: 1,
+      clientUuid: "queued-1",
+      status: "pending",
+      payload: {
+        type: "expense",
+        description: "Groceries",
+        source_account_id: "11111111-1111-4111-8111-111111111111",
+        gross_outflow: 50000,
+        category_id: "",
+        category_name: "Food & Groceries",
+      },
+    }];
+    const fetchMock = vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));
+    const { flushOfflineQueue, offlineDB } = await import("../src/lib/offline-db");
+    installQueueTable(offlineDB);
+
+    await expect(flushOfflineQueue()).resolves.toEqual({ synced: 1, failed: 0 });
+
+    const request = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).not.toHaveProperty("category_id");
+  });
 });
