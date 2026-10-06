@@ -19,8 +19,8 @@ export function PrimaryPageLoading({ page }: { page: Page }) {
       <main className="app-bottom-clearance mx-auto flex min-h-screen w-full max-w-[480px] flex-col gap-6 px-margin pt-20 md:max-w-5xl">
         <div className="space-y-2"><Skeleton className="h-8 w-3/5" /><Skeleton className="h-4 w-4/5" /></div>
         {page === "accounts" ? <>
-          <div className="grid grid-cols-2 gap-2">{pageCards.accounts.slice(0, 2).map((height) => <Skeleton key={height} className={`${height} w-full rounded-[28px]`} />)}</div>
-          <div className="flex flex-col gap-3">{pageCards.accounts.slice(2).map((height) => <Skeleton key={height} className={`${height} w-full rounded-[28px]`} />)}</div>
+          <div className="grid grid-cols-2 gap-2">{pageCards.accounts.slice(0, 2).map((height, index) => <Skeleton key={`account-summary-${index}`} className={`${height} w-full rounded-[28px]`} />)}</div>
+          <div className="flex flex-col gap-3">{pageCards.accounts.slice(2).map((height, index) => <Skeleton key={`account-detail-${index}`} className={`${height} w-full rounded-[28px]`} />)}</div>
         </> : <div className="flex flex-col gap-3">
           {pageCards[page].map((height, index) => <Skeleton key={`${height}-${index}`} className={`${height} w-full rounded-[28px]`} />)}
         </div>}
