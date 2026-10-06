@@ -7,6 +7,7 @@ import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { ReconcileModal } from "@/components/accounts/ReconcileModal";
 import { formatPHP } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface AccountItem {
   id: string;
@@ -22,6 +23,7 @@ interface AccountItem {
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<AccountItem[]>([]);
+  const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [reconcileAccount, setReconcileAccount] = useState<AccountItem | null>(null);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddAccountOpen, setIsAddAccountOpen] = useState<boolean>(false);
@@ -47,6 +49,8 @@ export default function AccountsPage() {
       }
     } catch (err) {
       console.error("Failed to load accounts:", err);
+    } finally {
+      setIsAccountsLoading(false);
     }
   }, []);
 
@@ -140,27 +144,27 @@ export default function AccountsPage() {
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">
           {/* Top KPI Bento */}
           <div className="grid grid-cols-2 gap-2 pt-space-xs">
-            <div className="glass-panel p-space-md flex flex-col">
+            <div className="glass-panel min-h-[120px] p-space-md flex flex-col">
               <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
                 Total Liquid Cash
               </span>
-              <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-headline-md text-secondary font-bold mt-1">
-                {formatPHP(totalLiquid)}
+              <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-headline-md text-secondary font-bold mt-1 min-h-[28px]">
+                {isAccountsLoading ? <Skeleton className="h-7 w-32" /> : formatPHP(totalLiquid)}
               </span>
               <span runway-id="accounts.summary.liquid.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                {liquidAccounts.length} Connected Wallets
+                {isAccountsLoading ? <Skeleton className="h-4 w-28" /> : `${liquidAccounts.length} Connected Wallets`}
               </span>
             </div>
 
-            <div className="glass-panel p-space-md flex flex-col">
+            <div className="glass-panel min-h-[120px] p-space-md flex flex-col">
               <span runway-id="accounts.summary.credit.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
                 Revolving Debt
               </span>
-              <span runway-id="accounts.summary.credit.total" className="font-currency-display text-headline-md text-error font-bold mt-1">
-                {formatPHP(totalCreditDebt)}
+              <span runway-id="accounts.summary.credit.total" className="font-currency-display text-headline-md text-error font-bold mt-1 min-h-[28px]">
+                {isAccountsLoading ? <Skeleton className="h-7 w-32" /> : formatPHP(totalCreditDebt)}
               </span>
               <span runway-id="accounts.summary.credit.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                {creditAccounts.length} Active Cards
+                {isAccountsLoading ? <Skeleton className="h-4 w-24" /> : `${creditAccounts.length} Active Cards`}
               </span>
             </div>
           </div>
@@ -183,11 +187,11 @@ export default function AccountsPage() {
             </div>
 
             <div className="flex flex-col space-y-space-xs">
-              {liquidAccounts.map((acc) => (
+              {isAccountsLoading ? [0, 1].map((item) => <Skeleton key={item} className="h-[76px] w-full rounded-[28px]" />) : liquidAccounts.map((acc) => (
                 <div
                   key={acc.id}
                   runway-id={`accounts.liquid.account.${acc.id}`}
-                  className="glass-panel p-space-md flex items-center justify-between"
+                  className="glass-panel min-h-[76px] p-space-md flex items-center justify-between"
                 >
                   <div className="flex items-center space-x-space-sm min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
@@ -234,7 +238,7 @@ export default function AccountsPage() {
           </section>
 
           {/* Section 2: Revolving Credit */}
-          {creditAccounts.length > 0 && (
+          {(isAccountsLoading || creditAccounts.length > 0) && (
             <section runway-id="accounts.credit.section" className="flex flex-col gap-space-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -251,12 +255,12 @@ export default function AccountsPage() {
               </div>
 
               <div className="flex flex-col space-y-space-xs">
-                {creditAccounts.map((acc) => {
+                {isAccountsLoading ? [0, 1].map((item) => <Skeleton key={item} className="h-[144px] w-full rounded-[28px]" />) : creditAccounts.map((acc) => {
                   return (
                     <div
                       key={acc.id}
                       runway-id={`accounts.credit.account.${acc.id}`}
-                      className="glass-panel p-space-md flex flex-col gap-2"
+                      className="glass-panel min-h-[144px] p-space-md flex flex-col gap-2"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex items-center space-x-space-sm min-w-0">

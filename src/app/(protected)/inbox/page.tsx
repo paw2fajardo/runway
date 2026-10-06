@@ -7,6 +7,7 @@ import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
 import { ParsedInboxItem } from "@/lib/types";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface InboxItemRecord {
   id: string;
@@ -19,6 +20,7 @@ interface InboxItemRecord {
 
 export default function InboxPage() {
   const [items, setItems] = useState<InboxItemRecord[]>([]);
+  const [isInboxLoading, setIsInboxLoading] = useState(true);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddAlertOpen, setIsAddAlertOpen] = useState(false);
   const [isGuardrailOpen, setIsGuardrailOpen] = useState(false);
@@ -42,6 +44,8 @@ export default function InboxPage() {
       }
     } catch (err) {
       console.error("Failed to load inbox items:", err);
+    } finally {
+      setIsInboxLoading(false);
     }
   }, []);
 
@@ -255,7 +259,7 @@ export default function InboxPage() {
                   : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              Pending ({pendingItems.length})
+              Pending ({isInboxLoading ? "…" : pendingItems.length})
             </button>
             <button
               runway-id="inbox.tab.approved"
@@ -267,7 +271,7 @@ export default function InboxPage() {
                   : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
-              Approved ({approvedItems.length})
+              Approved ({isInboxLoading ? "…" : approvedItems.length})
             </button>
             <button
               runway-id="inbox.tab.assistant"
@@ -287,7 +291,7 @@ export default function InboxPage() {
           {/* Tab 1: Pending Staged Items */}
           {activeTab === "pending" && (
             <div className="flex flex-col space-y-space-sm">
-              {pendingItems.length === 0 ? (
+              {isInboxLoading ? <div runway-id="inbox.pending.loading" className="space-y-space-sm" role="status" aria-label="Loading inbox items"><span className="sr-only">Loading inbox items…</span>{[0, 1].map((item) => <Skeleton key={item} className="h-[240px] w-full rounded-[28px]" />)}</div> : pendingItems.length === 0 ? (
                 <div className="glass-panel p-space-lg text-center border border-dashed border-outline-variant/50">
                   <span runway-id="inbox.pending.empty.icon" className="material-symbols-outlined text-[36px] text-outline">
                     inbox
@@ -306,7 +310,7 @@ export default function InboxPage() {
                     <div
                       runway-id={`inbox.pending.item.${item.id}`}
                       key={item.id}
-                      className="glass-panel p-space-md flex flex-col gap-space-sm"
+                      className="glass-panel min-h-[240px] p-space-md flex flex-col gap-space-sm"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col">
@@ -366,11 +370,11 @@ export default function InboxPage() {
           {/* Tab 2: Approved History */}
           {activeTab === "approved" && (
             <div className="flex flex-col space-y-space-xs">
-              {approvedItems.map((item) => (
+              {isInboxLoading ? <div runway-id="inbox.approved.loading" className="space-y-space-xs" role="status" aria-label="Loading approved items"><span className="sr-only">Loading approved items…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-[76px] w-full rounded-[28px]" />)}</div> : approvedItems.map((item) => (
                 <div
                   runway-id={`inbox.approved.item.${item.id}`}
                   key={item.id}
-                  className="glass-panel p-space-md flex items-center justify-between opacity-80"
+                  className="glass-panel min-h-[76px] p-space-md flex items-center justify-between opacity-80"
                 >
                   <div className="flex flex-col">
                     <span runway-id={`inbox.approved.item.${item.id}.merchant`} className="font-body-md text-body-md font-semibold text-on-surface">

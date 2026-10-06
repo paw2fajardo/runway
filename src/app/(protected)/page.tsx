@@ -13,6 +13,7 @@ import { IncomeStreamCreateSchema, IncomeStreamPatchSchema, MAX_DAILY_DISCRETION
 import { Dialog } from "@/components/ui/Dialog";
 import { formatPHP } from "@/lib/currency";
 import { PendingPaychecks } from "@/components/payday/PendingPaychecks";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface AccountData {
   id: string;
@@ -321,9 +322,16 @@ export default function RunwayDashboard() {
             daysToPayday={forecast.days_to_payday}
             paydayDateStr={paydayDateStr}
             isSolvent={forecast.is_solvent}
-          /> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel p-6 text-body-md" role="status">
-            {isLoading ? "Loading your runway…" : "Runway forecast unavailable."}
-            {!isLoading && <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>}
+          /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
+            <span className="sr-only">Loading your runway…</span>
+            <div className="flex justify-between gap-3"><Skeleton className="h-8 w-32 bg-white/15" /><Skeleton className="h-8 w-40 bg-white/15" /></div>
+            <div className="space-y-3"><Skeleton className="h-12 w-3/4 bg-white/15" /><Skeleton className="h-5 w-2/3 bg-white/15" /></div>
+            <div className="grid grid-cols-2 gap-4 border-t border-white/15 pt-4 sm:grid-cols-3">
+              {[0, 1, 2].map((item) => <div key={item} className="space-y-2"><Skeleton className="h-4 w-20 bg-white/15" /><Skeleton className="h-6 w-28 bg-white/15" /></div>)}
+            </div>
+          </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 text-body-md" role="status">
+            Runway forecast unavailable.
+            <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
 
           {negativeDay && <p runway-id="runway.dashboard.forecast-warning" className="rounded-xl bg-error-container p-4 text-on-error-container text-body-md" role="status">
@@ -332,7 +340,7 @@ export default function RunwayDashboard() {
 
           <PendingPaychecks />
 
-          <section className="glass-panel p-5 space-y-3">
+          <section className="glass-panel min-h-[112px] p-5 space-y-3">
             <div className="flex items-center justify-between gap-4">
               <h2 runway-id="runway.dashboard.income-title" className="text-body-md font-semibold">Income streams</h2>
               <button runway-id="runway.dashboard.manage-income" type="button" onClick={() => { setStreamActionError(null); setIncomeDialog("manage"); }} disabled={isPaySaving || !!streamActionId}
@@ -340,7 +348,7 @@ export default function RunwayDashboard() {
                 Manage
               </button>
             </div>
-            {isPaySettingsLoading ? <p runway-id="runway.dashboard.income-loading" className="text-body-sm text-on-surface-variant" role="status">Loading income streams…</p>
+            {isPaySettingsLoading ? <div runway-id="runway.dashboard.income-loading" className="space-y-2" role="status" aria-label="Loading income streams"><span className="sr-only">Loading income streams…</span><Skeleton className="h-5 w-2/5" /><Skeleton className="h-4 w-3/5" /></div>
               : paySettingsError ? <div>
                 <p runway-id="runway.dashboard.income-error" className="text-body-sm text-error" role="alert">{paySettingsError}</p>
                 <button runway-id="runway.dashboard.income-retry" type="button" onClick={fetchPaySettings} className="min-h-11 text-secondary text-body-md">Retry</button>
@@ -369,7 +377,7 @@ export default function RunwayDashboard() {
             {ordinaryDues.length > 0 && <UpcomingDuesList dues={ordinaryDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" />}
             {unpaidDues.length === 0 && <p runway-id="runway.dashboard.no-upcoming-dues" className="text-body-md text-on-surface-variant">No unpaid bills.</p>}
             <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All unpaid bills ({unpaidDues.length}) →</button>
-          </> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">{isLoading ? "Loading unpaid bills…" : "Unpaid bills unavailable."}</p>}
+          </> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1].map((item) => <Skeleton key={item} className="h-24 w-full rounded-[28px]" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
         </div>
       </main>
 
