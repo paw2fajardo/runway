@@ -65,10 +65,11 @@
 }
 .app-dialog-content { padding: 24px; }
 @media (max-width: 639px) {
-  .text-body-lg { font-size: 16px; line-height: 24px; }
-  .text-headline-sm { font-size: 18px; line-height: 24px; }
-  .text-headline-md { font-size: 22px; line-height: 28px; }
-  .text-headline-lg { font-size: 26px; line-height: 32px; }
+  .text-body-md { font-size: 14px; line-height: 20px; }
+  .text-body-lg { font-size: 15px; line-height: 22px; }
+  .text-headline-sm { font-size: 17px; line-height: 23px; }
+  .text-headline-md { font-size: 20px; line-height: 26px; }
+  .text-headline-lg { font-size: 24px; line-height: 30px; }
 }
 .app-dialog.app-dialog-fullscreen {
   position: fixed;

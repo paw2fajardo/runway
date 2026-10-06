@@ -492,7 +492,7 @@ export default function RunwayDashboard() {
       </Dialog>
 
       <Dialog open={isForecastOpen} onClose={() => setIsForecastOpen(false)} title="14-day forecast">
-        {forecast?.timeline.length ? <RunwayTimeline timeline={forecast.timeline} nextCycleDateStr={paydayDateStr} />
+        {forecast?.timeline.length ? <RunwayTimeline timeline={forecast.timeline} nextCycleDateStr={paydayDateStr} nextPaydayDate={forecast.next_payday_date.slice(0, 10)} />
           : <p runway-id="runway.forecast-unavailable" className="text-body-md">{forecast ? "No forecast days available." : "Forecast unavailable."}</p>}
       </Dialog>
       <Dialog open={isBalancesOpen} onClose={() => setIsBalancesOpen(false)} title="Balances" fullScreen>
