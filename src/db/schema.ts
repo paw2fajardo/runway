@@ -207,6 +207,7 @@ export const bills = pgTable("bills", {
   amount: bigint("amount", { mode: "number" }).notNull(),
   isEstimate: boolean("is_estimate").notNull().default(false),
   isAutoPay: boolean("is_auto_pay").notNull().default(false),
+  isVariableAmount: boolean("is_variable_amount").notNull().default(false),
   dueDayOfMonth: smallint("due_day_of_month").notNull(),
   dueDayOfWeek: smallint("due_day_of_week"),
   frequency: varchar("frequency", { length: 20 }).notNull().default("monthly"),

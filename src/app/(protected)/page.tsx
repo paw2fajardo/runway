@@ -34,6 +34,10 @@ export default function RunwayDashboard() {
   const [isForecastOpen, setIsForecastOpen] = useState(false);
   const [isBalancesOpen, setIsBalancesOpen] = useState(false);
   const [isDuesOpen, setIsDuesOpen] = useState(false);
+  const [paymentDue, setPaymentDue] = useState<DueItem | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isPaymentSaving, setIsPaymentSaving] = useState(false);
   const [accountsAvailable, setAccountsAvailable] = useState(false);
   const [duesAvailable, setDuesAvailable] = useState(false);
   const balancesTrigger = useRef<HTMLButtonElement>(null);
@@ -126,6 +130,7 @@ export default function RunwayDashboard() {
           amountDue: number;
           status: string;
           isAutoPay?: boolean;
+          isVariableAmount?: boolean;
           sourceAccountName?: string | null;
         }) => ({
           id: b.instanceId,
@@ -134,6 +139,7 @@ export default function RunwayDashboard() {
           amountDue: b.amountDue,
           status: b.status,
           isAutoPay: b.isAutoPay,
+          isVariableAmount: b.isVariableAmount,
           sourceAccountName: b.sourceAccountName,
         }));
         setDues(mappedDues);
@@ -262,19 +268,47 @@ export default function RunwayDashboard() {
     fetchData();
   }, [fetchData]);
 
-  const handlePayBill = async (due: DueItem) => {
+  const settleBill = async (due: DueItem, amount?: number) => {
+    setPaymentError(null);
+    setIsPaymentSaving(true);
     try {
       const res = await fetch(`/api/bills/${due.id}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(amount === undefined ? {} : { amount }),
       });
-      if (res.ok) {
-        fetchData();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Unable to record this payment.");
       }
+      setPaymentDue(null);
+      await fetchData();
     } catch (err) {
       console.error("Payment failed:", err);
+      setPaymentError(err instanceof Error ? err.message : "Unable to record this payment.");
+    } finally {
+      setIsPaymentSaving(false);
     }
+  };
+
+  const handlePayBill = (due: DueItem) => {
+    if (!due.isVariableAmount) {
+      void settleBill(due);
+      return;
+    }
+    setPaymentDue(due);
+    setPaymentAmount((due.amountDue / 100).toFixed(2));
+    setPaymentError(null);
+  };
+
+  const confirmVariablePayment = () => {
+    if (!paymentDue || isPaymentSaving) return;
+    const amount = Math.round(Number(paymentAmount) * 100);
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      setPaymentError("Enter a payment amount greater than zero.");
+      return;
+    }
+    void settleBill(paymentDue, amount);
   };
 
   const handleReconcileClick = (accountId: string) => {
@@ -512,6 +546,14 @@ export default function RunwayDashboard() {
         {!duesAvailable ? <p runway-id="runway.all-dues.unavailable" className="text-body-md">Upcoming dues unavailable.</p> : unpaidDues.length > 0
           ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" title="All unpaid bills" description={`${unpaidDues.length} total`} emptyMessage="No unpaid bills." />
           : <p runway-id="runway.all-dues.empty" className="text-body-md">No unpaid bills.</p>}
+      </Dialog>
+      <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Confirm payment amount">
+        {paymentDue && <div className="space-y-4">
+          <p className="text-body-md text-on-surface">Enter the amount paid for <span className="font-semibold">{paymentDue.name}</span>. The expected amount is {formatPHP(paymentDue.amountDue)}.</p>
+          <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>
+          {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
+          <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmVariablePayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : "Record payment"}</button></div>
+        </div>}
       </Dialog>
 
       {/* Bottom Tab Navigation */}

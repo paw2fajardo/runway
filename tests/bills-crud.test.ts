@@ -77,6 +77,15 @@ describe("bill CRUD", () => {
     expect(instanceUpdates.map((values) => values.amountDue)).toEqual([2500, 2500]);
   });
 
+  it("stores whether a bill requires confirmation of its payment amount", async () => {
+    const { updateSet } = makeTx();
+
+    const response = await PATCH(request("PATCH", { is_variable_amount: true }), context());
+
+    expect(response.status).toBe(200);
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ isVariableAmount: true }));
+  });
+
   it("rejects invalid body and identifier with 400", async () => {
     const invalidBody = await PATCH(request("PATCH", { amount: 0 }), context());
     const invalidId = await PATCH(request("PATCH", { name: "Updated" }), context("bad-id"));

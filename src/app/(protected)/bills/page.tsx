@@ -21,6 +21,7 @@ interface BillItem {
   status: string;
   isEstimate: boolean;
   isAutoPay: boolean;
+  isVariableAmount: boolean;
   dueDayOfMonth: number;
   dueDayOfWeek?: number | null;
   gracePeriodDays: number;
@@ -58,6 +59,10 @@ export default function BillsPage() {
   const [billFormError, setBillFormError] = useState<string | null>(null);
   const [isBillSaving, setIsBillSaving] = useState(false);
   const [billActionError, setBillActionError] = useState<string | null>(null);
+  const [paymentBill, setPaymentBill] = useState<BillItem | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isPaymentSaving, setIsPaymentSaving] = useState(false);
 
   // Form states for adding new bill
   const [newBillName, setNewBillName] = useState("");
@@ -68,6 +73,7 @@ export default function BillsPage() {
   const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
   const [newBillAutoPay, setNewBillAutoPay] = useState(false);
+  const [newBillVariableAmount, setNewBillVariableAmount] = useState(false);
   const [newBillType, setNewBillType] = useState<
     "fixed_subscription" | "variable_utility" | "credit_card_statement" | "loan_installment"
   >("variable_utility");
@@ -114,19 +120,47 @@ export default function BillsPage() {
     return () => { isCurrent = false; };
   }, []);
 
-  const handlePayBill = async (instanceId: string) => {
+  const settleBill = async (bill: BillItem, amount?: number) => {
+    setPaymentError(null);
+    setIsPaymentSaving(true);
     try {
-      const res = await fetch(`/api/bills/${instanceId}/settle`, {
+      const res = await fetch(`/api/bills/${bill.instanceId}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(amount === undefined ? {} : { amount }),
       });
-      if (res.ok) {
-        fetchBills();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Unable to record this payment.");
       }
+      setPaymentBill(null);
+      await fetchBills();
     } catch (err) {
       console.error("Failed to pay bill:", err);
+      setPaymentError(err instanceof Error ? err.message : "Unable to record this payment.");
+    } finally {
+      setIsPaymentSaving(false);
     }
+  };
+
+  const handlePayBill = (bill: BillItem) => {
+    if (!bill.isVariableAmount) {
+      void settleBill(bill);
+      return;
+    }
+    setPaymentBill(bill);
+    setPaymentAmount((bill.amountDue / 100).toFixed(2));
+    setPaymentError(null);
+  };
+
+  const confirmVariablePayment = () => {
+    if (!paymentBill || isPaymentSaving) return;
+    const amount = Math.round(Number(paymentAmount) * 100);
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      setPaymentError("Enter a payment amount greater than zero.");
+      return;
+    }
+    void settleBill(paymentBill, amount);
   };
 
   const resetBillForm = () => {
@@ -138,6 +172,7 @@ export default function BillsPage() {
     setNewBillOccurrenceLimit("");
     setNewBillGrace("3");
     setNewBillAutoPay(false);
+    setNewBillVariableAmount(false);
     setNewBillType("variable_utility");
     setBillFormError(null);
   };
@@ -166,6 +201,7 @@ export default function BillsPage() {
           occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
           is_auto_pay: newBillAutoPay,
+          is_variable_amount: newBillVariableAmount,
           ...(!editingBill && { type: newBillType }),
         }),
       });
@@ -191,6 +227,7 @@ export default function BillsPage() {
     setNewBillOccurrenceLimit(bill.occurrenceLimit == null ? "" : String(bill.occurrenceLimit));
     setNewBillGrace(String(bill.gracePeriodDays));
     setNewBillAutoPay(bill.isAutoPay);
+    setNewBillVariableAmount(bill.isVariableAmount);
     setNewBillDay(String(bill.dueDayOfMonth));
     setNewBillDayOfWeek(String(bill.dueDayOfWeek ?? new Date(`${bill.dueDate}T00:00:00`).getDay()));
     setBillFormError(null);
@@ -389,7 +426,7 @@ export default function BillsPage() {
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => handlePayBill(b.instanceId)}
+                        onClick={() => handlePayBill(b)}
                         runway-id={`bills.grace.pay.${b.instanceId}`} className="min-h-11 px-3 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
                       >
                         <Check size={16} aria-hidden="true" />
@@ -459,7 +496,7 @@ export default function BillsPage() {
                       <button runway-id={`bills.due.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 text-secondary text-body-sm">Details</button>
                       <button
                         type="button"
-                        onClick={() => handlePayBill(b.instanceId)}
+                        onClick={() => handlePayBill(b)}
                         runway-id={`bills.due.pay.${b.instanceId}`} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
                       >
                         Record payment
@@ -699,6 +736,20 @@ export default function BillsPage() {
               />
             </label>
 
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 rounded-xl border border-outline-variant/50 bg-white/70 px-4 py-3">
+              <span className="flex flex-col gap-0.5">
+                <span className="font-label-md text-label-md font-semibold text-on-surface">Variable amount</span>
+                <span className="text-body-sm text-on-surface-variant">Ask for the actual amount whenever you record a payment.</span>
+              </span>
+              <input
+                runway-id="bills.add.variable-amount.input"
+                type="checkbox"
+                checked={newBillVariableAmount}
+                onChange={(event) => setNewBillVariableAmount(event.target.checked)}
+                className="h-5 w-5 shrink-0 accent-primary"
+              />
+            </label>
+
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
@@ -716,6 +767,20 @@ export default function BillsPage() {
             </div>
           </form>
       </Dialog>
+      <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Confirm payment amount">
+        {paymentBill && <div className="space-y-4">
+          <p className="text-body-md text-on-surface">Enter the amount paid for <span className="font-semibold">{paymentBill.name}</span>. The expected amount is {formatPHP(paymentBill.amountDue)}.</p>
+          <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
+            <span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span>
+            <input id="variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" />
+          </label>
+          {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentBill(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button>
+            <button type="button" disabled={isPaymentSaving} onClick={confirmVariablePayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : "Record payment"}</button>
+          </div>
+        </div>}
+      </Dialog>
       <Dialog open={detailBill !== null} onClose={() => setDetailBill(null)} title={detailBill?.name || "Bill details"}>
         {detailBill && <div className="space-y-4">
         {billActionError && <p className="text-body-sm text-red-800" role="alert">{billActionError}</p>}
@@ -727,6 +792,7 @@ export default function BillsPage() {
           <div><dt runway-id={`bills.details.source.label.${detailBill.instanceId}`}>Source account</dt><dd runway-id={`bills.details.source.value.${detailBill.instanceId}`}>{detailBill.sourceAccountName || "Not specified"}</dd></div>
           <div><dt runway-id={`bills.details.balance.label.${detailBill.instanceId}`}>Wallet balance</dt><dd runway-id={`bills.details.balance.value.${detailBill.instanceId}`}>{detailBill.sourceAccountBalance == null ? "Not available" : formatPHP(detailBill.sourceAccountBalance)}</dd></div>
           <div><dt runway-id={`bills.details.autopay.label.${detailBill.instanceId}`}>Auto-pay</dt><dd runway-id={`bills.details.autopay.value.${detailBill.instanceId}`}>{detailBill.isAutoPay ? "Enabled" : "Manual payment"}</dd></div>
+          <div><dt runway-id={`bills.details.variable-amount.label.${detailBill.instanceId}`}>Amount</dt><dd runway-id={`bills.details.variable-amount.value.${detailBill.instanceId}`}>{detailBill.isVariableAmount ? "Confirm when recording payment" : "Fixed"}</dd></div>
         </dl>
         <div className="grid grid-cols-2 gap-2 pt-2">
           <button type="button" onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold">Edit bill</button>

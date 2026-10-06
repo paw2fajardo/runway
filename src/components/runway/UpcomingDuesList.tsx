@@ -10,6 +10,7 @@ export interface DueItem {
   amountDue: number;
   status: string;
   isAutoPay?: boolean;
+  isVariableAmount?: boolean;
   sourceAccountName?: string | null;
 }
 

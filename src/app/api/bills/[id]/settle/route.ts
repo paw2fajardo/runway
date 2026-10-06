@@ -8,8 +8,14 @@ import {
   accounts,
 } from "../../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
 import { nextBillDueDate, type BillFrequency } from "../../../../../lib/bill-schedule";
+
+const settlementSchema = z.object({
+  amount: z.number().int().positive().optional(),
+  source_account_id: z.string().uuid().optional(),
+}).strict();
 
 export async function POST(
   req: NextRequest,
@@ -22,7 +28,9 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = settlementSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsedBody.success) return NextResponse.json({ error: "Enter a valid payment amount." }, { status: 400 });
+    const body = parsedBody.data;
     const customSourceAccountId = body.source_account_id;
 
     const [instance] = await db
@@ -34,6 +42,7 @@ export async function POST(
         name: bills.name,
         sourceAccountId: bills.sourceAccountId,
         categoryId: bills.categoryId,
+        isVariableAmount: bills.isVariableAmount,
         dueDate: billInstances.dueDate,
         dueDayOfMonth: bills.dueDayOfMonth,
         frequency: bills.frequency,
@@ -56,6 +65,12 @@ export async function POST(
       );
     }
 
+    if (instance.isVariableAmount && body.amount === undefined) {
+      return NextResponse.json({ error: "Enter the amount paid for this variable bill." }, { status: 400 });
+    }
+
+    const settledAmount = instance.isVariableAmount ? body.amount! : instance.amountDue;
+
     const effectiveSourceAccountId = customSourceAccountId || instance.sourceAccountId;
 
     const result = await db.transaction(async (tx) => {
@@ -75,7 +90,7 @@ export async function POST(
         await tx.insert(transactionLegs).values({
           transactionId: parentTx.id,
           accountId: effectiveSourceAccountId,
-          amount: -instance.amountDue,
+          amount: -settledAmount,
         });
 
         // Category leg
@@ -83,7 +98,7 @@ export async function POST(
           await tx.insert(transactionLegs).values({
             transactionId: parentTx.id,
             categoryId: instance.categoryId,
-            amount: instance.amountDue,
+            amount: settledAmount,
           });
         }
 
@@ -91,7 +106,7 @@ export async function POST(
         await tx
           .update(accounts)
           .set({
-            currentBalance: sql`${accounts.currentBalance} - ${instance.amountDue}`,
+            currentBalance: sql`${accounts.currentBalance} - ${settledAmount}`,
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, effectiveSourceAccountId));
@@ -103,6 +118,7 @@ export async function POST(
       const [updatedInstance] = await tx
         .update(billInstances)
         .set({
+          amountDue: settledAmount,
           status: "paid",
           linkedTransactionId: createdTx?.id || null,
           updatedAt: new Date(),
