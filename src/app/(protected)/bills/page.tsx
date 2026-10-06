@@ -8,7 +8,7 @@ import { formatPHP } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, CirclePlus, CreditCard, Headphones, Repeat2, Wallet, Wifi, Zap, Droplets, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, CirclePlus, CreditCard, Headphones, Repeat2, Wallet, Wifi, Zap, Droplets, TriangleAlert } from "lucide-react";
 
 interface BillItem {
   instanceId: string;
@@ -638,20 +638,23 @@ export default function BillsPage() {
               <label runway-id="bills.add.frequency.label" htmlFor="bill-frequency" className="font-label-sm text-label-sm text-on-surface-variant">
                 Frequency
               </label>
-              <select
-                runway-id="bills.add.frequency.input" id="bill-frequency"
-                value={newBillFrequency}
-                onChange={(e) => setNewBillFrequency(e.target.value)}
-                className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Every 2 weeks</option>
-                <option value="monthly">Monthly</option>
-                <option value="every_2_months">Every 2 months</option>
-                <option value="every_3_months">Every 3 months</option>
-                <option value="every_6_months">Every 6 months</option>
-                <option value="annually">Every year</option>
-              </select>
+              <div className="relative">
+                <select
+                  runway-id="bills.add.frequency.input" id="bill-frequency"
+                  value={newBillFrequency}
+                  onChange={(e) => setNewBillFrequency(e.target.value)}
+                  className="h-11 w-full appearance-none rounded-full border border-outline-variant/50 bg-white/70 px-4 pr-11 font-body-md text-body-md"
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="every_2_months">Every 2 months</option>
+                  <option value="every_3_months">Every 3 months</option>
+                  <option value="every_6_months">Every 6 months</option>
+                  <option value="annually">Every year</option>
+                </select>
+                <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              </div>
             </div>
 
             <div className="flex flex-col space-y-1">
@@ -722,33 +725,35 @@ export default function BillsPage() {
               </div>
             </div>
 
-            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 rounded-xl border border-outline-variant/50 bg-white/70 px-4 py-3">
-              <span className="flex flex-col gap-0.5">
-                <span className="font-label-md text-label-md font-semibold text-on-surface">Auto-pay</span>
-                <span className="text-body-sm text-on-surface-variant">Show this bill in Auto-Debit Subscriptions.</span>
-              </span>
-              <input
-                runway-id="bills.add.auto-pay.input"
-                type="checkbox"
-                checked={newBillAutoPay}
-                onChange={(event) => setNewBillAutoPay(event.target.checked)}
-                className="h-5 w-5 shrink-0 accent-primary"
-              />
-            </label>
+            <div className="divide-y divide-outline-variant/50 border-y border-outline-variant/50">
+              <label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-3">
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-label-md text-label-md font-semibold text-on-surface">Auto-pay</span>
+                  <span className="text-body-sm text-on-surface-variant">Show this bill in Auto-Debit Subscriptions.</span>
+                </span>
+                <input
+                  runway-id="bills.add.auto-pay.input"
+                  type="checkbox"
+                  checked={newBillAutoPay}
+                  onChange={(event) => setNewBillAutoPay(event.target.checked)}
+                  className="h-5 w-5 shrink-0 accent-primary"
+                />
+              </label>
 
-            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 rounded-xl border border-outline-variant/50 bg-white/70 px-4 py-3">
-              <span className="flex flex-col gap-0.5">
-                <span className="font-label-md text-label-md font-semibold text-on-surface">Variable amount</span>
-                <span className="text-body-sm text-on-surface-variant">Ask for the actual amount whenever you record a payment.</span>
-              </span>
-              <input
-                runway-id="bills.add.variable-amount.input"
-                type="checkbox"
-                checked={newBillVariableAmount}
-                onChange={(event) => setNewBillVariableAmount(event.target.checked)}
-                className="h-5 w-5 shrink-0 accent-primary"
-              />
-            </label>
+              <label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-3">
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-label-md text-label-md font-semibold text-on-surface">Variable amount</span>
+                  <span className="text-body-sm text-on-surface-variant">Ask for the actual amount whenever you record a payment.</span>
+                </span>
+                <input
+                  runway-id="bills.add.variable-amount.input"
+                  type="checkbox"
+                  checked={newBillVariableAmount}
+                  onChange={(event) => setNewBillVariableAmount(event.target.checked)}
+                  className="h-5 w-5 shrink-0 accent-primary"
+                />
+              </label>
+            </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
