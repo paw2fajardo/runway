@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, CirclePlus, CreditCard, Headphones, Repeat2, Wallet, Wifi, Zap, Droplets, TriangleAlert } from "lucide-react";
 
@@ -66,7 +67,6 @@ export default function BillsPage() {
   >("variable_utility");
 
   const fetchBills = useCallback(async () => {
-    setIsBillsLoading(true);
     try {
       const res = await fetch("/api/bills");
       if (!res.ok) throw new Error("Unable to load bills.");
@@ -223,22 +223,22 @@ export default function BillsPage() {
           </section>
 
           {/* High-Contrast Operational Summary Card */}
-          <section className="forest-panel p-6 flex flex-col gap-6">
+          <section className="forest-panel min-h-[244px] p-6 flex flex-col gap-6">
             <div className="flex flex-wrap justify-between items-start gap-3">
               <div className="flex flex-col">
                 <span runway-id="bills.summary.committed.label" className="font-label-sm text-label-sm uppercase tracking-wide text-secondary-fixed font-medium">
                   Unpaid bills total
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span runway-id="bills.summary.committed.value" className="font-currency-display text-currency-display text-white font-semibold break-all">
-                    {isBillsLoading ? "Loading…" : billsAvailable ? formatPHP(committedTotal) : "Unavailable"}
+                  <span runway-id="bills.summary.committed.value" className="font-currency-display text-currency-display text-white font-semibold break-all min-h-[36px]">
+                    {isBillsLoading ? <Skeleton className="h-9 w-40 bg-white/15" /> : billsAvailable ? formatPHP(committedTotal) : "Unavailable"}
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 bg-white/10 border border-white/15 text-secondary-fixed px-3 py-2 rounded-full">
                 <CalendarDays size={15} aria-hidden="true" />
-                <span runway-id="bills.summary.count" className="font-label-sm text-label-sm font-semibold">
-                  {isBillsLoading ? "Loading…" : billsAvailable ? `${activeBills.length} unpaid ${activeBills.length === 1 ? "item" : "items"}` : "Unavailable"}
+                  <span runway-id="bills.summary.count" className="font-label-sm text-label-sm font-semibold min-w-[92px] min-h-5">
+                  {isBillsLoading ? <Skeleton className="h-4 w-20 bg-white/15" /> : billsAvailable ? `${activeBills.length} unpaid ${activeBills.length === 1 ? "item" : "items"}` : "Unavailable"}
                 </span>
               </div>
             </div>
@@ -249,22 +249,22 @@ export default function BillsPage() {
                 <span runway-id="bills.summary.utilities.label" className="font-label-sm text-label-sm text-secondary-fixed">
                   Utilities
                 </span>
-                <span runway-id="bills.summary.utilities.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all">
-                  {!isBillsLoading && billsAvailable ? formatPHP(utilitiesTotal) : "—"}
+                <span runway-id="bills.summary.utilities.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all min-h-5">
+                  {isBillsLoading ? <Skeleton className="h-5 w-24 bg-white/15" /> : billsAvailable ? formatPHP(utilitiesTotal) : "—"}
                 </span>
               </div>
               <div className="flex min-w-0 flex-col p-4 rounded-[24px] border border-white/10 bg-white/5">
                 <span runway-id="bills.summary.subscriptions.label" className="font-label-sm text-label-sm text-secondary-fixed">
                   Other bills
                 </span>
-                <span runway-id="bills.summary.subscriptions.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all">
-                  {!isBillsLoading && billsAvailable ? formatPHP(subsTotal) : "—"}
+                <span runway-id="bills.summary.subscriptions.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all min-h-5">
+                  {isBillsLoading ? <Skeleton className="h-5 w-24 bg-white/15" /> : billsAvailable ? formatPHP(subsTotal) : "—"}
                 </span>
               </div>
             </div>
 
             {/* Runway Diagnostic Line */}
-            {isBillsLoading ? <p runway-id="bills.status.loading" className="text-body-sm text-secondary-fixed" role="status">Loading bills…</p>
+            {isBillsLoading ? <div runway-id="bills.status.loading" className="min-h-5" role="status" aria-label="Loading bills"><span className="sr-only">Loading bills…</span><Skeleton className="h-4 w-36 bg-white/15" /></div>
               : billsError ? <div>
                 <p runway-id="bills.status.error" className="text-body-sm text-secondary-fixed" role="alert">{billsError}</p>
                 <button runway-id="bills.action.retry" type="button" onClick={fetchBills} className="min-h-11 mt-2 px-4 rounded-full bg-white text-primary text-label-md font-semibold">Retry</button>
@@ -272,7 +272,7 @@ export default function BillsPage() {
           </section>
 
           {/* Obligation Groups Stream */}
-          {!isBillsLoading && billsAvailable && <div className="flex flex-col gap-space-lg">
+          {isBillsLoading ? <div runway-id="bills.list.loading" className="flex flex-col gap-space-sm" role="status" aria-label="Loading bills"><span className="sr-only">Loading bill cards…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-40 w-full rounded-[28px]" />)}</div> : billsAvailable && <div className="flex flex-col gap-space-lg">
             {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
               {tab === "due" && nextPaydayDate
                 ? `No unpaid bills are due on or before ${nextPaydayDate}.`
@@ -301,7 +301,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.grace.item.${b.instanceId}`}
-                    className="glass-panel p-5 flex flex-col gap-4"
+                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
@@ -364,7 +364,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.due.item.${b.instanceId}`}
-                    className="glass-panel p-5 flex flex-col gap-4"
+                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
@@ -426,7 +426,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.autopay.item.${b.instanceId}`}
-                    className="glass-panel p-5 flex flex-col gap-4"
+                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
