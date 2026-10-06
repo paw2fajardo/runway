@@ -98,6 +98,23 @@
 .app-dialog-header-region { touch-action: pan-x pinch-zoom; }
 .app-dialog-drag-handle { display: none; }
 .app-dialog.app-dialog-dragging { transition: none; }
+.primary-page-transition[data-transition-phase="exit"] { animation: primary-page-exit 150ms cubic-bezier(0.4, 0, 1, 1) both; }
+.primary-page-transition[data-transition-phase="enter"] { animation: primary-page-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes primary-page-exit {
+  to { opacity: 0.92; transform: translateX(var(--page-exit-offset)); }
+}
+@keyframes primary-page-enter {
+  from { opacity: 0.92; transform: translateX(var(--page-enter-offset)); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.primary-page-transition[data-transition-direction="forward"] {
+  --page-exit-offset: -18px;
+  --page-enter-offset: 18px;
+}
+.primary-page-transition[data-transition-direction="backward"] {
+  --page-exit-offset: 18px;
+  --page-enter-offset: -18px;
+}
 .app-dialog::backdrop {
   background: rgba(7, 40, 33, 0.36);
   opacity: 0;
@@ -192,6 +209,7 @@ nav[aria-label="Main navigation"] :focus-visible {
   .animate-pulse {
     animation: none !important;
   }
+  .primary-page-transition { animation: none !important; }
 }
 
 @media (max-width: 639px) {
