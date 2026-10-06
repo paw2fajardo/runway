@@ -89,6 +89,7 @@ export function RapidExpenseDrawer({
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = useState(false);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
@@ -151,7 +152,10 @@ export function RapidExpenseDrawer({
   }, [isOpen, editTransaction]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setSuccessMessage(null);
+      return;
+    }
     setSubmitError(null);
     if (!editTransaction) {
       setRawAmount("");
@@ -268,6 +272,11 @@ export function RapidExpenseDrawer({
     setRawAmount(normalizeAmountInput(value));
   };
 
+  const closeAfterSuccess = (message: string) => {
+    setSuccessMessage(message);
+    window.setTimeout(onClose, 1400);
+  };
+
   const requestClose = () => {
     if (isSubmitting) return;
     if (parseAmountToCents(rawAmount) > 0) {
@@ -278,7 +287,7 @@ export function RapidExpenseDrawer({
   };
 
   const handleConfirm = async () => {
-    if (isSubmitting || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
+    if (isSubmitting || successMessage || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
       (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")) return;
     setSubmitError(null);
     setIsSubmitting(true);
@@ -311,7 +320,7 @@ export function RapidExpenseDrawer({
         const response = await fetch(`/api/transactions/${editTransaction.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || "Couldn’t update this entry. Your changes are still here. Try again."); }
         onEditSuccess?.();
-        onClose();
+        closeAfterSuccess("Entry updated.");
         return;
       }
 
@@ -347,7 +356,7 @@ export function RapidExpenseDrawer({
       }
 
       if (onSuccess) onSuccess();
-      onClose();
+      closeAfterSuccess("Transaction saved. Syncing now.");
     } catch (err) {
       console.error("Failed to queue transaction:", err);
       setSubmitError(err instanceof Error ? err.message : "Couldn’t save this entry. Your details are still here. Try again.");
@@ -829,13 +838,14 @@ export function RapidExpenseDrawer({
         {/* Confirm Button Area */}
         <div className="quick-log-footer mt-4 shrink-0 border-t border-outline-variant/70 pt-4">
           {!editTransaction && <a href="/transactions" className="mb-3 block text-center text-body-sm text-secondary underline">View logged activity</a>}
+          {successMessage && <p role="status" aria-live="polite" className="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-secondary-container px-4 text-center text-body-sm font-semibold text-on-secondary-container"><Check size={18} aria-hidden="true" />{successMessage}</p>}
           {submitError && <p runway-id="quick-log.submit.error" role="alert" className="mb-space-xs text-center text-body-sm text-error">{submitError}</p>}
           <div className="flex flex-col gap-space-xs pb-space-xs">
             <button
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
+              disabled={isSubmitting || !!successMessage || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
               className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">
