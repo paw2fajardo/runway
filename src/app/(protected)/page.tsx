@@ -15,6 +15,34 @@ import { formatPHP } from "@/lib/currency";
 import { PendingPaychecks } from "@/components/payday/PendingPaychecks";
 import { Skeleton } from "@/components/ui/Skeleton";
 
+const MINIMUM_FORECAST_DAYS = 14;
+
+function localDateInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function minimumForecastEndDate() {
+  const endDate = new Date();
+  endDate.setHours(0, 0, 0, 0);
+  endDate.setDate(endDate.getDate() + MINIMUM_FORECAST_DAYS - 1);
+  return localDateInputValue(endDate);
+}
+
+function maximumForecastEndDate() {
+  const endDate = new Date();
+  endDate.setHours(0, 0, 0, 0);
+  endDate.setDate(endDate.getDate() + 365);
+  return localDateInputValue(endDate);
+}
+
+function forecastDaysThrough(endDate: string) {
+  const [year, month, day] = endDate.split("-").map(Number);
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const endUtc = Date.UTC(year, month - 1, day);
+  return Math.round((endUtc - todayUtc) / 86_400_000) + 1;
+}
+
 interface AccountData {
   id: string;
   name: string;
@@ -32,6 +60,10 @@ export default function RunwayDashboard() {
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [reconcileAccount, setReconcileAccount] = useState<AccountData | null>(null);
   const [isForecastOpen, setIsForecastOpen] = useState(false);
+  const [forecastEndDate, setForecastEndDate] = useState(minimumForecastEndDate);
+  const [modalForecast, setModalForecast] = useState<RunwayForecastResponse | null>(null);
+  const [isModalForecastLoading, setIsModalForecastLoading] = useState(false);
+  const [modalForecastError, setModalForecastError] = useState<string | null>(null);
   const [isBalancesOpen, setIsBalancesOpen] = useState(false);
   const [isDuesOpen, setIsDuesOpen] = useState(false);
   const [paymentDue, setPaymentDue] = useState<DueItem | null>(null);
@@ -41,6 +73,7 @@ export default function RunwayDashboard() {
   const [accountsAvailable, setAccountsAvailable] = useState(false);
   const [duesAvailable, setDuesAvailable] = useState(false);
   const balancesTrigger = useRef<HTMLButtonElement>(null);
+  const forecastRequestId = useRef(0);
   const [incomeStreams, setIncomeStreams] = useState<IncomeStreamResponse[] | null>(null);
   const [isPaySettingsLoading, setIsPaySettingsLoading] = useState(true);
   const [paySettingsError, setPaySettingsError] = useState<string | null>(null);
@@ -319,6 +352,39 @@ export default function RunwayDashboard() {
     }
   };
 
+  const openForecast = () => {
+    setForecastEndDate(minimumForecastEndDate());
+    setModalForecast(forecast);
+    setModalForecastError(null);
+    setIsModalForecastLoading(false);
+    setIsForecastOpen(true);
+  };
+
+  const changeForecastEndDate = async (endDate: string) => {
+    setForecastEndDate(endDate);
+    const horizonDays = forecastDaysThrough(endDate);
+    if (!Number.isInteger(horizonDays) || horizonDays < MINIMUM_FORECAST_DAYS || horizonDays > 366) {
+      setModalForecastError(`Choose an end date for a forecast of at least ${MINIMUM_FORECAST_DAYS} days, up to one year.`);
+      return;
+    }
+
+    const requestId = ++forecastRequestId.current;
+    setIsModalForecastLoading(true);
+    setModalForecastError(null);
+    try {
+      const response = await fetch(`/api/runway/forecast?horizon_days=${horizonDays}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Forecast unavailable.");
+      if (requestId === forecastRequestId.current) setModalForecast(data as RunwayForecastResponse);
+    } catch (error) {
+      if (requestId === forecastRequestId.current) {
+        setModalForecastError(error instanceof Error ? error.message : "Forecast unavailable.");
+      }
+    } finally {
+      if (requestId === forecastRequestId.current) setIsModalForecastLoading(false);
+    }
+  };
+
   const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited");
   const today = new Date();
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -401,9 +467,9 @@ export default function RunwayDashboard() {
                 Manage
               </button>
             </div>
-            <button runway-id="runway.dashboard.open-forecast" type="button" onClick={() => setIsForecastOpen(true)} disabled={!forecast || isLoading}
+            <button runway-id="runway.dashboard.open-forecast" type="button" onClick={openForecast} disabled={!forecast || isLoading}
               className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
-              <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">14-day forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
+              <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">Runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
             </button>
             <button runway-id="runway.dashboard.open-balances" ref={balancesTrigger} type="button" onClick={() => setIsBalancesOpen(true)} disabled={!accountsAvailable || isLoading}
               className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
@@ -533,9 +599,27 @@ export default function RunwayDashboard() {
         </form>
       </Dialog>
 
-      <Dialog open={isForecastOpen} onClose={() => setIsForecastOpen(false)} title="14-day forecast">
-        {forecast?.timeline.length ? <RunwayTimeline timeline={forecast.timeline} nextCycleDateStr={paydayDateStr} nextPaydayDate={forecast.next_payday_date.slice(0, 10)} />
-          : <p runway-id="runway.forecast-unavailable" className="text-body-md">{forecast ? "No forecast days available." : "Forecast unavailable."}</p>}
+      <Dialog open={isForecastOpen} onClose={() => setIsForecastOpen(false)} title="Runway forecast">
+        <div className="space-y-5">
+          <div className="flex flex-col gap-1">
+            <label runway-id="runway.forecast.end-date.label" htmlFor="forecast-end-date" className="text-body-sm font-semibold text-on-surface">Forecast through</label>
+            <input
+              runway-id="runway.forecast.end-date.input"
+              id="forecast-end-date"
+              type="date"
+              min={minimumForecastEndDate()}
+              max={maximumForecastEndDate()}
+              value={forecastEndDate}
+              onChange={(event) => void changeForecastEndDate(event.target.value)}
+              className="min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md text-on-surface"
+            />
+            <p runway-id="runway.forecast.end-date.hint" className="text-body-sm text-on-surface-variant">Choose an end date for a forecast of at least {MINIMUM_FORECAST_DAYS} days.</p>
+          </div>
+          {isModalForecastLoading ? <p runway-id="runway.forecast.loading" className="text-body-md text-on-surface-variant" role="status">Updating forecast…</p>
+            : modalForecastError ? <p runway-id="runway.forecast.error" className="text-body-md text-error" role="alert">{modalForecastError}</p>
+              : modalForecast?.timeline.length ? <RunwayTimeline timeline={modalForecast.timeline} nextCycleDateStr={modalForecast.next_payday_date ? new Date(`${modalForecast.next_payday_date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Unavailable"} nextPaydayDate={modalForecast.next_payday_date.slice(0, 10)} />
+                : <p runway-id="runway.forecast-unavailable" className="text-body-md">{modalForecast ? "No forecast days available." : "Forecast unavailable."}</p>}
+        </div>
       </Dialog>
       <Dialog open={isBalancesOpen} onClose={() => setIsBalancesOpen(false)} title="Balances" fullScreen>
         {!accountsAvailable ? <p runway-id="runway.balances-unavailable" className="text-body-md">Balances unavailable.</p> : accounts.length > 0
