@@ -72,7 +72,8 @@ export function UpcomingDuesList({
                 </span>
                 {isPastDue ? <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="rounded px-1.5 py-0.5 text-[10px] font-bold text-error">
                   {isGrace ? "Grace period" : "Past due"}
-                </span> : due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                </span> : null}
+                {due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   Auto-pay
                 </span> : null}
               </div>
@@ -89,13 +90,13 @@ export function UpcomingDuesList({
               <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-bold tabular-nums text-on-surface">
                 {formatPHP(due.amountDue)}
               </span>
-              {due.isAutoPay ? <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[18px]">autorenew</span> : <button
+              {due.isAutoPay && !onPayClick ? <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[18px]">autorenew</span> : <button
                 runway-id={`${idPrefix}.item.${due.id}.pay`}
                 type="button"
                 onClick={() => onPayClick?.(due)}
                 className="min-h-10 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
-                Pay
+                {due.isAutoPay ? "Record payment" : "Pay"}
               </button>}
             </div>
           </li>;

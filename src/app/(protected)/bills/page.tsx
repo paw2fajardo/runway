@@ -550,7 +550,18 @@ export default function BillsPage() {
                       </span>
                     </div>
 
-                    <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Auto-pay · Details</button>
+                    <div className="flex items-center justify-between pt-1">
+                      <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Auto-pay · Details</button>
+                      <button
+                        type="button"
+                        onClick={() => handlePayBill(b.instanceId)}
+                        runway-id={`bills.autopay.pay.${b.instanceId}`}
+                        className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                      >
+                        Record payment
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 </div>
