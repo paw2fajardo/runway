@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -166,8 +167,10 @@ describe("owner-protected money routes", () => {
     const changes = set.mock.calls[0][0];
     expect(changes.initialBalance).toBe(50000);
     expect(changes.currentBalance).toBeDefined();
-    expect(String(changes.currentBalance.queryChunks ?? changes.currentBalance)).toContain("transaction_legs");
-    expect(String(changes.currentBalance.queryChunks ?? changes.currentBalance)).toContain("income_stream_deposits");
+    const query = new PgDialect().sqlToQuery(changes.currentBalance);
+    expect(query.sql).toContain("transaction_legs");
+    expect(query.sql).toContain("income_stream_deposits");
+    expect(query.params).toEqual([50000]);
   });
 
   it("rejects invalid account changes and returns not found for unavailable accounts", async () => {

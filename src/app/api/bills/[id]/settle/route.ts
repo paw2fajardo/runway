@@ -9,7 +9,7 @@ import {
 } from "../../../../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
-import { nextBillDueDate, type BillFrequency } from "@/lib/bill-schedule";
+import { nextBillDueDate, type BillFrequency } from "../../../../../lib/bill-schedule";
 
 export async function POST(
   req: NextRequest,

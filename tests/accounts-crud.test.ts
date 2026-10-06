@@ -31,7 +31,8 @@ function context(id = accountId) {
 }
 
 function returningRows(rows: unknown[]) {
-  const where = vi.fn().mockResolvedValue(rows);
+  const returning = vi.fn().mockResolvedValue(rows);
+  const where = vi.fn().mockReturnValue({ returning });
   const set = vi.fn().mockReturnValue({ where });
   mocks.update.mockReturnValue({ set });
   return { set, where };

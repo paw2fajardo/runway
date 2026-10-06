@@ -3,11 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../../../db";
 import { accounts, billInstances, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../db/schema";
 import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
-
-export function isQuickLogEligible(type: string, legs: { accountId: string | null }[]) {
-  const accountCount = legs.filter((leg) => leg.accountId !== null).length;
-  return legs.length >= 2 && (type === "transfer" ? accountCount === 2 : (type === "income" || type === "expense") && accountCount === 1);
-}
+import { isQuickLogEligible } from "../../../lib/transaction-crud";
 
 export async function GET(req: NextRequest) {
   const originError = assertSameOrigin(req);

@@ -5,8 +5,9 @@ const mocks = vi.hoisted(() => ({ select: vi.fn(), requireOwner: vi.fn(), assert
 vi.mock("../src/db", () => ({ db: { select: mocks.select } }));
 vi.mock("../src/lib/auth/guard", () => ({ requireOwner: mocks.requireOwner, assertSameOrigin: mocks.assertSameOrigin }));
 
-import { GET, isQuickLogEligible as isListEligible } from "../src/app/api/transactions/route";
-import { accountBalanceAdjustments, DELETE, isQuickLogEligible as isMutationEligible, PATCH } from "../src/app/api/transactions/[id]/route";
+import { GET } from "../src/app/api/transactions/route";
+import { DELETE, PATCH } from "../src/app/api/transactions/[id]/route";
+import { accountBalanceAdjustments, isQuickLogEligible } from "../src/lib/transaction-crud";
 
 const url = "https://runway.example/api/transactions";
 const context = { params: Promise.resolve({ id: "bad-id" }) };
@@ -42,10 +43,8 @@ describe("logged transaction CRUD boundaries", () => {
   it("includes ordinary inflows with an uncategorized category leg and excludes one-leg reconciliation adjustments", () => {
     const incomeLegs = [{ accountId: "account-1" }, { accountId: null }];
     const reconciliationLegs = [{ accountId: "account-1" }];
-    expect(isListEligible("income", incomeLegs)).toBe(true);
-    expect(isMutationEligible("income", incomeLegs)).toBe(true);
-    expect(isListEligible("income", reconciliationLegs)).toBe(false);
-    expect(isMutationEligible("income", reconciliationLegs)).toBe(false);
+    expect(isQuickLogEligible("income", incomeLegs)).toBe(true);
+    expect(isQuickLogEligible("income", reconciliationLegs)).toBe(false);
   });
 
   it("computes reversal before replacement and applies the new account leg amounts", () => {

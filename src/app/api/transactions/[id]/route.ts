@@ -5,20 +5,10 @@ import { db } from "../../../../db";
 import { accounts, billInstances, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../../db/schema";
 import { CompoundTransactionSchema } from "../../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
+import { accountBalanceAdjustments, isQuickLogEligible } from "../../../../lib/transaction-crud";
 
 const idSchema = z.string().uuid();
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-export function isQuickLogEligible(type: string, legs: { accountId: string | null }[]) {
-  const accountCount = legs.filter((leg) => leg.accountId !== null).length;
-  return legs.length >= 2 && (type === "transfer" ? accountCount === 2 : (type === "income" || type === "expense") && accountCount === 1);
-}
-
-export function accountBalanceAdjustments(legs: { accountId: string | null; amount: number }[], direction: "reverse" | "apply") {
-  const adjustments = new Map<string, number>();
-  for (const leg of legs) if (leg.accountId) adjustments.set(leg.accountId, (adjustments.get(leg.accountId) ?? 0) + leg.amount * (direction === "reverse" ? -1 : 1));
-  return adjustments;
-}
-
 async function loadEligible(tx: Tx, id: string) {
   const [parent] = await tx.select().from(transactions).where(eq(transactions.id, id)).limit(1);
   if (!parent) return null;
