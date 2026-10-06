@@ -13,6 +13,12 @@ interface SolvencyHeroProps {
   daysToPayday: number;
   paydayDateStr?: string;
   isSolvent?: boolean;
+  revolvingCreditAccounts?: Array<{
+    id: string;
+    name: string;
+    currentBalance: number;
+    creditLimit?: number | null;
+  }>;
 }
 
 export function SolvencyHero({
@@ -24,6 +30,7 @@ export function SolvencyHero({
   daysToPayday,
   paydayDateStr = "Unavailable",
   isSolvent = true,
+  revolvingCreditAccounts = [],
 }: SolvencyHeroProps) {
   return (
     <section runway-id="runway.solvency-hero" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 flex flex-col gap-6">
@@ -95,6 +102,24 @@ export function SolvencyHero({
           </div>
         </div>
       </div>
+
+      {revolvingCreditAccounts.length > 0 && (
+        <details runway-id="runway.solvency-credit-breakdown" className="border-t border-white/15 pt-3">
+          <summary runway-id="runway.solvency-credit-breakdown.toggle" className="min-h-11 cursor-pointer list-inside font-label-md text-label-md font-medium text-secondary-fixed marker:text-secondary-fixed">
+            Available credit by card
+          </summary>
+          <ul className="mt-2 divide-y divide-white/10">
+            {revolvingCreditAccounts.map((account) => (
+              <li key={account.id} runway-id={`runway.solvency-credit-breakdown.account.${account.id}`} className="flex min-w-0 items-center justify-between gap-3 py-2 font-body-sm text-body-sm text-white/85">
+                <span className="min-w-0 [overflow-wrap:anywhere]">{account.name}</span>
+                <span className="shrink-0 whitespace-nowrap font-currency-sm text-currency-sm font-semibold text-white">
+                  {account.creditLimit == null ? "—" : formatPHP(account.creditLimit - account.currentBalance)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

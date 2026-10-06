@@ -322,6 +322,7 @@ export default function RunwayDashboard() {
             daysToPayday={forecast.days_to_payday}
             paydayDateStr={paydayDateStr}
             isSolvent={forecast.is_solvent}
+            revolvingCreditAccounts={accounts.filter((account) => account.type === "revolving_credit")}
           /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
             <span className="sr-only">Loading your runway…</span>
             <div className="flex justify-between gap-3"><Skeleton className="h-8 w-32 bg-white/15" /><Skeleton className="h-8 w-40 bg-white/15" /></div>
