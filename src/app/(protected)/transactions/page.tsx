@@ -55,7 +55,7 @@ export default function TransactionsPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to delete this entry. Try again."); }
   };
 
-  return <main className="min-h-screen bg-surface pb-28">
+  return <main className="app-bottom-clearance min-h-screen bg-surface pt-20">
     <Header title="Logged activity" />
     <div className="mx-auto max-w-3xl px-4 py-6">
       <div className="mb-5 flex items-center justify-between gap-3"><div><h1 className="text-headline-sm font-semibold text-on-surface">Logged activity</h1><p className="mt-1 text-body-sm text-on-surface-variant">Expenses, transfers, and inflows you logged.</p></div><Link href="/" className="rounded-full bg-primary px-4 py-2 text-label-md text-white">Quick log</Link></div>
