@@ -377,13 +377,15 @@ export default function RunwayDashboard() {
             </button>
           </section>
 
-          {duesAvailable ? <>
-            {warningDues.length > 0 && <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />}
+          {duesAvailable ? <div className="space-y-8">
+            {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
+              <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />
+            </div>}
             {forecast
-              ? <UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} />
-              : <p runway-id="runway.dashboard.upcoming-dues-unavailable" className="text-body-sm text-on-surface-variant" role="status">Your next payday is unavailable, so bills for this period can’t be shown.</p>}
-            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All unpaid bills ({unpaidDues.length}) →</button>
-          </> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1, 2].map((item) => <Skeleton key={item} className="h-16 w-full" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
+              ? <div className="border-t-2 border-primary/35 pt-4"><UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} /></div>
+              : <p runway-id="runway.dashboard.upcoming-dues-unavailable" className="border-t-2 border-primary/35 pt-4 text-body-sm text-on-surface-variant" role="status">Your next payday is unavailable, so bills for this period can’t be shown.</p>}
+            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold underline decoration-secondary/30 underline-offset-4">All unpaid bills ({unpaidDues.length}) →</button>
+          </div> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1, 2].map((item) => <Skeleton key={item} className="h-16 w-full" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
         </div>
       </main>
 
