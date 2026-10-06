@@ -554,7 +554,7 @@ export default function BillsPage() {
                       <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Auto-pay · Details</button>
                       <button
                         type="button"
-                        onClick={() => handlePayBill(b.instanceId)}
+                        onClick={() => handlePayBill(b)}
                         runway-id={`bills.autopay.pay.${b.instanceId}`}
                         className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
                       >
