@@ -21,6 +21,7 @@ interface BillItem {
   isEstimate: boolean;
   isAutoPay: boolean;
   dueDayOfMonth: number;
+  dueDayOfWeek?: number | null;
   gracePeriodDays: number;
   frequency: "weekly" | "biweekly" | "monthly" | "every_2_months" | "every_3_months" | "every_6_months" | "annually";
   occurrenceLimit: number | null;
@@ -52,6 +53,10 @@ export default function BillsPage() {
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddBillOpen, setIsAddBillOpen] = useState<boolean>(false);
   const [detailBill, setDetailBill] = useState<BillItem | null>(null);
+  const [editingBill, setEditingBill] = useState<BillItem | null>(null);
+  const [billFormError, setBillFormError] = useState<string | null>(null);
+  const [isBillSaving, setIsBillSaving] = useState(false);
+  const [billActionError, setBillActionError] = useState<string | null>(null);
 
   // Form states for adding new bill
   const [newBillName, setNewBillName] = useState("");
@@ -123,15 +128,34 @@ export default function BillsPage() {
     }
   };
 
+  const resetBillForm = () => {
+    setNewBillName("");
+    setNewBillAmount("");
+    setNewBillDay("15");
+    setNewBillDayOfWeek("1");
+    setNewBillFrequency("monthly");
+    setNewBillOccurrenceLimit("");
+    setNewBillGrace("3");
+    setNewBillType("variable_utility");
+    setBillFormError(null);
+  };
+
+  const closeBillForm = () => {
+    setIsAddBillOpen(false);
+    setEditingBill(null);
+    resetBillForm();
+  };
+
   const handleCreateBill = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBillFormError(null);
+    setIsBillSaving(true);
     try {
-      const res = await fetch("/api/bills", {
-        method: "POST",
+      const res = await fetch(editingBill ? `/api/bills/${editingBill.billId}` : "/api/bills", {
+        method: editingBill ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newBillName,
-          type: newBillType,
           amount: Math.round(parseFloat(newBillAmount) * 100),
           ...(newBillFrequency === "weekly" || newBillFrequency === "biweekly"
             ? { due_day_of_week: parseInt(newBillDayOfWeek, 10) }
@@ -139,16 +163,51 @@ export default function BillsPage() {
           frequency: newBillFrequency,
           occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
+          ...(!editingBill && { type: newBillType }),
         }),
       });
-      if (res.ok) {
-        setIsAddBillOpen(false);
-        setNewBillName("");
-        setNewBillAmount("");
-        fetchBills();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Unable to ${editingBill ? "update" : "create"} bill.`);
       }
+      closeBillForm();
+      await fetchBills();
     } catch (err) {
       console.error("Create bill failed:", err);
+      setBillFormError(err instanceof Error ? err.message : "Unable to save bill. Please try again.");
+    } finally {
+      setIsBillSaving(false);
+    }
+  };
+
+  const openBillEditor = (bill: BillItem) => {
+    setEditingBill(bill);
+    setNewBillName(bill.name);
+    setNewBillAmount((bill.amount / 100).toFixed(2));
+    setNewBillFrequency(bill.frequency);
+    setNewBillOccurrenceLimit(bill.occurrenceLimit == null ? "" : String(bill.occurrenceLimit));
+    setNewBillGrace(String(bill.gracePeriodDays));
+    setNewBillDay(String(bill.dueDayOfMonth));
+    setNewBillDayOfWeek(String(bill.dueDayOfWeek ?? new Date(`${bill.dueDate}T00:00:00`).getDay()));
+    setBillFormError(null);
+    setDetailBill(null);
+    setIsAddBillOpen(true);
+  };
+
+  const handleDeactivateBill = async (bill: BillItem) => {
+    if (!window.confirm(`Deactivate “${bill.name}”? Its payment history will be kept.`)) return;
+    setBillActionError(null);
+    try {
+      const res = await fetch(`/api/bills/${bill.billId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Unable to deactivate bill.");
+      }
+      setDetailBill(null);
+      await fetchBills();
+    } catch (err) {
+      console.error("Deactivate bill failed:", err);
+      setBillActionError(err instanceof Error ? err.message : "Unable to deactivate bill. Please try again.");
     }
   };
 
@@ -473,7 +532,7 @@ export default function BillsPage() {
           {/* Add Recurring Obligation Button */}
           <button
             type="button"
-            onClick={() => setIsAddBillOpen(true)}
+            onClick={() => { setEditingBill(null); resetBillForm(); setIsAddBillOpen(true); }}
             runway-id="bills.action.add" className="w-full min-h-12 rounded-full bg-white/85 border border-white shadow-sm text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-white active:scale-[0.99] transition-colors"
           >
             <CirclePlus size={18} aria-hidden="true" />
@@ -491,11 +550,13 @@ export default function BillsPage() {
       />
 
       {/* Add Recurring Modal */}
-      <Dialog open={isAddBillOpen} onClose={() => setIsAddBillOpen(false)} title="Add a recurring bill">
+      <Dialog open={isAddBillOpen} onClose={closeBillForm} title={editingBill ? "Edit recurring bill" : "Add a recurring bill"}>
           <form
             onSubmit={handleCreateBill}
               runway-id="bills.add.form" className="flex flex-col space-y-4"
           >
+            {editingBill && <p className="text-body-sm text-on-surface-variant" role="status">Schedule changes move only the next unpaid occurrence. Amount changes update all outstanding unpaid bills.</p>}
+            {billFormError && <p className="text-body-sm text-red-800" role="alert">{billFormError}</p>}
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.name.label" htmlFor="bill-name" className="font-label-sm text-label-sm text-on-surface-variant">
@@ -619,22 +680,24 @@ export default function BillsPage() {
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsAddBillOpen(false)}
+                onClick={closeBillForm}
                 runway-id="bills.add.cancel" className="h-11 rounded-full bg-white/75 border border-primary/10 font-label-md text-label-md font-semibold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                runway-id="bills.add.save" className="h-11 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold"
+                runway-id="bills.add.save" disabled={isBillSaving} className="h-11 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold disabled:opacity-60"
               >
-                Save bill
+                {isBillSaving ? "Saving…" : editingBill ? "Save changes" : "Save bill"}
               </button>
             </div>
           </form>
       </Dialog>
       <Dialog open={detailBill !== null} onClose={() => setDetailBill(null)} title={detailBill?.name || "Bill details"}>
-        {detailBill && <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
+        {detailBill && <div className="space-y-4">
+        {billActionError && <p className="text-body-sm text-red-800" role="alert">{billActionError}</p>}
+        <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
           <div><dt runway-id={`bills.details.due-date.label.${detailBill.instanceId}`}>Due date</dt><dd runway-id={`bills.details.due-date.value.${detailBill.instanceId}`}>{detailBill.dueDate}</dd></div>
           <div><dt runway-id={`bills.details.grace.label.${detailBill.instanceId}`}>Grace period after due date</dt><dd runway-id={`bills.details.grace.value.${detailBill.instanceId}`}>{detailBill.gracePeriodDays} days</dd></div>
           <div><dt runway-id={`bills.details.frequency.label.${detailBill.instanceId}`}>Frequency</dt><dd runway-id={`bills.details.frequency.value.${detailBill.instanceId}`}>{billFrequencyLabels[detailBill.frequency]}</dd></div>
@@ -642,7 +705,12 @@ export default function BillsPage() {
           <div><dt runway-id={`bills.details.source.label.${detailBill.instanceId}`}>Source account</dt><dd runway-id={`bills.details.source.value.${detailBill.instanceId}`}>{detailBill.sourceAccountName || "Not specified"}</dd></div>
           <div><dt runway-id={`bills.details.balance.label.${detailBill.instanceId}`}>Wallet balance</dt><dd runway-id={`bills.details.balance.value.${detailBill.instanceId}`}>{detailBill.sourceAccountBalance == null ? "Not available" : formatPHP(detailBill.sourceAccountBalance)}</dd></div>
           <div><dt runway-id={`bills.details.autopay.label.${detailBill.instanceId}`}>Auto-pay</dt><dd runway-id={`bills.details.autopay.value.${detailBill.instanceId}`}>{detailBill.isAutoPay ? "Enabled" : "Manual payment"}</dd></div>
-        </dl>}
+        </dl>
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <button type="button" onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold">Edit bill</button>
+          <button type="button" onClick={() => handleDeactivateBill(detailBill)} className="min-h-11 rounded-full border border-red-300 bg-white text-red-800 font-label-md font-semibold">Deactivate</button>
+        </div>
+        </div>}
       </Dialog>
     </div>
   );
