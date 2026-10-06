@@ -88,6 +88,7 @@ export function RapidExpenseDrawer({
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = useState(false);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
   const categoryMenuRef = useRef<HTMLDivElement>(null);
@@ -266,6 +267,15 @@ export function RapidExpenseDrawer({
     setRawAmount(normalizeAmountInput(value));
   };
 
+  const requestClose = () => {
+    if (isSubmitting) return;
+    if (parseAmountToCents(rawAmount) > 0) {
+      setIsDiscardConfirmationOpen(true);
+      return;
+    }
+    onClose();
+  };
+
   const handleConfirm = async () => {
     if (isSubmitting || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
       (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")) return;
@@ -399,7 +409,7 @@ export function RapidExpenseDrawer({
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log">
+    <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log">
       <div className="flex h-full min-h-0 flex-col pb-safe">
         {/* Transaction Type Selector */}
         <div className="relative shrink-0 pb-space-xs">
@@ -854,6 +864,35 @@ export function RapidExpenseDrawer({
           </div>
         </div>
       </div>
+      <Dialog
+        open={isDiscardConfirmationOpen}
+        onClose={() => setIsDiscardConfirmationOpen(false)}
+        title="Discard this entry?"
+        className="app-dialog-discard-confirm"
+      >
+        <p className="mb-5 text-body-md text-on-surface-variant">
+          Your {formatPHP(baseCents)} entry will be lost.
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setIsDiscardConfirmationOpen(false)}
+            className="min-h-11 rounded-full border border-outline-variant px-4 font-label-md text-label-md text-on-surface"
+          >
+            Keep editing
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsDiscardConfirmationOpen(false);
+              onClose();
+            }}
+            className="min-h-11 rounded-full bg-error px-4 font-label-md text-label-md font-semibold text-white"
+          >
+            Discard entry
+          </button>
+        </div>
+      </Dialog>
     </Dialog>
   );
 }
