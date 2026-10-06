@@ -67,6 +67,7 @@ export default function BillsPage() {
   const [newBillFrequency, setNewBillFrequency] = useState("monthly");
   const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
+  const [newBillAutoPay, setNewBillAutoPay] = useState(false);
   const [newBillType, setNewBillType] = useState<
     "fixed_subscription" | "variable_utility" | "credit_card_statement" | "loan_installment"
   >("variable_utility");
@@ -136,6 +137,7 @@ export default function BillsPage() {
     setNewBillFrequency("monthly");
     setNewBillOccurrenceLimit("");
     setNewBillGrace("3");
+    setNewBillAutoPay(false);
     setNewBillType("variable_utility");
     setBillFormError(null);
   };
@@ -163,6 +165,7 @@ export default function BillsPage() {
           frequency: newBillFrequency,
           occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
+          is_auto_pay: newBillAutoPay,
           ...(!editingBill && { type: newBillType }),
         }),
       });
@@ -187,6 +190,7 @@ export default function BillsPage() {
     setNewBillFrequency(bill.frequency);
     setNewBillOccurrenceLimit(bill.occurrenceLimit == null ? "" : String(bill.occurrenceLimit));
     setNewBillGrace(String(bill.gracePeriodDays));
+    setNewBillAutoPay(bill.isAutoPay);
     setNewBillDay(String(bill.dueDayOfMonth));
     setNewBillDayOfWeek(String(bill.dueDayOfWeek ?? new Date(`${bill.dueDate}T00:00:00`).getDay()));
     setBillFormError(null);
@@ -676,6 +680,20 @@ export default function BillsPage() {
                 />
               </div>
             </div>
+
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 rounded-xl border border-outline-variant/50 bg-white/70 px-4 py-3">
+              <span className="flex flex-col gap-0.5">
+                <span className="font-label-md text-label-md font-semibold text-on-surface">Auto-pay</span>
+                <span className="text-body-sm text-on-surface-variant">Show this bill in Auto-Debit Subscriptions.</span>
+              </span>
+              <input
+                runway-id="bills.add.auto-pay.input"
+                type="checkbox"
+                checked={newBillAutoPay}
+                onChange={(event) => setNewBillAutoPay(event.target.checked)}
+                className="h-5 w-5 shrink-0 accent-primary"
+              />
+            </label>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
