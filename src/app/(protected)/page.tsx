@@ -288,11 +288,13 @@ export default function RunwayDashboard() {
   const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited");
   const today = new Date();
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const nextPaydayDate = forecast?.next_payday_date.slice(0, 10);
   const warningDues = unpaidDues.filter((due) =>
-    due.status === "grace_period" || due.status === "past_due" || due.status === "due_today" ||
-    (/^\d{4}-\d{2}-\d{2}$/.test(due.dueDate) && due.dueDate <= todayDate)
+    due.status === "grace_period" || due.status === "past_due" || due.dueDate < todayDate
   );
-  const ordinaryDues = unpaidDues.filter((due) => !warningDues.includes(due)).slice(0, 2);
+  const upcomingPaydayDues = nextPaydayDate ? unpaidDues
+    .filter((due) => due.dueDate >= todayDate && due.dueDate <= nextPaydayDate && !warningDues.includes(due))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name)) : [];
   const negativeDay = forecast?.timeline.find((day) => day.balance < 0);
   const enabledIncomeStreams = incomeStreams?.filter(stream => stream.is_enabled) ?? [];
   const activeLiquidAccounts = accounts.filter(account => account.type === "liquid");
@@ -370,14 +372,12 @@ export default function RunwayDashboard() {
           </div>
 
           {duesAvailable ? <>
-            {warningDues.length > 0 && <section className="space-y-3">
-              <h2 runway-id="runway.dashboard.payment-warnings-title" className="text-body-md font-semibold text-error">Payment warnings · {warningDues.length}</h2>
-              <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" />
-            </section>}
-            {ordinaryDues.length > 0 && <UpcomingDuesList dues={ordinaryDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" />}
-            {unpaidDues.length === 0 && <p runway-id="runway.dashboard.no-upcoming-dues" className="text-body-md text-on-surface-variant">No unpaid bills.</p>}
+            {warningDues.length > 0 && <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />}
+            {forecast
+              ? <UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} />
+              : <p runway-id="runway.dashboard.upcoming-dues-unavailable" className="text-body-sm text-on-surface-variant" role="status">Your next payday is unavailable, so bills for this period can’t be shown.</p>}
             <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold">All unpaid bills ({unpaidDues.length}) →</button>
-          </> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1].map((item) => <Skeleton key={item} className="h-24 w-full rounded-[28px]" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
+          </> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1, 2].map((item) => <Skeleton key={item} className="h-16 w-full" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
         </div>
       </main>
 
@@ -502,7 +502,7 @@ export default function RunwayDashboard() {
       </Dialog>
       <Dialog open={isDuesOpen} onClose={() => setIsDuesOpen(false)} title="All unpaid bills">
         {!duesAvailable ? <p runway-id="runway.all-dues.unavailable" className="text-body-md">Upcoming dues unavailable.</p> : unpaidDues.length > 0
-          ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" />
+          ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" title="All unpaid bills" description={`${unpaidDues.length} total`} emptyMessage="No unpaid bills." />
           : <p runway-id="runway.all-dues.empty" className="text-body-md">No unpaid bills.</p>}
       </Dialog>
 
