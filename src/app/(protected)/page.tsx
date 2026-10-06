@@ -478,6 +478,7 @@ export default function RunwayDashboard() {
           </section>
 
           {duesAvailable ? <div className="space-y-8">
+            {paymentError && <p runway-id="runway.dashboard.payment-error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
             {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />
             </div>}

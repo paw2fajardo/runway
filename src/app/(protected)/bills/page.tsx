@@ -373,6 +373,7 @@ export default function BillsPage() {
 
           {/* Obligation Groups Stream */}
           {isBillsLoading ? <div runway-id="bills.list.loading" className="flex flex-col gap-space-sm" role="status" aria-label="Loading bills"><span className="sr-only">Loading bill cards…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-40 w-full rounded-[28px]" />)}</div> : billsAvailable && <div className="flex flex-col gap-space-lg">
+            {paymentError && <p runway-id="bills.payment.error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
             {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
               {tab === "due" && nextPaydayDate
                 ? `No unpaid bills are due on or before ${nextPaydayDate}.`
