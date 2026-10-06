@@ -17,7 +17,7 @@ type Leg = {
   account: { id: string; name: string } | null;
   category: { id: string; name: string; isSystemFee: boolean } | null;
 };
-type Transaction = { id: string; type: TransactionType; description: string; transactedAt: string; legs: Leg[] };
+type Transaction = { id: string; type: TransactionType; description: string; transactedAt: string; source?: "bill_payment" | "quick_log"; legs: Leg[] };
 type Account = { id: string; name: string; type: string; currentBalance: number };
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
 type Totals = { inflow: number; outflow: number; net: number };
@@ -74,6 +74,10 @@ function formatTime(value: string) {
 
 function typeLabel(type: TransactionType) {
   return type === "income" ? "Inflow" : type === "expense" ? "Expense" : "Transfer";
+}
+
+function activityLabel(transaction: Transaction) {
+  return transaction.source === "bill_payment" ? "Paid bill" : typeLabel(transaction.type);
 }
 
 function typeColor(type: TransactionType) {
@@ -256,7 +260,7 @@ export default function TransactionsPage() {
       <button type="button" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpandedId(expanded ? null : item.id)} className="flex min-h-[68px] w-full items-center justify-between gap-3 py-3 text-left focus-visible:rounded-lg">
         <span className="min-w-0">
           <span className="block truncate font-body-md text-body-md font-semibold text-on-surface">{item.description}</span>
-          <span className="mt-1 block truncate text-body-sm text-on-surface-variant">{formatDate(item.transactedAt)} · {typeLabel(item.type)} · {info.accountLabel}</span>
+          <span className="mt-1 block truncate text-body-sm text-on-surface-variant">{formatDate(item.transactedAt)} · {activityLabel(item)} · {info.accountLabel}</span>
         </span>
         <span className={`shrink-0 whitespace-nowrap text-body-md font-semibold tabular-nums ${typeColor(item.type)}`}>{amountLabel(item, info.amount)}</span>
       </button>
@@ -266,10 +270,10 @@ export default function TransactionsPage() {
           <div><dt className="text-on-surface-variant">Time</dt><dd className="mt-0.5 font-medium text-on-surface">{formatTime(item.transactedAt)}</dd></div>
           {info.fee > 0 && <div><dt className="text-on-surface-variant">Fee included</dt><dd className="mt-0.5 font-medium text-on-surface">{formatPHP(info.fee)}</dd></div>}
         </dl>
-        <div className="flex justify-end gap-2">
+        {item.source !== "bill_payment" && <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setEditing(item)} className="min-h-10 rounded-full px-4 text-label-md font-semibold text-primary hover:bg-primary/5">Edit</button>
           <button type="button" onClick={() => openDelete(item)} className="min-h-10 rounded-full px-4 text-label-md font-semibold text-error hover:bg-error/5">Delete</button>
-        </div>
+        </div>}
       </div>}
     </li>;
   };
@@ -363,12 +367,12 @@ export default function TransactionsPage() {
                   <tr key={item.id} className="border-b border-outline-variant/40 hover:bg-surface-container-low/50">
                     <td className="whitespace-nowrap px-3 py-3 text-on-surface-variant"><span className="block text-on-surface">{formatDate(item.transactedAt)}</span><span className="mt-0.5 block text-label-sm">{formatTime(item.transactedAt)}</span></td>
                     <td className="max-w-[250px] px-3 py-3"><button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.id)} className="max-w-full truncate text-left font-semibold text-on-surface underline-offset-2 hover:underline focus-visible:rounded-sm">{item.description}</button></td>
-                    <td className={`whitespace-nowrap px-3 py-3 font-medium ${typeColor(item.type)}`}>{typeLabel(item.type)}</td>
+                    <td className={`whitespace-nowrap px-3 py-3 font-medium ${typeColor(item.type)}`}>{activityLabel(item)}</td>
                     <td className="max-w-[190px] truncate px-3 py-3 text-on-surface">{info.accountLabel}</td>
                     <td className="max-w-[160px] truncate px-3 py-3 text-on-surface-variant">{info.category}</td>
                     <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums ${typeColor(item.type)}`}>{amountLabel(item, info.amount)}</td>
                   </tr>
-                  {expanded ? <tr className="border-b border-outline-variant/40 bg-surface-container-low/50"><td colSpan={6} className="px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-x-6 gap-y-2 text-body-sm"><span><span className="text-on-surface-variant">Category: </span>{info.category}</span>{info.fee > 0 && <span><span className="text-on-surface-variant">Fee included: </span>{formatPHP(info.fee)}</span>}<span><span className="text-on-surface-variant">Recorded: </span>{new Date(item.transactedAt).toLocaleString()}</span></div><div className="flex gap-1"><button type="button" onClick={() => setEditing(item)} className="min-h-9 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5">Edit</button><button type="button" onClick={() => openDelete(item)} className="min-h-9 rounded-full px-3 text-label-sm font-semibold text-error hover:bg-error/5">Delete</button></div></div></td></tr> : null}
+                  {expanded ? <tr className="border-b border-outline-variant/40 bg-surface-container-low/50"><td colSpan={6} className="px-4 py-3"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-x-6 gap-y-2 text-body-sm"><span><span className="text-on-surface-variant">Category: </span>{info.category}</span>{info.fee > 0 && <span><span className="text-on-surface-variant">Fee included: </span>{formatPHP(info.fee)}</span>}<span><span className="text-on-surface-variant">Recorded: </span>{new Date(item.transactedAt).toLocaleString()}</span>{item.source === "bill_payment" && <span className="text-on-surface-variant">Managed from Bills</span>}</div>{item.source !== "bill_payment" && <div className="flex gap-1"><button type="button" onClick={() => setEditing(item)} className="min-h-9 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5">Edit</button><button type="button" onClick={() => openDelete(item)} className="min-h-9 rounded-full px-3 text-label-sm font-semibold text-error hover:bg-error/5">Delete</button></div>}</div></td></tr> : null}
                 </Fragment>
                 );
               })}

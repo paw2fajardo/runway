@@ -59,8 +59,9 @@ export async function GET(req: NextRequest) {
     db.select({ id: billInstances.linkedTransactionId }).from(billInstances).where(inArray(billInstances.linkedTransactionId, ids)),
     db.select({ id: paycheckOccurrences.transactionId, reversal: paycheckOccurrences.reversalTransactionId }).from(paycheckOccurrences),
   ]);
+  const billSettlementIds = new Set<string>();
+  settlements.forEach((row) => { if (row.id) billSettlementIds.add(row.id); });
   const protectedIds = new Set<string>();
-  settlements.forEach((row) => { if (row.id) protectedIds.add(row.id); });
   paychecks.forEach((row) => { if (row.id) protectedIds.add(row.id); if (row.reversal) protectedIds.add(row.reversal); });
 
   const grouped = new Map<string, typeof legs>();
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
   const eligible = parents.filter((parent) => {
     if (protectedIds.has(parent.id) || (type?.success && parent.type !== type.data)) return false;
     const parentLegs = grouped.get(parent.id) ?? [];
-    return isQuickLogEligible(parent.type, parentLegs);
+    return billSettlementIds.has(parent.id) || isQuickLogEligible(parent.type, parentLegs);
   });
   if (!eligible.length) return NextResponse.json({
     transactions: [], page: pageValue, pageSize: PAGE_SIZE, totalCount: 0, totalPages: 1,
@@ -120,6 +121,7 @@ export async function GET(req: NextRequest) {
   const pageRows = filtered.slice(offset, offset + PAGE_SIZE);
   const transactionDetails = pageRows.map((transaction) => ({
     ...transaction,
+    source: billSettlementIds.has(transaction.id) ? "bill_payment" : "quick_log",
     legs: byId.get(transaction.id) ?? [],
   }));
   return NextResponse.json({
