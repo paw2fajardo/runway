@@ -29,6 +29,9 @@ export default function AccountsPage() {
   const [isAddAccountOpen, setIsAddAccountOpen] = useState<boolean>(false);
   const [detailAccount, setDetailAccount] = useState<AccountItem | null>(null);
   const [editAccount, setEditAccount] = useState<AccountItem | null>(null);
+  const [deactivateAccount, setDeactivateAccount] = useState<AccountItem | null>(null);
+  const [deactivateError, setDeactivateError] = useState("");
+  const [isDeactivating, setIsDeactivating] = useState(false);
   const [formError, setFormError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -117,6 +120,27 @@ export default function AccountsPage() {
     setFormError("");
   };
 
+  const handleDeactivateAccount = async () => {
+    if (!deactivateAccount || isDeactivating) return;
+    setDeactivateError("");
+    setIsDeactivating(true);
+    try {
+      const res = await fetch(`/api/accounts/${deactivateAccount.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setDeactivateError(data?.error || "Unable to deactivate this account. Please try again.");
+        return;
+      }
+      await fetchAccounts();
+      setDeactivateAccount(null);
+    } catch (err) {
+      console.error("Failed to deactivate account:", err);
+      setDeactivateError("Unable to deactivate this account. Check your connection and try again.");
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
   const openNewAccount = () => {
     setEditAccount(null);
     setNewName("");
@@ -191,7 +215,7 @@ export default function AccountsPage() {
                 <div
                   key={acc.id}
                   runway-id={`accounts.liquid.account.${acc.id}`}
-                  className="glass-panel min-h-[76px] p-space-md flex items-center justify-between"
+                  className="glass-panel min-h-[76px] p-space-md flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center space-x-space-sm min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
@@ -214,11 +238,12 @@ export default function AccountsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-space-sm shrink-0">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
                     <span runway-id={`accounts.liquid.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-on-surface">
                       {formatPHP(acc.currentBalance)}
                     </span>
                     <button type="button" runway-id={`accounts.liquid.account.${acc.id}.edit`} onClick={() => openEditAccount(acc)} className="min-h-11 px-2 text-secondary text-body-sm">Edit</button>
+                    <button type="button" runway-id={`accounts.liquid.account.${acc.id}.deactivate`} onClick={() => { setDeactivateError(""); setDeactivateAccount(acc); }} className="min-h-11 px-2 text-error text-body-sm">Deactivate</button>
                     <button
                       type="button"
                       runway-id={`accounts.liquid.account.${acc.id}.reconcile`}
@@ -289,10 +314,40 @@ export default function AccountsPage() {
                       <div className="flex items-center gap-4 self-start">
                         <button runway-id={`accounts.credit.account.${acc.id}.details`} type="button" onClick={() => setDetailAccount(acc)} className="min-h-11 text-secondary text-body-sm">Details</button>
                         <button runway-id={`accounts.credit.account.${acc.id}.edit`} type="button" onClick={() => openEditAccount(acc)} className="min-h-11 text-secondary text-body-sm">Edit</button>
+                        <button runway-id={`accounts.credit.account.${acc.id}.deactivate`} type="button" onClick={() => { setDeactivateError(""); setDeactivateAccount(acc); }} className="min-h-11 text-error text-body-sm">Deactivate</button>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+          </section>
+          )}
+
+          {loanAccounts.length > 0 && (
+            <section runway-id="accounts.loan.section" className="flex flex-col gap-space-sm">
+              <div className="flex items-center gap-1.5">
+                <span runway-id="accounts.loan.icon" className="material-symbols-outlined text-outline text-[20px]">request_quote</span>
+                <h2 runway-id="accounts.loan.heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">Installment Loans</h2>
+              </div>
+              <div className="flex flex-col space-y-space-xs">
+                {loanAccounts.map((acc) => (
+                  <div key={acc.id} runway-id={`accounts.loan.account.${acc.id}`} className="glass-panel p-space-md flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center space-x-space-sm min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-outline shrink-0">
+                        <span className="material-symbols-outlined text-[20px]">request_quote</span>
+                      </div>
+                      <div className="min-w-0 flex flex-col">
+                        <span runway-id={`accounts.loan.account.${acc.id}.name`} className="font-body-md text-body-md font-semibold text-on-surface truncate">{acc.name}</span>
+                        <span className="font-body-sm text-body-sm text-on-surface-variant">Installment loan</span>
+                      </div>
+                    </div>
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
+                      <span runway-id={`accounts.loan.account.${acc.id}.balance`} className="font-currency-md text-currency-md font-bold text-error">{formatPHP(acc.currentBalance)}</span>
+                      <button runway-id={`accounts.loan.account.${acc.id}.edit`} type="button" onClick={() => openEditAccount(acc)} className="min-h-11 px-2 text-secondary text-body-sm">Edit</button>
+                      <button runway-id={`accounts.loan.account.${acc.id}.deactivate`} type="button" onClick={() => { setDeactivateError(""); setDeactivateAccount(acc); }} className="min-h-11 px-2 text-error text-body-sm">Deactivate</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -462,6 +517,16 @@ export default function AccountsPage() {
               </button>
             </div>
           </form>
+      </Dialog>
+      <Dialog open={deactivateAccount !== null} onClose={() => { if (!isDeactivating) { setDeactivateAccount(null); setDeactivateError(""); } }} title="Deactivate account">
+        <div className="flex flex-col gap-4">
+          <p className="text-body-md">Deactivate <strong>{deactivateAccount?.name}</strong>? It will be removed from active accounts while its transaction history is kept.</p>
+          {deactivateError && <p role="alert" className="text-error text-body-sm">{deactivateError}</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={isDeactivating} onClick={() => { setDeactivateAccount(null); setDeactivateError(""); }} className="h-11 rounded-lg bg-surface-container-low font-label-md text-label-md font-semibold">Cancel</button>
+            <button type="button" runway-id="accounts.deactivate.confirm" disabled={isDeactivating} onClick={handleDeactivateAccount} className="h-11 rounded-lg bg-error text-on-error font-label-md text-label-md font-semibold">{isDeactivating ? "Deactivating…" : "Deactivate account"}</button>
+          </div>
+        </div>
       </Dialog>
       <Dialog open={detailAccount !== null} onClose={() => setDetailAccount(null)} title={detailAccount?.name || "Account details"}>
         {detailAccount && <dl className="space-y-4 text-body-md">

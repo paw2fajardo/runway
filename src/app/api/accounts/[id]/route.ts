@@ -54,3 +54,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Unable to update account." }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const originError = assertSameOrigin(req);
+  if (originError) return originError;
+  const owner = await requireOwner(req);
+  if (owner instanceof Response) return owner;
+
+  const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: "Provide a valid account." }, { status: 400 });
+  }
+
+  try {
+    const [account] = await db.update(accounts)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(accounts.id, id), eq(accounts.isActive, true)))
+      .returning();
+    if (!account) return NextResponse.json({ error: "Account not found." }, { status: 404 });
+    return NextResponse.json({ success: true, account });
+  } catch {
+    return NextResponse.json({ error: "Unable to deactivate account." }, { status: 500 });
+  }
+}

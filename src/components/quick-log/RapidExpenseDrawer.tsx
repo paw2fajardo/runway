@@ -52,6 +52,10 @@ interface RapidExpenseDrawerProps {
   onSuccess?: () => void;
   accounts?: AccountOption[];
   daysToPayday?: number;
+  editTransaction?: {
+    id: string; type: "income" | "expense" | "transfer"; description: string;
+    transactedAt: string; legs: { leg: { accountId: string | null; categoryId: string | null; amount: number }; account: { id: string; name: string } | null; category: { id: string; name: string; isSystemFee: boolean } | null }[];
+  onEditSuccess?: () => void;
 }
 
 export function RapidExpenseDrawer({
@@ -60,14 +64,18 @@ export function RapidExpenseDrawer({
   onSuccess,
   accounts = [],
   daysToPayday,
+  editTransaction,
+  onEditSuccess,
 }: RapidExpenseDrawerProps) {
   const [mode, setMode] = useState<"expense" | "transfer" | "inflow">("expense");
   const [rawAmount, setRawAmount] = useState("");
+  const [descriptionInput, setDescriptionInput] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState<string>("");
   const [selectedDestId, setSelectedDestId] = useState<string>("");
   const [selectedFee, setSelectedFee] = useState<number>(0);
   const [isCustomFee, setIsCustomFee] = useState<boolean>(false);
   const [rawCustomFee, setRawCustomFee] = useState("");
+  const [transactedAt, setTransactedAt] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -102,12 +110,12 @@ export function RapidExpenseDrawer({
       const response = await fetch("/api/categories");
       if (!response.ok) throw new Error("Categories are unavailable. Retry before logging an expense.");
       const items = await response.json() as CategoryOption[];
-      const activeExpenses = items.filter((item) => !item.isArchived && !item.isIncome && !item.isSystemFee);
-      setCategories(activeExpenses);
-      setSelectedCategoryId((current) => activeExpenses.some((item) => item.id === current) ? current : activeExpenses[0]?.id ?? "");
-      setSelectedCategory((current) => activeExpenses.some((item) => item.id === selectedCategoryId)
-        ? activeExpenses.find((item) => item.id === selectedCategoryId)?.name ?? current
-        : activeExpenses[0]?.name ?? current);
+      const eligible = items.filter((item) => !item.isArchived && !item.isSystemFee && (editTransaction?.type === "income" ? item.isIncome : !item.isIncome));
+      setCategories(eligible);
+      setSelectedCategoryId((current) => eligible.some((item) => item.id === current) ? current : eligible[0]?.id ?? "");
+      setSelectedCategory((current) => eligible.some((item) => item.id === selectedCategoryId)
+        ? eligible.find((item) => item.id === selectedCategoryId)?.name ?? current
+        : eligible[0]?.name ?? current);
       setCategoryError(null);
     } catch {
       setCategories([]);
@@ -119,13 +127,38 @@ export function RapidExpenseDrawer({
   useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || !editTransaction) return;
+    const accountLegs = editTransaction.legs.filter((item) => item.leg.accountId);
+    const categoryLegs = editTransaction.legs.filter((item) => item.leg.categoryId && !item.category?.isSystemFee);
+    const fee = editTransaction.legs.find((item) => item.category?.isSystemFee)?.leg.amount ?? 0;
+    const date = new Date(editTransaction.transactedAt);
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setMode(editTransaction.type === "income" ? "inflow" : editTransaction.type);
+    const amount = editTransaction.type === "income" ? accountLegs[0]?.leg.amount ?? 0 : editTransaction.type === "transfer" ? accountLegs.find((item) => item.leg.amount > 0)?.leg.amount ?? 0 : -Math.min(...accountLegs.map((item) => item.leg.amount)) - fee;
+    setRawAmount((amount / 100).toFixed(2));
+    setDescriptionInput(editTransaction.description);
+    setSelectedFee(fee);
+    setIsCustomFee(fee !== 0 && ![1500, 1800].includes(fee));
+    setRawCustomFee(fee ? (fee / 100).toFixed(2) : "");
+    const source = editTransaction.type === "income" ? accountLegs[0] : accountLegs.find((item) => item.leg.amount < 0);
+    const dest = editTransaction.type === "transfer" ? accountLegs.find((item) => item.leg.amount > 0) : accountLegs[0];
+    if (source?.leg.accountId) setSelectedSourceId(source.leg.accountId);
+    if (dest?.leg.accountId) setSelectedDestId(dest.leg.accountId);
+    setSelectedCategoryId(categoryLegs[0]?.leg.categoryId ?? "");
+    setSelectedCategory(categoryLegs[0]?.category?.name ?? "");
+    setTransactedAt(localDate);
+  }, [isOpen, editTransaction]);
+
+  useEffect(() => {
     if (!isOpen) return;
-    setRawAmount("");
-    setSelectedFee(0);
-    setIsCustomFee(false);
-    setRawCustomFee("");
     setSubmitError(null);
-    setMode("expense");
+    if (!editTransaction) {
+      setRawAmount("");
+      setSelectedFee(0);
+      setIsCustomFee(false);
+      setRawCustomFee("");
+      setMode("expense");
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -244,7 +277,7 @@ export function RapidExpenseDrawer({
   };
 
   const handleConfirm = async () => {
-    if (isSubmitting || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
+    if (isSubmitting || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
       (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")) return;
     setSubmitError(null);
     setIsSubmitting(true);
@@ -253,7 +286,7 @@ export function RapidExpenseDrawer({
       const sourceAcc = accounts.find((a) => a.id === selectedSourceId);
       const destAcc = accounts.find((a) => a.id === selectedDestId);
 
-      const description =
+      const description = editTransaction ? descriptionInput.trim() :
         mode === "transfer"
           ? `${sourceAcc?.name || "Source"} to ${destAcc?.name || "Destination"}`
           : mode === "expense"
@@ -261,6 +294,25 @@ export function RapidExpenseDrawer({
           : "Salary / Inflow";
 
       const transactionType = mode === "inflow" ? ("income" as const) : mode;
+
+      if (editTransaction) {
+        const payload = {
+          type: transactionType,
+          description,
+          transacted_at: new Date(transactedAt).toISOString(),
+          source_account_id: transactionType !== "income" ? selectedSourceId : null,
+          destination_account_id: transactionType === "income" ? selectedSourceId : transactionType === "transfer" ? selectedDestId : null,
+          category_id: (mode === "expense" || mode === "inflow") ? selectedCategoryId || null : null,
+          gross_outflow: mode === "expense" || mode === "transfer" ? totalCents : undefined,
+          net_inflow: mode === "inflow" ? baseCents : mode === "transfer" ? baseCents : undefined,
+          fee_amount: mode === "inflow" ? undefined : selectedFee,
+        };
+        const response = await fetch(`/api/transactions/${editTransaction.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || "Couldn’t update this entry. Your changes are still here. Try again."); }
+        onEditSuccess?.();
+        onClose();
+        return;
+      }
 
       await queueOfflineTransaction({
         type: transactionType,
@@ -297,14 +349,14 @@ export function RapidExpenseDrawer({
       onClose();
     } catch (err) {
       console.error("Failed to queue transaction:", err);
-      setSubmitError("Couldn’t save this entry. Your details are still here. Try again.");
+      setSubmitError(err instanceof Error ? err.message : "Couldn’t save this entry. Your details are still here. Try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const categoriesList = [...new Map(
-    [...DEFAULT_CATEGORIES, ...categories.map((category) => category.name), ...customCategories].map((category) => [category.toLocaleLowerCase(), category])
+    [...(editTransaction && mode === "inflow" ? [] : DEFAULT_CATEGORIES), ...categories.map((category) => category.name), ...(mode === "expense" ? customCategories : [])].map((category) => [category.toLocaleLowerCase(), category])
   ).values()];
   const filteredCategories = categoriesList.filter((category) =>
     category.toLocaleLowerCase().includes(categorySearch.trim().toLocaleLowerCase())
@@ -357,7 +409,7 @@ export function RapidExpenseDrawer({
   };
 
   return (
-    <Dialog open={isOpen} onClose={requestClose} title="Quick log" className="app-dialog-quick-log">
+    <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log">
       <div className="flex h-full min-h-0 flex-col pb-safe">
         {/* Transaction Type Selector */}
         <div className="relative shrink-0 pb-space-xs">
@@ -367,7 +419,7 @@ export function RapidExpenseDrawer({
               <button
                 runway-id="quick-log.mode.expense"
                 type="button"
-                aria-pressed={mode === "expense"} onClick={() => setMode("expense")}
+                aria-pressed={mode === "expense"} disabled={!!editTransaction} onClick={() => setMode("expense")}
                 className={`min-h-11 min-w-0 px-2 rounded-full font-label-md text-label-sm transition-all flex items-center justify-center gap-1 ${
                   mode === "expense"
                     ? "bg-primary-container text-surface-container-lowest shadow-sm"
@@ -380,7 +432,7 @@ export function RapidExpenseDrawer({
               <button
                 runway-id="quick-log.mode.transfer"
                 type="button"
-                aria-pressed={mode === "transfer"} onClick={() => setMode("transfer")}
+                aria-pressed={mode === "transfer"} disabled={!!editTransaction} onClick={() => setMode("transfer")}
                 className={`min-h-11 min-w-0 px-2 rounded-full font-label-md text-label-sm transition-all flex items-center justify-center gap-1 ${
                   mode === "transfer"
                     ? "bg-primary-container text-surface-container-lowest shadow-sm"
@@ -393,7 +445,7 @@ export function RapidExpenseDrawer({
               <button
                 runway-id="quick-log.mode.inflow"
                 type="button"
-                aria-pressed={mode === "inflow"} onClick={() => setMode("inflow")}
+                aria-pressed={mode === "inflow"} disabled={!!editTransaction} onClick={() => setMode("inflow")}
                 className={`min-h-11 min-w-0 px-2 rounded-full font-label-md text-label-sm transition-all flex items-center justify-center gap-1 ${
                   mode === "inflow"
                     ? "bg-primary-container text-surface-container-lowest shadow-sm"
@@ -404,6 +456,7 @@ export function RapidExpenseDrawer({
                 Inflow
               </button>
             </div>
+            {editTransaction && <p className="mt-2 text-center text-body-sm text-on-surface-variant">Entry type can’t be changed while editing.</p>}
 
           </div>
         </div>
@@ -441,6 +494,7 @@ export function RapidExpenseDrawer({
             <p id="quick-log-amount-hint" runway-id="quick-log.amount.hint" className="text-sm text-on-surface-variant">
               Enter an amount in pesos.
             </p>
+            {editTransaction && <div className="flex flex-col gap-2"><label htmlFor="quick-log-description" className="text-sm font-semibold text-on-surface">Description</label><input id="quick-log-description" value={descriptionInput} onChange={(event) => setDescriptionInput(event.target.value)} className="min-h-12 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
 
             {/* Runway Impact Readout */}
             {mode === "expense" && daysToPayday !== undefined && daysToPayday > 0 && baseCents > 0 && (
@@ -460,7 +514,7 @@ export function RapidExpenseDrawer({
 
           {/* Category Allocation (if Expense) */}
           <div className={`quick-log-core-fields${mode === "inflow" ? " quick-log-core-fields-single" : ""}`}>
-            {mode === "expense" && (
+            {(mode === "expense" || (editTransaction && mode === "inflow")) && (
               <div className="flex min-w-0 flex-col gap-2">
                 <span runway-id="quick-log.category.label" className="text-sm font-semibold text-on-surface">
                   Category
@@ -582,6 +636,7 @@ export function RapidExpenseDrawer({
                 </div>
               </div>
             )}
+            {editTransaction && <div className="flex flex-col gap-2"><label htmlFor="quick-log-date" className="text-sm font-semibold text-on-surface">Date and time</label><input id="quick-log-date" type="datetime-local" value={transactedAt} onChange={(event) => setTransactedAt(event.target.value)} className="min-h-12 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
 
             {/* Source Account Selector */}
             <div className="flex min-w-0 flex-col gap-2">
@@ -772,6 +827,7 @@ export function RapidExpenseDrawer({
 
         {/* Confirm Button Area */}
         <div className="quick-log-footer mt-4 shrink-0 border-t border-outline-variant/70 pt-4">
+          {!editTransaction && <a href="/transactions" className="mb-3 block text-center text-body-sm text-secondary underline">View logged activity</a>}
           {submitError && <p runway-id="quick-log.submit.error" role="alert" className="mb-space-xs text-center text-body-sm text-error">{submitError}</p>}
           <div className="flex flex-col gap-space-xs pb-space-xs">
             <button
