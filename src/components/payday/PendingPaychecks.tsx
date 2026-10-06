@@ -74,6 +74,7 @@ export function PendingPaychecks({ focusId, onComplete }: { focusId?: string; on
   };
 
   const visibleItems = focusId ? items.filter(item => item.id === focusId) : items;
+  if (!focusId && !loading && !error && items.length === 0) return null;
   return <section className="glass-panel p-5 space-y-4" aria-labelledby="pending-paychecks-heading">
     <div className="flex items-center justify-between gap-3">
       <h2 id="pending-paychecks-heading" className="text-body-md font-semibold">Paycheck confirmations</h2>
