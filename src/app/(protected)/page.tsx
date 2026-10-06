@@ -343,34 +343,39 @@ export default function RunwayDashboard() {
 
           <PendingPaychecks />
 
-          <section className="glass-panel min-h-[112px] p-5 space-y-3">
-            <div className="flex items-center justify-between gap-4">
-              <h2 runway-id="runway.dashboard.income-title" className="text-body-md font-semibold">Income streams</h2>
+          <section aria-labelledby="runway-dashboard-cash-plan" className="border-y border-outline-variant/55">
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div>
+                <h2 id="runway-dashboard-cash-plan" className="text-body-lg font-semibold text-on-surface">Cash plan</h2>
+                <p className="mt-0.5 text-body-sm text-on-surface-variant">Income, forecast, and available accounts.</p>
+              </div>
+            </div>
+            <div className="flex min-h-[76px] items-center justify-between gap-4 border-t border-outline-variant/40 py-3">
+              <div className="min-w-0">
+                <h3 runway-id="runway.dashboard.income-title" className="text-body-md font-semibold">Income streams</h3>
+                {isPaySettingsLoading ? <div runway-id="runway.dashboard.income-loading" className="mt-2 space-y-2" role="status" aria-label="Loading income streams"><span className="sr-only">Loading income streams…</span><Skeleton className="h-4 w-32" /></div>
+                  : paySettingsError ? <div>
+                    <p runway-id="runway.dashboard.income-error" className="mt-1 text-body-sm text-error" role="alert">{paySettingsError}</p>
+                    <button runway-id="runway.dashboard.income-retry" type="button" onClick={fetchPaySettings} className="min-h-10 text-body-sm font-semibold text-secondary">Retry</button>
+                  </div> : incomeStreams ? <div className="mt-1 space-y-0.5">
+                    <p runway-id="runway.dashboard.enabled-income-count" className="text-body-sm text-on-surface">{enabledIncomeStreams.length} enabled income {enabledIncomeStreams.length === 1 ? "stream" : "streams"}</p>
+                    <p runway-id="runway.dashboard.next-income-summary" className="text-body-sm text-on-surface-variant">{nextIncomeDate ? `Next income: ${nextIncomeDate}` : "Add or resume an income stream to calculate your forecast."}</p>
+                  </div> : <p runway-id="runway.dashboard.income-empty" className="mt-1 text-body-sm text-on-surface-variant">Add your income streams to forecast your cash flow.</p>}
+              </div>
               <button runway-id="runway.dashboard.manage-income" type="button" onClick={() => { setStreamActionError(null); setIncomeDialog("manage"); }} disabled={isPaySaving || !!streamActionId}
-                className="min-h-11 px-4 rounded-full bg-white/70 border border-primary/10 text-secondary text-body-md font-semibold disabled:opacity-50">
+                className="min-h-11 shrink-0 px-1 text-body-sm font-semibold text-secondary underline decoration-secondary/30 underline-offset-4 disabled:opacity-50">
                 Manage
               </button>
             </div>
-            {isPaySettingsLoading ? <div runway-id="runway.dashboard.income-loading" className="space-y-2" role="status" aria-label="Loading income streams"><span className="sr-only">Loading income streams…</span><Skeleton className="h-5 w-2/5" /><Skeleton className="h-4 w-3/5" /></div>
-              : paySettingsError ? <div>
-                <p runway-id="runway.dashboard.income-error" className="text-body-sm text-error" role="alert">{paySettingsError}</p>
-                <button runway-id="runway.dashboard.income-retry" type="button" onClick={fetchPaySettings} className="min-h-11 text-secondary text-body-md">Retry</button>
-              </div> : incomeStreams ? <div className="space-y-1">
-                <p runway-id="runway.dashboard.enabled-income-count" className="text-body-md">{enabledIncomeStreams.length} enabled income {enabledIncomeStreams.length === 1 ? "stream" : "streams"}</p>
-                <p runway-id="runway.dashboard.next-income-summary" className="text-body-sm text-on-surface-variant">{nextIncomeDate ? `Next income: ${nextIncomeDate}` : "Add or resume an income stream to calculate your forecast."}</p>
-              </div> : <p runway-id="runway.dashboard.income-empty" className="text-body-sm text-on-surface-variant">Add your income streams to forecast your cash flow.</p>}
-          </section>
-
-          <div className="glass-panel divide-y divide-outline-variant/20">
             <button runway-id="runway.dashboard.open-forecast" type="button" onClick={() => setIsForecastOpen(true)} disabled={!forecast || isLoading}
-              className="w-full min-h-14 p-5 flex justify-between items-center gap-3 text-body-md disabled:opacity-50">
+              className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
               <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">14-day forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
             </button>
             <button runway-id="runway.dashboard.open-balances" ref={balancesTrigger} type="button" onClick={() => setIsBalancesOpen(true)} disabled={!accountsAvailable || isLoading}
-              className="w-full min-h-14 p-5 flex justify-between items-center gap-3 text-body-md disabled:opacity-50">
+              className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
               <span runway-id="runway.dashboard.open-balances-label" className="font-semibold">Balances</span><span runway-id="runway.dashboard.open-balances-status" className="text-on-surface-variant">{isLoading ? "Loading…" : accountsAvailable ? `${accounts.length} accounts →` : "Unavailable"}</span>
             </button>
-          </div>
+          </section>
 
           {duesAvailable ? <>
             {warningDues.length > 0 && <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />}
