@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 const PRIMARY_PAGES = ["/", "/bills", "/accounts", "/inbox"];
@@ -12,6 +12,9 @@ interface TouchStart {
   y: number;
   at: number;
 }
+
+type SwipeDirection = "forward" | "backward";
+type PageTransition = { direction: SwipeDirection; phase: "exit" | "enter" } | null;
 
 function isInsideHorizontalScroller(target: Element, main: Element) {
   let element: Element | null = target;
@@ -28,6 +31,21 @@ function isInsideHorizontalScroller(target: Element, main: Element) {
 export function PrimaryPageSwipeNavigation({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [pageTransition, setPageTransition] = useState<PageTransition>(null);
+  const pendingNavigation = useRef<{ destination: string; direction: SwipeDirection } | null>(null);
+  const navigationTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const pending = pendingNavigation.current;
+    if (pending?.destination === pathname) {
+      pendingNavigation.current = null;
+      setPageTransition({ direction: pending.direction, phase: "enter" });
+    }
+  }, [pathname]);
+
+  useEffect(() => () => {
+    if (navigationTimer.current !== null) window.clearTimeout(navigationTimer.current);
+  }, []);
 
   useEffect(() => {
     const currentPage = PRIMARY_PAGES.indexOf(pathname);
@@ -37,6 +55,7 @@ export function PrimaryPageSwipeNavigation({ children }: { children: ReactNode }
 
     const handleTouchStart = (event: TouchEvent) => {
       start = null;
+      if (pendingNavigation.current) return;
       if (event.touches.length !== 1 || !window.matchMedia("(max-width: 767px)").matches) return;
       if (document.querySelector("dialog[open]")) return;
 
@@ -62,7 +81,20 @@ export function PrimaryPageSwipeNavigation({ children }: { children: ReactNode }
       if (performance.now() - initial.at > 700 || Math.abs(deltaX) < MIN_SWIPE_DISTANCE || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
 
       const nextPage = PRIMARY_PAGES[currentPage + (deltaX < 0 ? 1 : -1)];
-      if (nextPage) router.push(nextPage);
+      if (!nextPage) return;
+
+      const direction: SwipeDirection = deltaX < 0 ? "forward" : "backward";
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        router.push(nextPage);
+        return;
+      }
+
+      pendingNavigation.current = { destination: nextPage, direction };
+      setPageTransition({ direction, phase: "exit" });
+      navigationTimer.current = window.setTimeout(() => {
+        router.push(nextPage);
+        navigationTimer.current = null;
+      }, 110);
     };
 
     const reset = () => { start = null; };
@@ -76,5 +108,19 @@ export function PrimaryPageSwipeNavigation({ children }: { children: ReactNode }
     };
   }, [pathname, router]);
 
-  return children;
+  return (
+    <div
+      key={pathname}
+      className={pageTransition ? "primary-page-transition" : undefined}
+      data-transition-direction={pageTransition?.direction}
+      data-transition-phase={pageTransition?.phase}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget && event.currentTarget.dataset.transitionPhase === "enter") {
+          setPageTransition(null);
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
 }
