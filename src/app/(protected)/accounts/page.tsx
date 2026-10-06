@@ -166,32 +166,32 @@ export default function AccountsPage() {
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">
-          {/* Top KPI Bento */}
-          <div className="grid grid-cols-2 gap-2 pt-space-xs">
-            <div className="glass-panel min-h-[120px] p-space-md flex flex-col">
+          <section className="forest-panel mt-space-xs p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col">
               <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
                 Total Liquid Cash
               </span>
-              <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-headline-md text-secondary font-bold mt-1 min-h-[28px]">
-                {isAccountsLoading ? <Skeleton className="h-7 w-32" /> : formatPHP(totalLiquid)}
+              <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-currency-display text-white font-semibold mt-1 min-h-[36px]">
+                {isAccountsLoading ? <Skeleton className="h-9 w-40 bg-white/15" /> : formatPHP(totalLiquid)}
               </span>
-              <span runway-id="accounts.summary.liquid.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                {isAccountsLoading ? <Skeleton className="h-4 w-28" /> : `${liquidAccounts.length} Connected Wallets`}
+              <span runway-id="accounts.summary.liquid.count" className="font-body-sm text-body-sm text-secondary-fixed mt-1">
+                {isAccountsLoading ? <Skeleton className="h-4 w-28 bg-white/15" /> : `${liquidAccounts.length} connected wallets`}
               </span>
-            </div>
-
-            <div className="glass-panel min-h-[120px] p-space-md flex flex-col">
-              <span runway-id="accounts.summary.credit.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              </div>
+              <div className="border-t border-white/15 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+              <span runway-id="accounts.summary.credit.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">
                 Revolving Debt
               </span>
-              <span runway-id="accounts.summary.credit.total" className="font-currency-display text-headline-md text-error font-bold mt-1 min-h-[28px]">
-                {isAccountsLoading ? <Skeleton className="h-7 w-32" /> : formatPHP(totalCreditDebt)}
+              <span runway-id="accounts.summary.credit.total" className="font-currency-display text-headline-md text-error-container font-semibold mt-1 min-h-[28px] block">
+                {isAccountsLoading ? <Skeleton className="h-7 w-32 bg-white/15" /> : formatPHP(totalCreditDebt)}
               </span>
-              <span runway-id="accounts.summary.credit.count" className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                {isAccountsLoading ? <Skeleton className="h-4 w-24" /> : `${creditAccounts.length} Active Cards`}
+              <span runway-id="accounts.summary.credit.count" className="font-body-sm text-body-sm text-secondary-fixed mt-0.5 block">
+                {isAccountsLoading ? <Skeleton className="h-4 w-24 bg-white/15" /> : `${creditAccounts.length} active cards`}
               </span>
+              </div>
             </div>
-          </div>
+          </section>
 
           <div className="grid gap-space-lg md:grid-cols-2">
           {/* Section 1: Liquid Accounts */}
@@ -210,12 +210,12 @@ export default function AccountsPage() {
               </span>
             </div>
 
-            <div className="flex flex-col space-y-space-xs">
+            <div className="flex flex-col border-y border-outline-variant/50">
               {isAccountsLoading ? [0, 1].map((item) => <Skeleton key={item} className="h-[76px] w-full rounded-[28px]" />) : liquidAccounts.map((acc) => (
                 <div
                   key={acc.id}
                   runway-id={`accounts.liquid.account.${acc.id}`}
-                  className="glass-panel min-h-[76px] p-space-md flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="min-h-[76px] border-b border-outline-variant/40 py-3 flex flex-col items-start gap-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center space-x-space-sm min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
@@ -279,13 +279,13 @@ export default function AccountsPage() {
                 </span>
               </div>
 
-              <div className="flex flex-col space-y-space-xs">
+              <div className="flex flex-col border-y border-outline-variant/50">
                 {isAccountsLoading ? [0, 1].map((item) => <Skeleton key={item} className="h-[144px] w-full rounded-[28px]" />) : creditAccounts.map((acc) => {
                   return (
                     <div
                       key={acc.id}
                       runway-id={`accounts.credit.account.${acc.id}`}
-                      className="glass-panel min-h-[144px] p-space-md flex flex-col gap-2"
+                      className="min-h-[112px] border-b border-outline-variant/40 py-3 flex flex-col gap-2 last:border-b-0"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex items-center space-x-space-sm min-w-0">
@@ -339,9 +339,9 @@ export default function AccountsPage() {
                 <span runway-id="accounts.loan.icon" className="material-symbols-outlined text-outline text-[20px]">request_quote</span>
                 <h2 runway-id="accounts.loan.heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">Installment Loans</h2>
               </div>
-              <div className="flex flex-col space-y-space-xs">
+              <div className="flex flex-col border-y border-outline-variant/50">
                 {loanAccounts.map((acc) => (
-                  <div key={acc.id} runway-id={`accounts.loan.account.${acc.id}`} className="glass-panel p-space-md flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={acc.id} runway-id={`accounts.loan.account.${acc.id}`} className="border-b border-outline-variant/40 py-3 flex flex-col items-start gap-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center space-x-space-sm min-w-0">
                       <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-outline shrink-0">
                         <span className="material-symbols-outlined text-[20px]">request_quote</span>
@@ -368,7 +368,7 @@ export default function AccountsPage() {
             type="button"
             runway-id="accounts.add-account"
             onClick={openNewAccount}
-            className="w-full h-12 glass-panel text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-surface-container-low active:scale-[0.99] transition-all"
+            className="w-full h-12 rounded-xl border border-outline-variant/60 bg-white/60 text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-white active:scale-[0.99] transition-all"
           >
             <span runway-id="accounts.add-account.icon" className="material-symbols-outlined text-[20px]">
               account_balance

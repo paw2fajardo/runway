@@ -307,8 +307,8 @@ export default function BillsPage() {
             </div>
 
             {/* Allocation Stream */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="flex min-w-0 flex-col p-4 rounded-[24px] border border-white/10 bg-white/5">
+            <div className="grid grid-cols-2 gap-6 border-t border-white/15 pt-4">
+              <div className="flex min-w-0 flex-col">
                 <span runway-id="bills.summary.utilities.label" className="font-label-sm text-label-sm text-secondary-fixed">
                   Utilities
                 </span>
@@ -316,7 +316,7 @@ export default function BillsPage() {
                   {isBillsLoading ? <Skeleton className="h-5 w-24 bg-white/15" /> : billsAvailable ? formatPHP(utilitiesTotal) : "—"}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-col p-4 rounded-[24px] border border-white/10 bg-white/5">
+              <div className="flex min-w-0 flex-col">
                 <span runway-id="bills.summary.subscriptions.label" className="font-label-sm text-label-sm text-secondary-fixed">
                   Other bills
                 </span>
@@ -364,7 +364,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.grace.item.${b.instanceId}`}
-                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
+                    className="min-h-40 rounded-xl border border-amber-200 bg-amber-50/80 p-5 flex flex-col gap-4"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
@@ -423,11 +423,12 @@ export default function BillsPage() {
                   </span>
                 </div>
 
+                <div className="border-y border-outline-variant/50">
                 {dueThisWeekBills.map((b) => (
                   <div
                     key={b.instanceId}
                     runway-id={`bills.due.item.${b.instanceId}`}
-                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
+                    className="min-h-32 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
@@ -467,6 +468,7 @@ export default function BillsPage() {
                     </div>
                   </div>
                 ))}
+                </div>
               </section>
             )}
 
@@ -485,11 +487,12 @@ export default function BillsPage() {
                   </span>
                 </div>
 
+                <div className="border-y border-outline-variant/50">
                 {autoDebitBills.map((b) => (
                   <div
                     key={b.instanceId}
                     runway-id={`bills.autopay.item.${b.instanceId}`}
-                    className="glass-panel min-h-40 p-5 flex flex-col gap-4"
+                    className="min-h-24 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div className="flex min-w-0 gap-3 items-center">
@@ -513,12 +516,13 @@ export default function BillsPage() {
                     <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Auto-pay · Details</button>
                   </div>
                 ))}
+                </div>
               </section>
             )}
           </div>}
 
           {/* Operational Buffer Anchor Card */}
-          <section className="glass-panel p-4 flex items-center justify-between gap-3">
+          <section className="flex items-center justify-between gap-3 border-t border-outline-variant/50 pt-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-secondary-container/70 text-primary flex items-center justify-center shrink-0">
                 <Wallet size={19} aria-hidden="true" />
@@ -530,14 +534,14 @@ export default function BillsPage() {
                 <span runway-id="bills.reserve.description" className="text-body-sm text-on-surface-variant">See your cash forecast</span>
               </div>
             </div>
-            <Link runway-id="bills.reserve.link" href="/" className="min-h-11 shrink-0 flex items-center rounded-full bg-secondary-container/60 px-3 text-label-sm text-primary font-semibold">Runway <ArrowRight size={14} className="ml-1" aria-hidden="true" /></Link>
+            <Link runway-id="bills.reserve.link" href="/" className="min-h-11 shrink-0 flex items-center text-label-sm text-secondary font-semibold underline decoration-secondary/30 underline-offset-4">Runway <ArrowRight size={14} className="ml-1" aria-hidden="true" /></Link>
           </section>
 
           {/* Add Recurring Obligation Button */}
           <button
             type="button"
             onClick={() => { setEditingBill(null); resetBillForm(); setIsAddBillOpen(true); }}
-            runway-id="bills.action.add" className="w-full min-h-12 rounded-full bg-white/85 border border-white shadow-sm text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-white active:scale-[0.99] transition-colors"
+            runway-id="bills.action.add" className="w-full min-h-12 rounded-xl border border-outline-variant/60 bg-white/60 text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-white active:scale-[0.99] transition-colors"
           >
             <CirclePlus size={18} aria-hidden="true" />
             Add a recurring bill
