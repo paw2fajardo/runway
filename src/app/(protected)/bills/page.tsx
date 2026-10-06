@@ -21,7 +21,9 @@ interface BillItem {
   status: string;
   isEstimate: boolean;
   isAutoPay: boolean;
+  autoPostFrom?: string | null;
   isVariableAmount: boolean;
+  hasCorrection?: boolean;
   dueDayOfMonth: number;
   dueDayOfWeek?: number | null;
   gracePeriodDays: number;
@@ -46,6 +48,7 @@ const billFrequencyLabels: Record<BillItem["frequency"], string> = {
 
 export default function BillsPage() {
   const [bills, setBills] = useState<BillItem[]>([]);
+  const [cashAccounts, setCashAccounts] = useState<Array<{ id: string; name: string; type: string; currentBalance: number }>>([]);
   const [isBillsLoading, setIsBillsLoading] = useState(true);
   const [billsAvailable, setBillsAvailable] = useState(false);
   const [billsError, setBillsError] = useState<string | null>(null);
@@ -61,8 +64,13 @@ export default function BillsPage() {
   const [billActionError, setBillActionError] = useState<string | null>(null);
   const [paymentBill, setPaymentBill] = useState<BillItem | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentSourceAccountId, setPaymentSourceAccountId] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPaymentSaving, setIsPaymentSaving] = useState(false);
+  const [adjustingBill, setAdjustingBill] = useState<BillItem | null>(null);
+  const [adjustedAmount, setAdjustedAmount] = useState("");
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+  const [isAdjusting, setIsAdjusting] = useState(false);
 
   // Form states for adding new bill
   const [newBillName, setNewBillName] = useState("");
@@ -73,6 +81,10 @@ export default function BillsPage() {
   const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
   const [newBillAutoPay, setNewBillAutoPay] = useState(false);
+  const [newBillSourceAccountId, setNewBillSourceAccountId] = useState("");
+  const [firstOccurrencePaid, setFirstOccurrencePaid] = useState<boolean | null>(null);
+  const [existingPaymentId, setExistingPaymentId] = useState("");
+  const [recentExpenses, setRecentExpenses] = useState<Array<{ id: string; description: string; transactedAt: string; source: string; legs: Array<{ leg: { accountId: string | null; amount: number } }> }>>([]);
   const [newBillVariableAmount, setNewBillVariableAmount] = useState(false);
   const [newBillType, setNewBillType] = useState<
     "fixed_subscription" | "variable_utility" | "credit_card_statement" | "loan_installment"
@@ -80,6 +92,7 @@ export default function BillsPage() {
 
   const fetchBills = useCallback(async () => {
     try {
+      await fetch("/api/bills/auto-post", { method: "POST" });
       const res = await fetch("/api/bills");
       if (!res.ok) throw new Error("Unable to load bills.");
       const data = await res.json();
@@ -98,6 +111,22 @@ export default function BillsPage() {
   useEffect(() => {
     fetchBills();
   }, [fetchBills]);
+
+  useEffect(() => {
+    fetch("/api/accounts").then(async (response) => {
+      if (!response.ok) throw new Error("Accounts unavailable");
+      return response.json();
+    }).then((items: Array<{ id: string; name: string; type: string; currentBalance: number }>) => {
+      setCashAccounts(items.filter((account) => account.type === "liquid"));
+    }).catch(() => setCashAccounts([]));
+  }, []);
+
+  useEffect(() => {
+    if (!isAddBillOpen) return;
+    fetch("/api/transactions?type=expense").then(async (response) => response.ok ? response.json() : null)
+      .then((data) => setRecentExpenses(data?.transactions ?? []))
+      .catch(() => setRecentExpenses([]));
+  }, [isAddBillOpen]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -120,14 +149,17 @@ export default function BillsPage() {
     return () => { isCurrent = false; };
   }, []);
 
-  const settleBill = async (bill: BillItem, amount?: number) => {
+  const settleBill = async (bill: BillItem, amount?: number, sourceAccountId?: string) => {
     setPaymentError(null);
     setIsPaymentSaving(true);
     try {
       const res = await fetch(`/api/bills/${bill.instanceId}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(amount === undefined ? {} : { amount }),
+        body: JSON.stringify({
+          ...(amount !== undefined && { amount }),
+          ...(sourceAccountId && { source_account_id: sourceAccountId }),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -144,12 +176,13 @@ export default function BillsPage() {
   };
 
   const handlePayBill = (bill: BillItem) => {
-    if (!bill.isVariableAmount) {
+    if (!bill.isVariableAmount && bill.sourceAccountId) {
       void settleBill(bill);
       return;
     }
     setPaymentBill(bill);
     setPaymentAmount((bill.amountDue / 100).toFixed(2));
+    setPaymentSourceAccountId(bill.sourceAccountId ?? "");
     setPaymentError(null);
   };
 
@@ -160,7 +193,33 @@ export default function BillsPage() {
       setPaymentError("Enter a payment amount greater than zero.");
       return;
     }
-    void settleBill(paymentBill, amount);
+    if (!paymentSourceAccountId) {
+      setPaymentError("Choose the account that paid this bill.");
+      return;
+    }
+    void settleBill(paymentBill, paymentBill.isVariableAmount ? amount : undefined, paymentSourceAccountId);
+  };
+
+  const adjustAutoPay = async (bill: BillItem, kind: "correct" | "undo", amount?: number) => {
+    setAdjustmentError(null);
+    setIsAdjusting(true);
+    try {
+      const response = await fetch(`/api/bills/${bill.instanceId}/adjust`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(kind === "correct" ? { kind, amount } : { kind }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Unable to change this payment.");
+      }
+      setAdjustingBill(null);
+      await fetchBills();
+    } catch (error) {
+      setAdjustmentError(error instanceof Error ? error.message : "Unable to change this payment.");
+    } finally {
+      setIsAdjusting(false);
+    }
   };
 
   const resetBillForm = () => {
@@ -172,6 +231,9 @@ export default function BillsPage() {
     setNewBillOccurrenceLimit("");
     setNewBillGrace("3");
     setNewBillAutoPay(false);
+    setNewBillSourceAccountId("");
+    setFirstOccurrencePaid(null);
+    setExistingPaymentId("");
     setNewBillVariableAmount(false);
     setNewBillType("variable_utility");
     setBillFormError(null);
@@ -201,7 +263,10 @@ export default function BillsPage() {
           occurrence_limit: newBillOccurrenceLimit ? Number(newBillOccurrenceLimit) : null,
           grace_period_days: parseInt(newBillGrace, 10),
           is_auto_pay: newBillAutoPay,
+          source_account_id: newBillSourceAccountId || null,
           is_variable_amount: newBillVariableAmount,
+          ...(firstOccurrencePaid !== null && { first_occurrence_paid: firstOccurrencePaid }),
+          ...(existingPaymentId && { first_occurrence_transaction_id: existingPaymentId }),
           ...(!editingBill && { type: newBillType }),
         }),
       });
@@ -227,6 +292,9 @@ export default function BillsPage() {
     setNewBillOccurrenceLimit(bill.occurrenceLimit == null ? "" : String(bill.occurrenceLimit));
     setNewBillGrace(String(bill.gracePeriodDays));
     setNewBillAutoPay(bill.isAutoPay);
+    setNewBillSourceAccountId(bill.sourceAccountId ?? "");
+    setFirstOccurrencePaid(null);
+    setExistingPaymentId("");
     setNewBillVariableAmount(bill.isVariableAmount);
     setNewBillDay(String(bill.dueDayOfMonth));
     setNewBillDayOfWeek(String(bill.dueDayOfWeek ?? new Date(`${bill.dueDate}T00:00:00`).getDay()));
@@ -252,7 +320,8 @@ export default function BillsPage() {
     }
   };
 
-  const activeBills = bills.filter((b) => b.status !== "paid");
+  const activeBills = bills.filter((b) => b.status !== "paid" && b.status !== "auto_debited");
+  const postedAutoBills = bills.filter((b) => b.status === "auto_debited").slice(-5).reverse();
   const committedTotal = activeBills.reduce((acc, b) => acc + b.amountDue, 0);
   const utilitiesTotal = activeBills
     .filter((b) => b.type === "variable_utility")
@@ -261,11 +330,20 @@ export default function BillsPage() {
 
   const today = new Date();
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const scheduledDayThisMonth = Math.min(Number(newBillDay), new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate());
+  const asksAboutFirstPayment = newBillAutoPay && (!editingBill || !editingBill.autoPostFrom) &&
+    (newBillFrequency === "weekly" || newBillFrequency === "biweekly"
+      ? Boolean(editingBill && editingBill.dueDate < todayDate)
+      : scheduledDayThisMonth < today.getDate());
+  const matchingLoggedExpenses = recentExpenses.filter((entry) => entry.source !== "bill_payment" &&
+    Math.abs(Date.now() - Date.parse(entry.transactedAt)) <= 31 * 86_400_000 &&
+    entry.legs.some(({ leg }) => leg.accountId === newBillSourceAccountId && leg.amount === -Math.round(Number(newBillAmount) * 100)))
+    .slice(0, 5);
   const visibleBills = tab === "all"
     ? activeBills
     : activeBills.filter((b) => b.dueDate <= todayDate || (nextPaydayDate !== null && b.dueDate <= nextPaydayDate));
   // Groups use the selected list so the tabs filter every rendered obligation.
-  const graceBills = visibleBills.filter((b) => b.status === "grace_period");
+  const graceBills = visibleBills.filter((b) => b.status === "grace_period" && !b.isAutoPay);
   const dueThisWeekBills = visibleBills.filter(
     (b) => b.status !== "grace_period" && !b.isAutoPay
   );
@@ -373,6 +451,7 @@ export default function BillsPage() {
 
           {/* Obligation Groups Stream */}
           {isBillsLoading ? <div runway-id="bills.list.loading" className="flex flex-col gap-space-sm" role="status" aria-label="Loading bills"><span className="sr-only">Loading bill cards…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-40 w-full rounded-[28px]" />)}</div> : billsAvailable && <div className="flex flex-col gap-space-lg">
+            {paymentError && <p runway-id="bills.payment.error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
             {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
               {tab === "due" && nextPaydayDate
                 ? `No unpaid bills are due on or before ${nextPaydayDate}.`
@@ -550,13 +629,30 @@ export default function BillsPage() {
                       </span>
                     </div>
 
-                    <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Auto-pay · Details</button>
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Details</button>
+                      {!b.autoPostFrom ? <button type="button" onClick={() => openBillEditor(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold">Set up auto-pay</button>
+                        : b.dueDate < todayDate ? <button type="button" onClick={() => handlePayBill(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold">Needs attention · Record payment</button>
+                        : <span className="text-body-sm text-on-surface-variant">Posts automatically on {b.dueDate}</span>}
+                    </div>
                   </div>
                 ))}
                 </div>
               </section>
             )}
           </div>}
+
+          {postedAutoBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label="Recent auto-pay">
+            <h2 className="font-label-md text-label-md font-semibold text-on-surface">Recently posted in Runway</h2>
+            {postedAutoBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-body-sm">
+              <span>{bill.name} · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && !bill.hasCorrection ? " estimated" : ""}</span>
+              <div className="flex gap-2">
+                {bill.isVariableAmount && <button type="button" onClick={() => { setAdjustingBill(bill); setAdjustedAmount((bill.amountDue / 100).toFixed(2)); setAdjustmentError(null); }} className="min-h-10 px-2 font-semibold text-primary">Correct amount</button>}
+                <button type="button" onClick={() => { if (window.confirm(`Reverse the Runway payment for ${bill.name}?`)) void adjustAutoPay(bill, "undo"); }} disabled={isAdjusting} className="min-h-10 px-2 font-semibold text-primary disabled:opacity-50">Didn’t happen</button>
+              </div>
+            </div>)}
+            {adjustmentError && <p role="alert" className="text-body-sm text-error">{adjustmentError}</p>}
+          </section>}
 
           {/* Operational Buffer Anchor Card */}
           <section className="flex items-center justify-between gap-3 border-t border-outline-variant/50 pt-4">
@@ -592,6 +688,7 @@ export default function BillsPage() {
         isOpen={isQuickLogOpen}
         onClose={() => setIsQuickLogOpen(false)}
         onSuccess={fetchBills}
+        accounts={cashAccounts}
       />
 
       {/* Add Recurring Modal */}
@@ -729,13 +826,13 @@ export default function BillsPage() {
               <label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-3">
                 <span className="flex flex-col gap-0.5">
                   <span className="font-label-md text-label-md font-semibold text-on-surface">Auto-pay</span>
-                  <span className="text-body-sm text-on-surface-variant">Show this bill in Auto-Debit Subscriptions.</span>
+                  <span className="text-body-sm text-on-surface-variant">Record this bill from its account on the due date.</span>
                 </span>
                 <input
                   runway-id="bills.add.auto-pay.input"
                   type="checkbox"
                   checked={newBillAutoPay}
-                  onChange={(event) => setNewBillAutoPay(event.target.checked)}
+                  onChange={(event) => { setNewBillAutoPay(event.target.checked); if (!event.target.checked) { setFirstOccurrencePaid(null); setExistingPaymentId(""); } }}
                   className="h-5 w-5 shrink-0 accent-primary"
                 />
               </label>
@@ -743,7 +840,7 @@ export default function BillsPage() {
               <label className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-3">
                 <span className="flex flex-col gap-0.5">
                   <span className="font-label-md text-label-md font-semibold text-on-surface">Variable amount</span>
-                  <span className="text-body-sm text-on-surface-variant">Ask for the actual amount whenever you record a payment.</span>
+                  <span className="text-body-sm text-on-surface-variant">Auto-pay uses this estimate; you can correct it later.</span>
                 </span>
                 <input
                   runway-id="bills.add.variable-amount.input"
@@ -754,6 +851,33 @@ export default function BillsPage() {
                 />
               </label>
             </div>
+
+            <div className="flex flex-col space-y-1">
+              <label htmlFor="bill-source-account" className="font-label-sm text-label-sm text-on-surface-variant">
+                Pays from {newBillAutoPay ? "(required)" : "(optional)"}
+              </label>
+              <select id="bill-source-account" runway-id="bills.add.source-account.input" value={newBillSourceAccountId}
+                required={newBillAutoPay} onChange={(event) => setNewBillSourceAccountId(event.target.value)}
+                className="h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 font-body-md text-body-md">
+                <option value="">Choose cash account</option>
+                {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+            </div>
+
+            {asksAboutFirstPayment && <fieldset className="space-y-2 rounded-xl bg-surface-container-low p-4">
+              <legend className="font-label-md text-label-md font-semibold text-on-surface">Was this month’s bill already paid?</legend>
+              <p className="text-body-sm text-on-surface-variant">Answer once for the date that has passed. Future payments will post automatically.</p>
+              <label className="flex min-h-10 items-center gap-2"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === true} onChange={() => setFirstOccurrencePaid(true)} /> Yes, record it from this account</label>
+              <label className="flex min-h-10 items-center gap-2"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === false} onChange={() => { setFirstOccurrencePaid(false); setExistingPaymentId(""); }} /> No, leave it unpaid</label>
+              {firstOccurrencePaid === true && <label className="flex flex-col gap-1 pt-2 text-body-sm" htmlFor="existing-bill-payment">
+                <span>Already logged this expense in Runway?</span>
+                <select id="existing-bill-payment" value={existingPaymentId} onChange={(event) => setExistingPaymentId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3">
+                  <option value="">No — record it now from this account</option>
+                  {matchingLoggedExpenses.map((entry) => <option key={entry.id} value={entry.id}>{entry.description} · {entry.transactedAt.slice(0, 10)}</option>)}
+                </select>
+                <span className="text-on-surface-variant">Selecting a logged expense clears the bill without another debit.</span>
+              </label>}
+            </fieldset>}
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
@@ -772,18 +896,40 @@ export default function BillsPage() {
             </div>
           </form>
       </Dialog>
-      <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Confirm payment amount">
+      <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Record bill payment">
         {paymentBill && <div className="space-y-4">
-          <p className="text-body-md text-on-surface">Enter the amount paid for <span className="font-semibold">{paymentBill.name}</span>. The expected amount is {formatPHP(paymentBill.amountDue)}.</p>
-          <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
+          <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentBill.name}</span> from the account that paid it.</p>
+          {!paymentBill.sourceAccountId && <label className="flex flex-col gap-1" htmlFor="payment-source-account">
+            <span className="text-body-sm font-semibold text-on-surface">Paid from</span>
+            <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface">
+              <option value="">Choose cash account</option>
+              {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+          </label>}
+          {paymentBill.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
             <span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span>
             <input id="variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" />
-          </label>
+          </label>}
           {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentBill(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button>
             <button type="button" disabled={isPaymentSaving} onClick={confirmVariablePayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : "Record payment"}</button>
           </div>
+        </div>}
+      </Dialog>
+      <Dialog open={adjustingBill !== null} onClose={() => { if (!isAdjusting) setAdjustingBill(null); }} title="Correct auto-pay amount">
+        {adjustingBill && <div className="space-y-4">
+          <p className="text-body-sm text-on-surface-variant">Runway posted {formatPHP(adjustingBill.amountDue)} for {adjustingBill.name}. Enter the amount that actually left the account.</p>
+          <label className="flex flex-col gap-1" htmlFor="corrected-auto-pay-amount"><span className="text-body-sm font-semibold">Actual amount (₱)</span>
+            <input id="corrected-auto-pay-amount" type="number" min="0.01" step="0.01" inputMode="decimal" value={adjustedAmount} onChange={(event) => setAdjustedAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3" />
+          </label>
+          {adjustmentError && <p role="alert" className="text-body-sm text-error">{adjustmentError}</p>}
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => setAdjustingBill(null)} disabled={isAdjusting} className="min-h-11 px-4">Cancel</button>
+            <button type="button" disabled={isAdjusting} onClick={() => {
+              const amount = Math.round(Number(adjustedAmount) * 100);
+              if (!Number.isSafeInteger(amount) || amount <= 0) { setAdjustmentError("Enter an amount greater than zero."); return; }
+              void adjustAutoPay(adjustingBill, "correct", amount);
+            }} className="min-h-11 rounded-full bg-primary px-4 font-semibold text-on-primary disabled:opacity-50">{isAdjusting ? "Saving…" : "Save correction"}</button></div>
         </div>}
       </Dialog>
       <Dialog open={detailBill !== null} onClose={() => setDetailBill(null)} title={detailBill?.name || "Bill details"}>

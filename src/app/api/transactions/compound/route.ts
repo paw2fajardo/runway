@@ -9,6 +9,7 @@ import {
 import { CompoundTransactionSchema } from "../../../../lib/types";
 import { and, eq, sql } from "drizzle-orm";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
+import { BillPostingError, postBillInstance } from "../../../../lib/bills/posting";
 
 export async function POST(req: NextRequest) {
   const originError = assertSameOrigin(req);
@@ -19,6 +20,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const parsed = CompoundTransactionSchema.parse(body);
+
+    if (parsed.bill_instance_id) {
+      if (parsed.type !== "expense" || parsed.gross_outflow <= 0 || parsed.fee_amount !== 0) {
+        return NextResponse.json({ error: "Log a bill payment as an expense without a separate fee." }, { status: 400 });
+      }
+      const posted = await postBillInstance(parsed.bill_instance_id, {
+        amount: parsed.gross_outflow,
+        sourceAccountId: parsed.source_account_id ?? undefined,
+        now: new Date(parsed.transacted_at),
+      });
+      return NextResponse.json(posted, { status: 201 });
+    }
 
     if (parsed.category_id) {
       const [category] = await db.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
@@ -246,6 +259,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof BillPostingError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Compound transaction failed:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 400 });

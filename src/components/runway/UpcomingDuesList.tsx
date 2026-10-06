@@ -10,7 +10,9 @@ export interface DueItem {
   amountDue: number;
   status: string;
   isAutoPay?: boolean;
+  autoPostFrom?: string | null;
   isVariableAmount?: boolean;
+  sourceAccountId?: string | null;
   sourceAccountName?: string | null;
 }
 
@@ -21,6 +23,14 @@ function formatDueDate(value: string) {
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function todayInManila() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 interface UpcomingDuesListProps {
@@ -60,6 +70,7 @@ export function UpcomingDuesList({
         {dues.map((due) => {
           const isGrace = due.status === "grace_period";
           const isPastDue = isGrace || due.status === "past_due";
+          const autoPostScheduled = Boolean(due.isAutoPay && due.autoPostFrom && due.dueDate >= todayInManila());
           return <li
             key={due.id}
             runway-id={`${idPrefix}.item.${due.id}`}
@@ -72,7 +83,8 @@ export function UpcomingDuesList({
                 </span>
                 {isPastDue ? <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="rounded px-1.5 py-0.5 text-[10px] font-bold text-error">
                   {isGrace ? "Grace period" : "Past due"}
-                </span> : due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                </span> : null}
+                {due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant">
                   Auto-pay
                 </span> : null}
               </div>
@@ -89,13 +101,13 @@ export function UpcomingDuesList({
               <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-bold tabular-nums text-on-surface">
                 {formatPHP(due.amountDue)}
               </span>
-              {due.isAutoPay ? <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[18px]">autorenew</span> : <button
+              {autoPostScheduled || (due.isAutoPay && !onPayClick) ? <span className="text-body-sm text-secondary">Auto-post scheduled</span> : <button
                 runway-id={`${idPrefix}.item.${due.id}.pay`}
                 type="button"
                 onClick={() => onPayClick?.(due)}
                 className="min-h-10 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
-                Pay
+                {due.isAutoPay ? "Record payment" : "Pay"}
               </button>}
             </div>
           </li>;

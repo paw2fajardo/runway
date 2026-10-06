@@ -21,6 +21,17 @@ interface AccountOption {
   currentBalance: number;
 }
 
+interface BillSuggestion {
+  instanceId: string;
+  name: string;
+  amountDue: number;
+  dueDate: string;
+  status: string;
+  sourceAccountId: string | null;
+  isAutoPay: boolean;
+  autoPostFrom: string | null;
+}
+
 const DEFAULT_CATEGORIES = [
   "ATM / Pocket Cash",
   "Food & Groceries",
@@ -90,6 +101,8 @@ export function RapidExpenseDrawer({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [billSuggestions, setBillSuggestions] = useState<BillSuggestion[]>([]);
+  const [selectedBillInstanceId, setSelectedBillInstanceId] = useState("");
   const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = useState(false);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
@@ -129,6 +142,19 @@ export function RapidExpenseDrawer({
   useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || editTransaction) return;
+    let active = true;
+    fetch("/api/bills").then(async (response) => response.ok ? response.json() : [])
+      .then((items: BillSuggestion[]) => {
+        if (active) setBillSuggestions(items.filter((bill) =>
+          bill.status !== "paid" && bill.status !== "auto_debited" &&
+          (!bill.isAutoPay || !bill.autoPostFrom),
+        ));
+      }).catch(() => { if (active) setBillSuggestions([]); });
+    return () => { active = false; };
+  }, [isOpen, editTransaction]);
+
+  useEffect(() => {
     if (!isOpen || !editTransaction) return;
     const accountLegs = editTransaction.legs.filter((item) => item.leg.accountId);
     const categoryLegs = editTransaction.legs.filter((item) => item.leg.categoryId && !item.category?.isSystemFee);
@@ -163,6 +189,7 @@ export function RapidExpenseDrawer({
       setIsCustomFee(false);
       setRawCustomFee("");
       setMode("expense");
+      setSelectedBillInstanceId("");
     }
   }, [isOpen]);
 
@@ -262,6 +289,11 @@ export function RapidExpenseDrawer({
     mode === "expense" || mode === "transfer"
       ? baseCents + selectedFee
       : baseCents;
+  const matchingBills = mode === "expense" && baseCents > 0 && !editTransaction
+    ? billSuggestions.filter((bill) => bill.amountDue === baseCents &&
+      (!bill.sourceAccountId || bill.sourceAccountId === selectedSourceId)).slice(0, 3)
+    : [];
+  const selectedBill = billSuggestions.find((bill) => bill.instanceId === selectedBillInstanceId);
 
   // Runway impact calculation
   const impactPerDay = daysToPayday !== undefined && daysToPayday > 0
@@ -324,7 +356,7 @@ export function RapidExpenseDrawer({
         return;
       }
 
-      await queueOfflineTransaction({
+      const transactionPayload = {
         type: transactionType,
         description,
         source_account_id: transactionType !== "income" ? selectedSourceId : undefined,
@@ -339,8 +371,22 @@ export function RapidExpenseDrawer({
         fee_amount: selectedFee,
         category_id: transactionType === "expense" ? selectedCategoryId || undefined : undefined,
         category_name: transactionType === "expense" && !selectedCategoryId ? selectedCategory : undefined,
+        bill_instance_id: transactionType === "expense" && selectedBillInstanceId ? selectedBillInstanceId : undefined,
         transacted_at: new Date().toISOString(),
-      });
+      };
+      const billPaymentOnline = Boolean(selectedBillInstanceId && navigator.onLine);
+      if (billPaymentOnline) {
+        const response = await fetch("/api/transactions/compound", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transactionPayload),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error || "Bill payment could not be recorded. Try again.");
+        }
+      } else {
+        await queueOfflineTransaction(transactionPayload);
+      }
 
       if (mode === "expense" && selectedSourceId) {
         const nextPreferences = {
@@ -356,7 +402,7 @@ export function RapidExpenseDrawer({
       }
 
       if (onSuccess) onSuccess();
-      closeAfterSuccess("Transaction saved. Syncing now.");
+      closeAfterSuccess(billPaymentOnline ? "Bill payment logged." : navigator.onLine ? "Transaction saved. Syncing now." : "Saved offline. Syncs when connected.");
     } catch (err) {
       console.error("Failed to queue transaction:", err);
       setSubmitError(err instanceof Error ? err.message : "Couldn’t save this entry. Your details are still here. Try again.");
@@ -521,6 +567,20 @@ export function RapidExpenseDrawer({
               </div>
             )}
           </section>
+
+          {mode === "expense" && (matchingBills.length > 0 || selectedBill) && <section className="space-y-2" aria-label="Matching bill">
+            {selectedBill ? <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary-container/60 px-4 py-3 text-body-sm">
+              <span>This pays <strong>{selectedBill.name}</strong>. Runway will clear that bill when this entry is saved.</span>
+              <button type="button" onClick={() => setSelectedBillInstanceId("")} className="min-h-10 shrink-0 font-semibold text-primary">Change</button>
+            </div> : <>
+              <span className="text-body-sm text-on-surface-variant">Does this pay a bill?</span>
+              {matchingBills.map((bill) => <button key={bill.instanceId} type="button"
+                onClick={() => { setSelectedBillInstanceId(bill.instanceId); setSelectedFee(0); if (bill.sourceAccountId) setSelectedSourceId(bill.sourceAccountId); }}
+                className="flex min-h-11 w-full items-center justify-between rounded-xl border border-outline-variant/60 bg-white px-4 text-left text-body-sm">
+                <span>{bill.name} · due {bill.dueDate}</span><span className="font-semibold">Use bill</span>
+              </button>)}
+            </>}
+          </section>}
 
           {/* Category Allocation (if Expense) */}
           <div className={`quick-log-core-fields${mode === "inflow" ? " quick-log-core-fields-single" : ""}`}>

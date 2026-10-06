@@ -207,6 +207,7 @@ export const bills = pgTable("bills", {
   amount: bigint("amount", { mode: "number" }).notNull(),
   isEstimate: boolean("is_estimate").notNull().default(false),
   isAutoPay: boolean("is_auto_pay").notNull().default(false),
+  autoPostFrom: date("auto_post_from", { mode: "string" }),
   isVariableAmount: boolean("is_variable_amount").notNull().default(false),
   dueDayOfMonth: smallint("due_day_of_month").notNull(),
   dueDayOfWeek: smallint("due_day_of_week"),
@@ -253,6 +254,12 @@ export const billInstances = pgTable(
     index("idx_bill_instances_dates").on(table.dueDate, table.status),
   ]
 );
+
+export const billPaymentEvents = pgTable("bill_payment_events", {
+  transactionId: uuid("transaction_id").primaryKey().references(() => transactions.id),
+  billInstanceId: uuid("bill_instance_id").notNull().references(() => billInstances.id),
+  kind: varchar("kind", { length: 20 }).notNull(),
+}, (table) => [index("idx_bill_payment_events_instance").on(table.billInstanceId)]);
 
 // 7. Balance Checkpoints
 export const balanceCheckpoints = pgTable("balance_checkpoints", {

@@ -214,7 +214,7 @@ export function calculateRunwayForecast({
 
   const prePaydayBills = bills.filter((b) => {
     if (b.status === "paid" || b.status === "auto_debited") return false;
-    return b.dueDate >= refDateStr && b.dueDate <= nextPaydayStr;
+    return b.dueDate <= nextPaydayStr;
   });
 
   const scheduled_bills_total = prePaydayBills.reduce(
@@ -224,8 +224,7 @@ export function calculateRunwayForecast({
 
   // 3. Discretionary Burn & Net Buffer
   const discretionary_burn_total = safeCents(dailyDiscretionaryBurn * daysToPayday);
-  const net_projected_buffer =
-    safeCents(safeCents(currentLiquidCash - safeCents(scheduled_bills_total)) - discretionary_burn_total);
+  const net_projected_buffer = safeCents(currentLiquidCash - safeCents(scheduled_bills_total));
 
   const daily_allowance = Math.max(
     0,
@@ -255,7 +254,7 @@ export function calculateRunwayForecast({
     // Bills due on this exact date
     const dayBills = bills.filter(
       (b) =>
-        b.dueDate === dateStr &&
+        (b.dueDate === dateStr || (i === 0 && b.dueDate < refDateStr)) &&
         b.status !== "paid" &&
         b.status !== "auto_debited"
     );

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../db";
 import { accounts, billInstances, bills, categories } from "../../../../db/schema";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
+import { nextBillDueDate as nextScheduledBillDate, type BillFrequency } from "../../../../lib/bill-schedule";
+import { linkExistingBillPaymentInTransaction, postBillInstanceInTransaction } from "../../../../lib/bills/posting";
+import { manilaDate } from "../../../../lib/payday/occurrences";
 
 const idSchema = z.string().uuid();
 const frequencySchema = z.enum(["weekly", "biweekly", "monthly", "every_2_months", "every_3_months", "every_6_months", "annually"]);
@@ -17,6 +20,8 @@ const updateSchema = z.object({
   is_estimate: z.boolean().optional(),
   is_auto_pay: z.boolean().optional(),
   is_variable_amount: z.boolean().optional(),
+  first_occurrence_paid: z.boolean().optional(),
+  first_occurrence_transaction_id: z.string().uuid().optional(),
   due_day_of_month: z.number().int().min(1).max(31).optional(),
   due_day_of_week: z.number().int().min(0).max(6).nullable().optional(),
   frequency: frequencySchema.optional(),
@@ -105,6 +110,13 @@ export async function PATCH(req: NextRequest, context: Context) {
       }
       const changedSchedule = parsed.frequency !== undefined || parsed.due_day_of_week !== undefined || parsed.due_day_of_month !== undefined;
       const now = new Date();
+      const autoPayEnabled = parsed.is_auto_pay ?? current.isAutoPay;
+      const sourceAccountId = parsed.source_account_id !== undefined ? parsed.source_account_id : current.sourceAccountId;
+      if (autoPayEnabled) {
+        if (!sourceAccountId) throw new Error("Choose the cash account used for auto-pay.");
+        const [source] = await tx.select().from(accounts).where(eq(accounts.id, sourceAccountId)).limit(1);
+        if (!source || !source.isActive || source.type !== "liquid") throw new Error("Choose an active cash account for auto-pay.");
+      }
       const [bill] = await tx.update(bills).set({
         ...(parsed.name !== undefined && { name: parsed.name }),
         ...(parsed.type !== undefined && { type: parsed.type }),
@@ -144,6 +156,29 @@ export async function PATCH(req: NextRequest, context: Context) {
           ...(parsed.amount !== undefined && { amountDue: parsed.amount }),
           updatedAt: now,
         }).where(eq(billInstances.id, instance.id));
+      }
+      if (!autoPayEnabled) {
+        await tx.update(bills).set({ autoPostFrom: null }).where(eq(bills.id, id));
+      } else if (!current.autoPostFrom || !current.isAutoPay) {
+        const [firstUnpaid] = await tx.select().from(billInstances)
+          .where(and(eq(billInstances.billId, id), inArray(billInstances.status, ["upcoming", "due_today", "grace_period", "past_due"])))
+          .orderBy(billInstances.dueDate).limit(1);
+        const today = manilaDate(now);
+        const pastDue = firstUnpaid && firstUnpaid.dueDate < today;
+        if (pastDue && parsed.first_occurrence_paid === undefined) {
+          throw new Error("Confirm whether this month's auto-pay already happened.");
+        }
+        const startDate = pastDue
+          ? nextScheduledBillDate(firstUnpaid.dueDate, bill.frequency as BillFrequency, bill.dueDayOfMonth)
+          : today;
+        await tx.update(bills).set({ autoPostFrom: startDate }).where(eq(bills.id, id));
+        if (pastDue && parsed.first_occurrence_paid) {
+          if (parsed.first_occurrence_transaction_id) {
+            await linkExistingBillPaymentInTransaction(tx, firstUnpaid.id, parsed.first_occurrence_transaction_id);
+          } else {
+            await postBillInstanceInTransaction(tx, firstUnpaid.id, { automatic: true, now });
+          }
+        }
       }
       return { bill, instances: ordered.length };
     });
