@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-const PRIMARY_PAGES = ["/", "/bills", "/accounts", "/inbox"];
+const PRIMARY_PAGES = ["/", "/bills", "/accounts", "/transactions"];
 const MIN_SWIPE_DISTANCE = 72;
 const EDGE_GUARD = 28;
 

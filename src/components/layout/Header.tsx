@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { ArrowLeft, Inbox, UserRound } from "lucide-react";
 import { getPendingQueueCount, flushOfflineQueue } from "@/lib/offline-db";
 
 interface HeaderProps {
@@ -93,6 +93,14 @@ export function Header({ title, showBack = false }: HeaderProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-space-sm">
+          <Link
+            href="/inbox"
+            runway-id="runway.header.inbox"
+            aria-label="Inbox"
+            className="w-11 h-11 rounded-full bg-white/60 border border-white/70 text-primary flex items-center justify-center hover:bg-white active:scale-95 transition-transform"
+          >
+            <Inbox size={20} aria-hidden="true" />
+          </Link>
           <Link
             href="/settings"
             runway-id="runway.header.settings"

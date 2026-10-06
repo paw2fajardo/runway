@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Inbox, Plus, TrendingUp, Wallet } from "lucide-react";
+import { CalendarDays, Plus, ReceiptText, TrendingUp, Wallet } from "lucide-react";
 
 interface BottomNavProps {
   onOpenQuickLog?: () => void;
@@ -15,7 +15,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
   const isRunway = pathname === "/";
   const isBills = pathname.startsWith("/bills");
   const isAccounts = pathname.startsWith("/accounts");
-  const isInbox = pathname.startsWith("/inbox");
+  const isTransactions = pathname.startsWith("/transactions");
 
   return (
     <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-[400px]" style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
@@ -81,20 +81,20 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           {isAccounts && <span className="hidden min-[360px]:inline text-label-sm">Accounts</span>}
         </Link>
 
-        {/* Tab 5: Inbox */}
+        {/* Tab 5: Transactions */}
         <Link
-          href="/inbox"
-          runway-id="runway.nav.inbox"
-          aria-label="Inbox"
-          aria-current={isInbox ? "page" : undefined}
+          href="/transactions"
+          runway-id="runway.nav.transactions"
+          aria-label="Transactions"
+          aria-current={isTransactions ? "page" : undefined}
           className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 transition-colors ${
-            isInbox
+            isTransactions
               ? "bg-white text-primary shadow-sm font-semibold"
               : "text-white/80 hover:bg-white/10 hover:text-white"
           }`}
         >
-          <Inbox size={20} strokeWidth={1.8} aria-hidden="true" />
-          {isInbox && <span className="hidden min-[360px]:inline text-label-sm">Inbox</span>}
+          <ReceiptText size={20} strokeWidth={1.8} aria-hidden="true" />
+          {isTransactions && <span className="hidden min-[360px]:inline text-label-sm">Transactions</span>}
         </Link>
       </div>
     </nav>
