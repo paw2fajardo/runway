@@ -169,7 +169,7 @@ export default function AccountsPage() {
           <section className="forest-panel mt-space-xs p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col">
-              <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">
                 Total Liquid Cash
               </span>
               <span runway-id="accounts.summary.liquid.total" className="font-currency-display text-currency-display text-white font-semibold mt-1 min-h-[36px]">
