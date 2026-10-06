@@ -43,7 +43,7 @@ export function SolvencyHero({
             }`}
           />
           <span runway-id="runway.solvency-status" className={`font-label-sm text-label-sm font-medium ${isSolvent ? "text-secondary-fixed" : "text-rose-200"}`}>
-            {isSolvent ? "Safe to spend" : "Shortfall Warning"}
+            {isSolvent ? "Cash after bills" : "Shortfall warning"}
           </span>
         </div>
         <span runway-id="runway.next-income" className="font-label-sm text-label-sm font-medium text-secondary-fixed px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
@@ -95,7 +95,7 @@ export function SolvencyHero({
 
         <div className="min-w-0">
           <span runway-id="runway.breakdown-planned-spending-label" className="font-label-sm text-label-sm text-white/70">
-            Planned Spending
+            Planned spending (separate)
           </span>
           <div runway-id="runway.breakdown-planned-spending" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
             {formatPHP(plannedSpending)}

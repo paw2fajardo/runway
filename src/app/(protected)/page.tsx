@@ -68,6 +68,7 @@ export default function RunwayDashboard() {
   const [isDuesOpen, setIsDuesOpen] = useState(false);
   const [paymentDue, setPaymentDue] = useState<DueItem | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentSourceAccountId, setPaymentSourceAccountId] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPaymentSaving, setIsPaymentSaving] = useState(false);
   const [accountsAvailable, setAccountsAvailable] = useState(false);
@@ -139,6 +140,7 @@ export default function RunwayDashboard() {
     const settingsRequest = fetchPaySettings();
     const plannedSpendingRequest = fetchPlannedSpending();
     try {
+      await fetch("/api/bills/auto-post", { method: "POST" });
       const [forecastRes, accountsRes, billsRes] = await Promise.all([
         fetch("/api/runway/forecast"),
         fetch("/api/accounts"),
@@ -163,7 +165,9 @@ export default function RunwayDashboard() {
           amountDue: number;
           status: string;
           isAutoPay?: boolean;
+          autoPostFrom?: string | null;
           isVariableAmount?: boolean;
+          sourceAccountId?: string | null;
           sourceAccountName?: string | null;
         }) => ({
           id: b.instanceId,
@@ -172,7 +176,9 @@ export default function RunwayDashboard() {
           amountDue: b.amountDue,
           status: b.status,
           isAutoPay: b.isAutoPay,
+          autoPostFrom: b.autoPostFrom,
           isVariableAmount: b.isVariableAmount,
+          sourceAccountId: b.sourceAccountId,
           sourceAccountName: b.sourceAccountName,
         }));
         setDues(mappedDues);
@@ -301,14 +307,17 @@ export default function RunwayDashboard() {
     fetchData();
   }, [fetchData]);
 
-  const settleBill = async (due: DueItem, amount?: number) => {
+  const settleBill = async (due: DueItem, amount?: number, sourceAccountId?: string) => {
     setPaymentError(null);
     setIsPaymentSaving(true);
     try {
       const res = await fetch(`/api/bills/${due.id}/settle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(amount === undefined ? {} : { amount }),
+        body: JSON.stringify({
+          ...(amount !== undefined && { amount }),
+          ...(sourceAccountId && { source_account_id: sourceAccountId }),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -325,12 +334,13 @@ export default function RunwayDashboard() {
   };
 
   const handlePayBill = (due: DueItem) => {
-    if (!due.isVariableAmount) {
+    if (!due.isVariableAmount && due.sourceAccountId) {
       void settleBill(due);
       return;
     }
     setPaymentDue(due);
     setPaymentAmount((due.amountDue / 100).toFixed(2));
+    setPaymentSourceAccountId(due.sourceAccountId ?? "");
     setPaymentError(null);
   };
 
@@ -341,7 +351,8 @@ export default function RunwayDashboard() {
       setPaymentError("Enter a payment amount greater than zero.");
       return;
     }
-    void settleBill(paymentDue, amount);
+    if (!paymentSourceAccountId) { setPaymentError("Choose the account that paid this bill."); return; }
+    void settleBill(paymentDue, paymentDue.isVariableAmount ? amount : undefined, paymentSourceAccountId);
   };
 
   const handleReconcileClick = (accountId: string) => {
@@ -632,10 +643,11 @@ export default function RunwayDashboard() {
           ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" title="All unpaid bills" description={`${unpaidDues.length} total`} emptyMessage="No unpaid bills." />
           : <p runway-id="runway.all-dues.empty" className="text-body-md">No unpaid bills.</p>}
       </Dialog>
-      <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Confirm payment amount">
+      <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Record bill payment">
         {paymentDue && <div className="space-y-4">
-          <p className="text-body-md text-on-surface">Enter the amount paid for <span className="font-semibold">{paymentDue.name}</span>. The expected amount is {formatPHP(paymentDue.amountDue)}.</p>
-          <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>
+          <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentDue.name}</span> from the account that paid it.</p>
+          {!paymentDue.sourceAccountId && <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose cash account</option>{accounts.filter((account) => account.type === "liquid").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}
+          {paymentDue.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>}
           {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
           <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmVariablePayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : "Record payment"}</button></div>
         </div>}

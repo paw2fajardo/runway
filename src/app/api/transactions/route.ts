@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../db";
-import { accounts, billInstances, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../db/schema";
+import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../db/schema";
 import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 import { isQuickLogEligible } from "../../../lib/transaction-crud";
 
@@ -54,13 +54,15 @@ export async function GET(req: NextRequest) {
   });
 
   const ids = parents.map((item) => item.id);
-  const [legs, settlements, paychecks] = await Promise.all([
+  const [legs, settlements, billEvents, paychecks] = await Promise.all([
     db.select().from(transactionLegs).where(inArray(transactionLegs.transactionId, ids)),
     db.select({ id: billInstances.linkedTransactionId }).from(billInstances).where(inArray(billInstances.linkedTransactionId, ids)),
+    db.select({ id: billPaymentEvents.transactionId }).from(billPaymentEvents).where(inArray(billPaymentEvents.transactionId, ids)),
     db.select({ id: paycheckOccurrences.transactionId, reversal: paycheckOccurrences.reversalTransactionId }).from(paycheckOccurrences),
   ]);
   const billSettlementIds = new Set<string>();
   settlements.forEach((row) => { if (row.id) billSettlementIds.add(row.id); });
+  billEvents.forEach((row) => billSettlementIds.add(row.id));
   const protectedIds = new Set<string>();
   paychecks.forEach((row) => { if (row.id) protectedIds.add(row.id); if (row.reversal) protectedIds.add(row.reversal); });
 

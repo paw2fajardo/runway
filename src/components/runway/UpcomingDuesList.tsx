@@ -10,7 +10,9 @@ export interface DueItem {
   amountDue: number;
   status: string;
   isAutoPay?: boolean;
+  autoPostFrom?: string | null;
   isVariableAmount?: boolean;
+  sourceAccountId?: string | null;
   sourceAccountName?: string | null;
 }
 
@@ -21,6 +23,14 @@ function formatDueDate(value: string) {
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function todayInManila() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 interface UpcomingDuesListProps {
@@ -60,6 +70,7 @@ export function UpcomingDuesList({
         {dues.map((due) => {
           const isGrace = due.status === "grace_period";
           const isPastDue = isGrace || due.status === "past_due";
+          const autoPostScheduled = Boolean(due.isAutoPay && due.autoPostFrom && due.dueDate >= todayInManila());
           return <li
             key={due.id}
             runway-id={`${idPrefix}.item.${due.id}`}
@@ -90,7 +101,7 @@ export function UpcomingDuesList({
               <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-bold tabular-nums text-on-surface">
                 {formatPHP(due.amountDue)}
               </span>
-              {due.isAutoPay && !onPayClick ? <span aria-hidden="true" className="material-symbols-outlined text-secondary text-[18px]">autorenew</span> : <button
+              {autoPostScheduled || (due.isAutoPay && !onPayClick) ? <span className="text-body-sm text-secondary">Auto-post scheduled</span> : <button
                 runway-id={`${idPrefix}.item.${due.id}.pay`}
                 type="button"
                 onClick={() => onPayClick?.(due)}

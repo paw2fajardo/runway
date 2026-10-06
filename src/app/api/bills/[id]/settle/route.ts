@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "../../../../../db";
-import {
-  billInstances,
-  bills,
-  transactions,
-  transactionLegs,
-  accounts,
-} from "../../../../../db/schema";
-import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
-import { nextBillDueDate, type BillFrequency } from "../../../../../lib/bill-schedule";
+import { BillPostingError, postBillInstance } from "../../../../../lib/bills/posting";
 
 const settlementSchema = z.object({
   amount: z.number().int().positive().optional(),
@@ -19,144 +10,31 @@ const settlementSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const originError = assertSameOrigin(req);
   if (originError) return originError;
   const owner = await requireOwner(req);
   if (owner instanceof Response) return owner;
 
+  const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: "Invalid bill identifier." }, { status: 400 });
+  }
+  const parsed = settlementSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Enter a valid payment amount and account." }, { status: 400 });
+  }
   try {
-    const { id } = await params;
-    const parsedBody = settlementSchema.safeParse(await req.json().catch(() => ({})));
-    if (!parsedBody.success) return NextResponse.json({ error: "Enter a valid payment amount." }, { status: 400 });
-    const body = parsedBody.data;
-    const customSourceAccountId = body.source_account_id;
-
-    const [instance] = await db
-      .select({
-        instanceId: billInstances.id,
-        amountDue: billInstances.amountDue,
-        status: billInstances.status,
-        billId: bills.id,
-        name: bills.name,
-        sourceAccountId: bills.sourceAccountId,
-        categoryId: bills.categoryId,
-        isVariableAmount: bills.isVariableAmount,
-        dueDate: billInstances.dueDate,
-        dueDayOfMonth: bills.dueDayOfMonth,
-        frequency: bills.frequency,
-        occurrenceLimit: bills.occurrenceLimit,
-        recurringAmount: bills.amount,
-      })
-      .from(billInstances)
-      .innerJoin(bills, eq(billInstances.billId, bills.id))
-      .where(eq(billInstances.id, id))
-      .limit(1);
-
-    if (!instance) {
-      return NextResponse.json({ error: "Bill instance not found" }, { status: 404 });
-    }
-
-    if (instance.status === "paid") {
-      return NextResponse.json(
-        { error: "Bill instance is already marked as paid" },
-        { status: 400 }
-      );
-    }
-
-    if (instance.isVariableAmount && body.amount === undefined) {
-      return NextResponse.json({ error: "Enter the amount paid for this variable bill." }, { status: 400 });
-    }
-
-    const settledAmount = instance.isVariableAmount ? body.amount! : instance.amountDue;
-
-    const effectiveSourceAccountId = customSourceAccountId || instance.sourceAccountId;
-
-    const result = await db.transaction(async (tx) => {
-      let createdTx = null;
-
-      // If source account exists, create compound transaction
-      if (effectiveSourceAccountId) {
-        const [parentTx] = await tx
-          .insert(transactions)
-          .values({
-            type: "expense",
-            description: `Settlement: ${instance.name}`,
-          })
-          .returning();
-
-        // Source debit
-        await tx.insert(transactionLegs).values({
-          transactionId: parentTx.id,
-          accountId: effectiveSourceAccountId,
-          amount: -settledAmount,
-        });
-
-        // Category leg
-        if (instance.categoryId) {
-          await tx.insert(transactionLegs).values({
-            transactionId: parentTx.id,
-            categoryId: instance.categoryId,
-            amount: settledAmount,
-          });
-        }
-
-        // Deduct from account balance
-        await tx
-          .update(accounts)
-          .set({
-            currentBalance: sql`${accounts.currentBalance} - ${settledAmount}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(accounts.id, effectiveSourceAccountId));
-
-        createdTx = parentTx;
-      }
-
-      // Mark instance as paid
-      const [updatedInstance] = await tx
-        .update(billInstances)
-        .set({
-          amountDue: settledAmount,
-          status: "paid",
-          linkedTransactionId: createdTx?.id || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(billInstances.id, id))
-        .returning();
-
-      const [{ instanceCount }] = await tx
-        .select({ instanceCount: sql<number>`count(*)::int` })
-        .from(billInstances)
-        .where(eq(billInstances.billId, instance.billId));
-
-      if (instance.occurrenceLimit === null || instanceCount < instance.occurrenceLimit) {
-        const nextDueDate = nextBillDueDate(
-          instance.dueDate,
-          instance.frequency as BillFrequency,
-          instance.dueDayOfMonth,
-        );
-        await tx.insert(billInstances).values({
-          billId: instance.billId,
-          periodIdentifier: nextDueDate,
-          dueDate: nextDueDate,
-          targetSettlementDate: nextDueDate,
-          amountDue: instance.recurringAmount,
-          status: "upcoming",
-        });
-      }
-
-      return {
-        instance: updatedInstance,
-        transaction: createdTx,
-      };
+    const result = await postBillInstance(id, {
+      amount: parsed.data.amount,
+      sourceAccountId: parsed.data.source_account_id,
     });
-
-    return NextResponse.json(result, { status: 200 });
-  } catch (error: unknown) {
-    console.error("Settle bill failed:", error);
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (!(error instanceof BillPostingError)) console.error("Settle bill failed:", error);
+    return NextResponse.json({ error: error instanceof BillPostingError ? error.message : "Unable to record this payment." }, {
+      status: error instanceof BillPostingError ? error.status : 500,
+    });
   }
 }

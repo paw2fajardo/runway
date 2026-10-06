@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../db";
-import { accounts, billInstances, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../../db/schema";
+import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../../db/schema";
 import { CompoundTransactionSchema } from "../../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 import { accountBalanceAdjustments, isQuickLogEligible } from "../../../../lib/transaction-crud";
@@ -12,12 +12,13 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function loadEligible(tx: Tx, id: string) {
   const [parent] = await tx.select().from(transactions).where(eq(transactions.id, id)).limit(1);
   if (!parent) return null;
-  const [legs, billRefs, paycheckRefs] = await Promise.all([
+  const [legs, billRefs, billEvents, paycheckRefs] = await Promise.all([
     tx.select().from(transactionLegs).where(eq(transactionLegs.transactionId, id)),
     tx.select({ id: billInstances.id }).from(billInstances).where(eq(billInstances.linkedTransactionId, id)).limit(1),
+    tx.select({ id: billPaymentEvents.transactionId }).from(billPaymentEvents).where(eq(billPaymentEvents.transactionId, id)).limit(1),
     tx.select({ id: paycheckOccurrences.id }).from(paycheckOccurrences).where(sql`${paycheckOccurrences.transactionId} = ${id} OR ${paycheckOccurrences.reversalTransactionId} = ${id}`).limit(1),
   ]);
-  if (billRefs.length || paycheckRefs.length) return null;
+  if (billRefs.length || billEvents.length || paycheckRefs.length) return null;
   if (!isQuickLogEligible(parent.type, legs)) return null;
   return { parent, legs };
 }
