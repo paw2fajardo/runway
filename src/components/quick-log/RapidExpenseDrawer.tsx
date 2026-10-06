@@ -55,6 +55,7 @@ interface RapidExpenseDrawerProps {
   editTransaction?: {
     id: string; type: "income" | "expense" | "transfer"; description: string;
     transactedAt: string; legs: { leg: { accountId: string | null; categoryId: string | null; amount: number }; account: { id: string; name: string } | null; category: { id: string; name: string; isSystemFee: boolean } | null }[];
+  };
   onEditSuccess?: () => void;
 }
 
