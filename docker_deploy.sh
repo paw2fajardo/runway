@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+git checkout main
+git pull
+
 docker build -t paw2fajardo/runway:latest .
 docker build --target payday-worker -t paw2fajardo/runway-worker:latest .
 
