@@ -776,21 +776,24 @@ export default function BillsPage() {
                   {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? "Due day of week" : "Due day of month"}
                 </label>
                 {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? (
-                  <select
-                    runway-id="bills.add.due-day.input" id="bill-day"
-                    required
-                    value={newBillDayOfWeek}
-                    onChange={(e) => setNewBillDayOfWeek(e.target.value)}
-                    className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
-                  >
-                    <option value="0">Sunday</option>
-                    <option value="1">Monday</option>
-                    <option value="2">Tuesday</option>
-                    <option value="3">Wednesday</option>
-                    <option value="4">Thursday</option>
-                    <option value="5">Friday</option>
-                    <option value="6">Saturday</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      runway-id="bills.add.due-day.input" id="bill-day"
+                      required
+                      value={newBillDayOfWeek}
+                      onChange={(e) => setNewBillDayOfWeek(e.target.value)}
+                      className="h-11 w-full appearance-none rounded-full border border-outline-variant/50 bg-white/70 px-4 pr-11 font-body-md text-body-md"
+                    >
+                      <option value="0">Sunday</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                    </select>
+                    <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  </div>
                 ) : (
                   <input
                     runway-id="bills.add.due-day.input" id="bill-day"
@@ -856,12 +859,15 @@ export default function BillsPage() {
               <label htmlFor="bill-source-account" className="font-label-sm text-label-sm text-on-surface-variant">
                 Pays from {newBillAutoPay ? "(required)" : "(optional)"}
               </label>
-              <select id="bill-source-account" runway-id="bills.add.source-account.input" value={newBillSourceAccountId}
-                required={newBillAutoPay} onChange={(event) => setNewBillSourceAccountId(event.target.value)}
-                className="h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 font-body-md text-body-md">
-                <option value="">Choose cash account</option>
-                {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
+              <div className="relative">
+                <select id="bill-source-account" runway-id="bills.add.source-account.input" value={newBillSourceAccountId}
+                  required={newBillAutoPay} onChange={(event) => setNewBillSourceAccountId(event.target.value)}
+                  className="h-11 w-full appearance-none rounded-full border border-outline-variant/50 bg-white/70 px-4 pr-11 font-body-md text-body-md">
+                  <option value="">Choose cash account</option>
+                  {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+                <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              </div>
             </div>
 
             {asksAboutFirstPayment && <fieldset className="min-w-0">
@@ -874,12 +880,15 @@ export default function BillsPage() {
                 </div>
                 {firstOccurrencePaid === true && <div className="border-t border-outline-variant/50 pt-3 text-body-sm">
                   <label className="mb-2 block font-medium text-on-surface" htmlFor="existing-bill-payment">Already logged this expense in Runway?</label>
-                  <select id="existing-bill-payment" value={existingPaymentId} onChange={(event) => setExistingPaymentId(event.target.value)}
-                    aria-describedby="existing-bill-payment-hint"
-                    className="block h-11 w-full min-w-0 rounded-xl border border-outline-variant/60 bg-white px-3 text-on-surface focus-visible:outline-offset-2">
-                    <option value="">No — record it now from this account</option>
-                    {matchingLoggedExpenses.map((entry) => <option key={entry.id} value={entry.id}>{entry.description} · {entry.transactedAt.slice(0, 10)}</option>)}
-                  </select>
+                  <div className="relative">
+                    <select id="existing-bill-payment" value={existingPaymentId} onChange={(event) => setExistingPaymentId(event.target.value)}
+                      aria-describedby="existing-bill-payment-hint"
+                      className="block h-11 w-full min-w-0 appearance-none rounded-xl border border-outline-variant/60 bg-white px-3 pr-11 text-on-surface focus-visible:outline-offset-2">
+                      <option value="">No — record it now from this account</option>
+                      {matchingLoggedExpenses.map((entry) => <option key={entry.id} value={entry.id}>{entry.description} · {entry.transactedAt.slice(0, 10)}</option>)}
+                    </select>
+                    <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  </div>
                   <p id="existing-bill-payment-hint" className="mt-2 text-on-surface-variant">Selecting a logged expense clears the bill without another debit.</p>
                 </div>}
               </div>
@@ -907,10 +916,14 @@ export default function BillsPage() {
           <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentBill.name}</span> from the account that paid it.</p>
           {!paymentBill.sourceAccountId && <label className="flex flex-col gap-1" htmlFor="payment-source-account">
             <span className="text-body-sm font-semibold text-on-surface">Paid from</span>
-            <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface">
-              <option value="">Choose cash account</option>
-              {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-            </select>
+            <span className="relative block">
+              <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)}
+                className="h-11 w-full appearance-none rounded-xl border border-outline-variant/60 bg-white px-3 pr-11 text-body-md text-on-surface">
+                <option value="">Choose cash account</option>
+                {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+              <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            </span>
           </label>}
           {paymentBill.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
             <span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span>
