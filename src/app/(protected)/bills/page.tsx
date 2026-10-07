@@ -511,7 +511,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.grace.item.${b.instanceId}`}
-                    className="min-h-40 rounded-xl border border-amber-200 bg-amber-50/80 p-5 flex flex-col gap-4 lg:min-h-0 lg:flex-row lg:items-center lg:gap-3 lg:p-3"
+                    className="min-h-0 rounded-xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3 lg:min-h-0 lg:flex-row lg:items-center lg:gap-3 lg:p-3"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3 lg:min-w-0 lg:flex-1 lg:items-center">
                       <div className="flex min-w-0 gap-3 items-center lg:flex-1 lg:gap-2">
@@ -575,7 +575,7 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.due.item.${b.instanceId}`}
-                    className="min-h-32 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5"
+                    className="min-h-0 border-b border-outline-variant/40 py-3 flex flex-col gap-2 last:border-b-0 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5"
                   >
                     <div className="flex flex-wrap justify-between items-start gap-3 lg:min-w-0 lg:flex-1 lg:items-center">
                       <div className="flex min-w-0 gap-3 items-center lg:flex-1 lg:gap-2">
@@ -678,10 +678,10 @@ export default function BillsPage() {
             {matchingPaidBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/40 py-2 text-body-sm last:border-b-0">
               <span><span className="font-semibold text-on-surface">{bill.name}</span> · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && !bill.hasCorrection ? " estimated" : ""}</span>
               <div className="flex items-center gap-2">
-                {searchTerm && <button type="button" onClick={() => setDetailBill(bill)} className="min-h-10 px-2 font-semibold text-primary">Details</button>}
+                {searchTerm && <button type="button" onClick={() => setDetailBill(bill)} className="min-h-11 px-2 font-semibold text-primary lg:min-h-10">Details</button>}
                 {bill.status === "auto_debited" && <>
-                {bill.isVariableAmount && <button type="button" onClick={() => { setAdjustingBill(bill); setAdjustedAmount((bill.amountDue / 100).toFixed(2)); setAdjustmentError(null); }} className="min-h-10 px-2 font-semibold text-primary">Correct amount</button>}
-                <button type="button" onClick={() => { if (window.confirm(`Reverse the Runway payment for ${bill.name}?`)) void adjustAutoPay(bill, "undo"); }} disabled={isAdjusting} className="min-h-10 px-2 font-semibold text-primary disabled:opacity-50">Didn’t happen</button>
+                {bill.isVariableAmount && <button type="button" onClick={() => { setAdjustingBill(bill); setAdjustedAmount((bill.amountDue / 100).toFixed(2)); setAdjustmentError(null); }} className="min-h-11 px-2 font-semibold text-primary lg:min-h-10">Correct amount</button>}
+                <button type="button" onClick={() => { if (window.confirm(`Reverse the Runway payment for ${bill.name}?`)) void adjustAutoPay(bill, "undo"); }} disabled={isAdjusting} className="min-h-11 px-2 font-semibold text-primary disabled:opacity-50 lg:min-h-10">Didn’t happen</button>
                 </>}
               </div>
             </div>)}
