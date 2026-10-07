@@ -864,19 +864,25 @@ export default function BillsPage() {
               </select>
             </div>
 
-            {asksAboutFirstPayment && <fieldset className="space-y-2 rounded-xl bg-surface-container-low p-4">
+            {asksAboutFirstPayment && <fieldset className="min-w-0">
               <legend className="font-label-md text-label-md font-semibold text-on-surface">Was this month’s bill already paid?</legend>
-              <p className="text-body-sm text-on-surface-variant">Answer once for the date that has passed. Future payments will post automatically.</p>
-              <label className="flex min-h-10 items-center gap-2"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === true} onChange={() => setFirstOccurrencePaid(true)} /> Yes, record it from this account</label>
-              <label className="flex min-h-10 items-center gap-2"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === false} onChange={() => { setFirstOccurrencePaid(false); setExistingPaymentId(""); }} /> No, leave it unpaid</label>
-              {firstOccurrencePaid === true && <label className="flex flex-col gap-1 pt-2 text-body-sm" htmlFor="existing-bill-payment">
-                <span>Already logged this expense in Runway?</span>
-                <select id="existing-bill-payment" value={existingPaymentId} onChange={(event) => setExistingPaymentId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3">
-                  <option value="">No — record it now from this account</option>
-                  {matchingLoggedExpenses.map((entry) => <option key={entry.id} value={entry.id}>{entry.description} · {entry.transactedAt.slice(0, 10)}</option>)}
-                </select>
-                <span className="text-on-surface-variant">Selecting a logged expense clears the bill without another debit.</span>
-              </label>}
+              <div className="mt-2 space-y-3 rounded-xl bg-surface-container-low p-4">
+                <p className="text-body-sm text-on-surface-variant">Answer once for the date that has passed. Future payments will post automatically.</p>
+                <div className="space-y-1">
+                  <label className="flex min-h-11 items-center gap-3 text-body-sm"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === true} onChange={() => setFirstOccurrencePaid(true)} /> Yes, record it from this account</label>
+                  <label className="flex min-h-11 items-center gap-3 text-body-sm"><input type="radio" name="first-occurrence-paid" checked={firstOccurrencePaid === false} onChange={() => { setFirstOccurrencePaid(false); setExistingPaymentId(""); }} /> No, leave it unpaid</label>
+                </div>
+                {firstOccurrencePaid === true && <div className="border-t border-outline-variant/50 pt-3 text-body-sm">
+                  <label className="mb-2 block font-medium text-on-surface" htmlFor="existing-bill-payment">Already logged this expense in Runway?</label>
+                  <select id="existing-bill-payment" value={existingPaymentId} onChange={(event) => setExistingPaymentId(event.target.value)}
+                    aria-describedby="existing-bill-payment-hint"
+                    className="block h-11 w-full min-w-0 rounded-xl border border-outline-variant/60 bg-white px-3 text-on-surface focus-visible:outline-offset-2">
+                    <option value="">No — record it now from this account</option>
+                    {matchingLoggedExpenses.map((entry) => <option key={entry.id} value={entry.id}>{entry.description} · {entry.transactedAt.slice(0, 10)}</option>)}
+                  </select>
+                  <p id="existing-bill-payment-hint" className="mt-2 text-on-surface-variant">Selecting a logged expense clears the bill without another debit.</p>
+                </div>}
+              </div>
             </fieldset>}
 
             <div className="grid grid-cols-2 gap-2 pt-2">
