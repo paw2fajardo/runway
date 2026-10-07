@@ -8,7 +8,7 @@ import { formatPHP } from "@/lib/currency";
 import { Dialog } from "@/components/ui/Dialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, ChevronDown, CirclePlus, CreditCard, Headphones, Repeat2, Wallet, Wifi, Zap, Droplets, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, CirclePlus, CreditCard, Headphones, Repeat2, Search, Wallet, Wifi, X, Zap, Droplets, TriangleAlert } from "lucide-react";
 
 interface BillItem {
   instanceId: string;
@@ -55,6 +55,7 @@ export default function BillsPage() {
   const [nextPaydayDate, setNextPaydayDate] = useState<string | null>(null);
   const [isForecastLoading, setIsForecastLoading] = useState(true);
   const [tab, setTab] = useState<"due" | "all">("due");
+  const [billSearch, setBillSearch] = useState("");
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isAddBillOpen, setIsAddBillOpen] = useState<boolean>(false);
   const [detailBill, setDetailBill] = useState<BillItem | null>(null);
@@ -339,9 +340,16 @@ export default function BillsPage() {
     Math.abs(Date.now() - Date.parse(entry.transactedAt)) <= 31 * 86_400_000 &&
     entry.legs.some(({ leg }) => leg.accountId === newBillSourceAccountId && leg.amount === -Math.round(Number(newBillAmount) * 100)))
     .slice(0, 5);
-  const visibleBills = tab === "all"
+  const searchTerm = billSearch.trim().toLocaleLowerCase();
+  const visibleBills = (searchTerm || tab === "all"
     ? activeBills
-    : activeBills.filter((b) => b.dueDate <= todayDate || (nextPaydayDate !== null && b.dueDate <= nextPaydayDate));
+    : activeBills.filter((b) => b.dueDate <= todayDate || (nextPaydayDate !== null && b.dueDate <= nextPaydayDate)))
+    .filter((b) => !searchTerm || b.name.toLocaleLowerCase().includes(searchTerm));
+  const matchingPaidBills = searchTerm
+    ? bills.filter((b) => (b.status === "paid" || b.status === "auto_debited") && b.name.toLocaleLowerCase().includes(searchTerm))
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
+    : postedAutoBills;
+  const searchResultCount = visibleBills.length + (searchTerm ? matchingPaidBills.length : 0);
   // Groups use the selected list so the tabs filter every rendered obligation.
   const graceBills = visibleBills.filter((b) => b.status === "grace_period" && !b.isAutoPay);
   const dueThisWeekBills = visibleBills.filter(
@@ -354,9 +362,9 @@ export default function BillsPage() {
       <Header title="Bills" />
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-4xl mx-auto min-h-screen" runway-id="bills.main">
-        <div className="flex flex-col w-full px-margin pb-6 gap-6">
+        <div className="flex flex-col w-full px-margin pb-6 gap-6 lg:gap-5">
           {/* View Switcher & Title Block */}
-          <section className="flex flex-col gap-space-sm pt-space-xs">
+          <section className="flex flex-col gap-space-sm pt-space-xs lg:gap-2">
             <h1 runway-id="bills.title" className="font-headline-lg text-headline-lg font-semibold text-on-surface tracking-tight leading-tight">
               Bills and subscriptions
             </h1>
@@ -364,8 +372,28 @@ export default function BillsPage() {
               Manage recurring costs and payment dates in one place.
             </p>
 
+            <div className="relative mt-2">
+              <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                runway-id="bills.search.input"
+                type="search"
+                aria-label="Search bills by name"
+                placeholder="Search bills by name"
+                value={billSearch}
+                onChange={(event) => setBillSearch(event.target.value)}
+                className="min-h-11 w-full rounded-xl border border-outline-variant/60 bg-white/80 pl-11 pr-11 text-body-md text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {billSearch && <button
+                type="button"
+                runway-id="bills.search.clear"
+                aria-label="Clear bill search"
+                onClick={() => setBillSearch("")}
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container focus-visible:outline-offset-0"
+              ><X size={16} aria-hidden="true" /></button>}
+            </div>
+
             {/* Segmented Control */}
-            <div className="order-first flex p-1 bg-white/45 backdrop-blur-md border border-white/65 rounded-full gap-1 mb-4 shadow-[inset_0_1px_3px_rgba(7,40,33,0.04)]">
+            <div className="mt-1 flex gap-1 rounded-xl border border-white/65 bg-white/45 p-1">
               <button
                 type="button"
                 onClick={() => setTab("due")}
@@ -376,7 +404,7 @@ export default function BillsPage() {
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                Due by Next Payday
+                Due by payday
               </button>
               <button
                 type="button"
@@ -388,20 +416,22 @@ export default function BillsPage() {
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                All Bills &amp; Subscriptions
+                All bills
               </button>
             </div>
-            {tab === "due" && <p className="text-body-sm text-on-surface-variant" role="status">
+            {searchTerm ? <p runway-id="bills.search.status" className="text-body-sm text-on-surface-variant" role="status">
+              {isBillsLoading ? "Searching bills…" : !billsAvailable ? "Bills unavailable" : `${searchResultCount} ${searchResultCount === 1 ? "result" : "results"} across all bills`}
+            </p> : tab === "due" && <p className="text-body-sm text-on-surface-variant" role="status">
               {isForecastLoading
                 ? "Finding your next payday…"
                 : nextPaydayDate
                   ? `Showing unpaid bills due on or before ${nextPaydayDate}, including past-due bills.`
-                  : "Next payday is unavailable. Showing past-due bills only. Choose All Bills & Subscriptions to see every unpaid bill."}
+                  : "Next payday is unavailable. Showing past-due bills only. Choose All bills to see every unpaid bill."}
             </p>}
           </section>
 
           {/* High-Contrast Operational Summary Card */}
-          <section className="forest-panel min-h-[244px] p-6 flex flex-col gap-6">
+          <section className="forest-panel flex min-h-[244px] flex-col gap-6 p-6 lg:min-h-0 lg:gap-3 lg:p-4">
             <div className="flex flex-wrap justify-between items-start gap-3">
               <div className="flex flex-col">
                 <span runway-id="bills.summary.committed.label" className="font-label-sm text-label-sm uppercase tracking-wide text-secondary-fixed font-medium">
@@ -422,7 +452,7 @@ export default function BillsPage() {
             </div>
 
             {/* Allocation Stream */}
-            <div className="grid grid-cols-2 gap-6 border-t border-white/15 pt-4">
+            <div className="grid grid-cols-2 gap-6 border-t border-white/15 pt-4 lg:gap-4 lg:pt-3">
               <div className="flex min-w-0 flex-col">
                 <span runway-id="bills.summary.utilities.label" className="font-label-sm text-label-sm text-secondary-fixed">
                   Utilities
@@ -450,15 +480,16 @@ export default function BillsPage() {
           </section>
 
           {/* Obligation Groups Stream */}
-          {isBillsLoading ? <div runway-id="bills.list.loading" className="flex flex-col gap-space-sm" role="status" aria-label="Loading bills"><span className="sr-only">Loading bill cards…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-40 w-full rounded-[28px]" />)}</div> : billsAvailable && <div className="flex flex-col gap-space-lg">
+          {isBillsLoading ? <div runway-id="bills.list.loading" className="flex flex-col gap-space-sm" role="status" aria-label="Loading bills"><span className="sr-only">Loading bill cards…</span>{[0, 1, 2].map((item) => <Skeleton key={item} className="h-40 w-full rounded-xl lg:h-16" />)}</div> : billsAvailable && <div className="flex flex-col gap-space-lg lg:gap-5">
             {paymentError && <p runway-id="bills.payment.error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
-            {visibleBills.length === 0 && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
-              {tab === "due" && nextPaydayDate
+            {(searchTerm ? searchResultCount === 0 : visibleBills.length === 0) && <p runway-id="bills.empty" className="text-body-md text-on-surface-variant">
+              {searchTerm ? `No bills match “${billSearch.trim()}”.`
+                : tab === "due" && nextPaydayDate
                 ? `No unpaid bills are due on or before ${nextPaydayDate}.`
                 : tab === "due" && isForecastLoading
                   ? "Finding your next payday…"
                 : tab === "due" && !isForecastLoading
-                  ? "No past-due bills. A next payday is needed to show bills due this cycle. Choose All Bills & Subscriptions to see every unpaid bill."
+                  ? "No past-due bills. A next payday is needed to show bills due this cycle. Choose All bills to see every unpaid bill."
                   : "No unpaid bills."}
             </p>}
             {/* Group A: Critical / Grace Window */}
@@ -480,15 +511,15 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.grace.item.${b.instanceId}`}
-                    className="min-h-40 rounded-xl border border-amber-200 bg-amber-50/80 p-5 flex flex-col gap-4"
+                    className="min-h-40 rounded-xl border border-amber-200 bg-amber-50/80 p-5 flex flex-col gap-4 lg:min-h-0 lg:flex-row lg:items-center lg:gap-3 lg:p-3"
                   >
-                    <div className="flex flex-wrap justify-between items-start gap-3">
-                      <div className="flex min-w-0 gap-3 items-center">
-                        <div className="w-11 h-11 shrink-0 rounded-full bg-amber-100/70 flex items-center justify-center text-amber-900">
-                          <Zap size={20} aria-hidden="true" />
+                    <div className="flex flex-wrap justify-between items-start gap-3 lg:min-w-0 lg:flex-1 lg:items-center">
+                      <div className="flex min-w-0 gap-3 items-center lg:flex-1 lg:gap-2">
+                        <div className="w-11 h-11 shrink-0 rounded-full bg-amber-100/70 flex items-center justify-center text-amber-900 lg:h-8 lg:w-8">
+                          <Zap size={18} aria-hidden="true" />
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span runway-id={`bills.grace.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words">
+                          <span runway-id={`bills.grace.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words lg:text-sm lg:leading-5">
                             {b.name}
                           </span>
                           <span runway-id={`bills.grace.details.${b.instanceId}`} className="font-body-sm text-body-sm text-on-surface-variant">
@@ -496,17 +527,17 @@ export default function BillsPage() {
                           </span>
                         </div>
                       </div>
-                      <span runway-id={`bills.grace.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all">
+                      <span runway-id={`bills.grace.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all lg:whitespace-nowrap lg:text-[15px]">
                         {formatPHP(b.amountDue)}
                       </span>
                     </div>
 
                     {/* Action Grid */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-2 gap-2 pt-1 lg:flex lg:shrink-0 lg:pt-0">
                       <button
                         type="button"
                         onClick={() => handlePayBill(b)}
-                        runway-id={`bills.grace.pay.${b.instanceId}`} className="min-h-11 px-3 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                        runway-id={`bills.grace.pay.${b.instanceId}`} className="min-h-11 px-3 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform lg:min-h-9"
                       >
                         <Check size={16} aria-hidden="true" />
                         Record payment
@@ -514,7 +545,7 @@ export default function BillsPage() {
                       <button
                         type="button"
                         onClick={() => setDetailBill(b)}
-                        runway-id={`bills.grace.details-action.${b.instanceId}`} className="min-h-11 px-3 rounded-full bg-white/80 border border-primary/10 text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-1 hover:bg-white active:scale-95 transition-transform"
+                        runway-id={`bills.grace.details-action.${b.instanceId}`} className="min-h-11 px-3 rounded-full bg-white/80 border border-primary/10 text-on-surface font-label-md text-label-md font-semibold flex items-center justify-center gap-1 hover:bg-white active:scale-95 transition-transform lg:min-h-9"
                       >
                         Details
                       </button>
@@ -531,7 +562,7 @@ export default function BillsPage() {
                   <div className="flex items-center gap-1.5">
                     <CalendarDays size={17} className="text-secondary" aria-hidden="true" />
                     <span runway-id="bills.group.due.title" className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
-                      Due by Next Payday
+                      {searchTerm || tab === "all" ? "Other unpaid bills" : "Due by next payday"}
                     </span>
                   </div>
                   <span runway-id="bills.group.due.count" className="font-label-sm text-label-sm font-medium text-on-surface-variant">
@@ -544,17 +575,17 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.due.item.${b.instanceId}`}
-                    className="min-h-32 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0"
+                    className="min-h-32 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5"
                   >
-                    <div className="flex flex-wrap justify-between items-start gap-3">
-                      <div className="flex min-w-0 gap-3 items-center">
-                        <div className="w-11 h-11 shrink-0 rounded-full bg-secondary-container/60 flex items-center justify-center text-primary">
+                    <div className="flex flex-wrap justify-between items-start gap-3 lg:min-w-0 lg:flex-1 lg:items-center">
+                      <div className="flex min-w-0 gap-3 items-center lg:flex-1 lg:gap-2">
+                        <div className="w-11 h-11 shrink-0 rounded-full bg-secondary-container/60 flex items-center justify-center text-primary lg:h-8 lg:w-8">
                           {b.name.toLowerCase().includes("fiber") || b.name.toLowerCase().includes("pldt")
                             ? <Wifi size={20} aria-hidden="true" /> : <Droplets size={20} aria-hidden="true" />}
                         </div>
                         <div className="flex min-w-0 flex-col">
                           <div className="flex flex-wrap items-center gap-1.5">
-                              <span runway-id={`bills.due.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words">
+                              <span runway-id={`bills.due.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words lg:text-sm lg:leading-5">
                               {b.name}
                             </span>
                             <span runway-id={`bills.due.status.${b.instanceId}`} className="px-2 py-0.5 font-label-sm text-label-sm rounded-full bg-secondary-container/70 text-primary font-medium">
@@ -566,17 +597,17 @@ export default function BillsPage() {
                           </span>
                         </div>
                       </div>
-                      <span runway-id={`bills.due.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all">
+                      <span runway-id={`bills.due.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all lg:whitespace-nowrap lg:text-[15px]">
                         {formatPHP(b.amountDue)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
-                      <button runway-id={`bills.due.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 text-secondary text-body-sm">Details</button>
+                    <div className="flex items-center justify-between pt-1 lg:shrink-0 lg:gap-3 lg:pt-0">
+                      <button runway-id={`bills.due.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 text-secondary text-body-sm lg:min-h-9">Details</button>
                       <button
                         type="button"
                         onClick={() => handlePayBill(b)}
-                        runway-id={`bills.due.pay.${b.instanceId}`} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                        runway-id={`bills.due.pay.${b.instanceId}`} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform lg:min-h-9 lg:px-3"
                       >
                         Record payment
                         <ArrowRight size={16} aria-hidden="true" />
@@ -608,15 +639,15 @@ export default function BillsPage() {
                   <div
                     key={b.instanceId}
                     runway-id={`bills.autopay.item.${b.instanceId}`}
-                    className="min-h-24 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0"
+                    className="min-h-24 border-b border-outline-variant/40 py-4 flex flex-col gap-3 last:border-b-0 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:py-2.5"
                   >
-                    <div className="flex flex-wrap justify-between items-start gap-3">
-                      <div className="flex min-w-0 gap-3 items-center">
-                        <div className="w-11 h-11 shrink-0 rounded-full bg-secondary-container/60 flex items-center justify-center text-primary">
+                    <div className="flex flex-wrap justify-between items-start gap-3 lg:min-w-0 lg:flex-1 lg:items-center">
+                      <div className="flex min-w-0 gap-3 items-center lg:flex-1 lg:gap-2">
+                        <div className="w-11 h-11 shrink-0 rounded-full bg-secondary-container/60 flex items-center justify-center text-primary lg:h-8 lg:w-8">
                           {b.name.toLowerCase().includes("netflix") ? <CreditCard size={20} aria-hidden="true" /> : <Headphones size={20} aria-hidden="true" />}
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span runway-id={`bills.autopay.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words">
+                          <span runway-id={`bills.autopay.name.${b.instanceId}`} className="font-body-lg text-body-lg font-semibold text-on-surface break-words lg:text-sm lg:leading-5">
                             {b.name}
                           </span>
                           <span runway-id={`bills.autopay.details.${b.instanceId}`} className="font-body-sm text-body-sm text-on-surface-variant">
@@ -624,15 +655,15 @@ export default function BillsPage() {
                           </span>
                         </div>
                       </div>
-                      <span runway-id={`bills.autopay.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all">
+                      <span runway-id={`bills.autopay.amount.${b.instanceId}`} className="font-currency-lg text-currency-lg font-semibold text-on-surface break-all lg:whitespace-nowrap lg:text-[15px]">
                         {formatPHP(b.amountDue)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm">Details</button>
-                      {!b.autoPostFrom ? <button type="button" onClick={() => openBillEditor(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold">Set up auto-pay</button>
-                        : b.dueDate < todayDate ? <button type="button" onClick={() => handlePayBill(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold">Needs attention · Record payment</button>
+                    <div className="flex items-center justify-between gap-3 pt-1 lg:shrink-0 lg:pt-0">
+                      <button runway-id={`bills.autopay.details-action.${b.instanceId}`} type="button" onClick={() => setDetailBill(b)} className="min-h-11 self-start text-secondary text-body-sm lg:min-h-9">Details</button>
+                      {!b.autoPostFrom ? <button type="button" onClick={() => openBillEditor(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold lg:min-h-9 lg:px-3">Set up auto-pay</button>
+                        : b.dueDate < todayDate ? <button type="button" onClick={() => handlePayBill(b)} className="min-h-11 px-4 rounded-full bg-primary text-on-primary font-label-md font-semibold lg:min-h-9 lg:px-3">Needs attention · Record payment</button>
                         : <span className="text-body-sm text-on-surface-variant">Posts automatically on {b.dueDate}</span>}
                     </div>
                   </div>
@@ -642,13 +673,16 @@ export default function BillsPage() {
             )}
           </div>}
 
-          {postedAutoBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label="Recent auto-pay">
-            <h2 className="font-label-md text-label-md font-semibold text-on-surface">Recently posted in Runway</h2>
-            {postedAutoBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-body-sm">
-              <span>{bill.name} · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && !bill.hasCorrection ? " estimated" : ""}</span>
-              <div className="flex gap-2">
+          {matchingPaidBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label={searchTerm ? "Paid bills" : "Recent auto-pay"}>
+            <h2 className="font-label-md text-label-md font-semibold text-on-surface">{searchTerm ? "Paid bills" : "Recently posted in Runway"}</h2>
+            {matchingPaidBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/40 py-2 text-body-sm last:border-b-0">
+              <span><span className="font-semibold text-on-surface">{bill.name}</span> · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && !bill.hasCorrection ? " estimated" : ""}</span>
+              <div className="flex items-center gap-2">
+                {searchTerm && <button type="button" onClick={() => setDetailBill(bill)} className="min-h-10 px-2 font-semibold text-primary">Details</button>}
+                {bill.status === "auto_debited" && <>
                 {bill.isVariableAmount && <button type="button" onClick={() => { setAdjustingBill(bill); setAdjustedAmount((bill.amountDue / 100).toFixed(2)); setAdjustmentError(null); }} className="min-h-10 px-2 font-semibold text-primary">Correct amount</button>}
                 <button type="button" onClick={() => { if (window.confirm(`Reverse the Runway payment for ${bill.name}?`)) void adjustAutoPay(bill, "undo"); }} disabled={isAdjusting} className="min-h-10 px-2 font-semibold text-primary disabled:opacity-50">Didn’t happen</button>
+                </>}
               </div>
             </div>)}
             {adjustmentError && <p role="alert" className="text-body-sm text-error">{adjustmentError}</p>}
