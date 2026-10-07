@@ -310,7 +310,7 @@ export default function InboxPage() {
                     <div
                       runway-id={`inbox.pending.item.${item.id}`}
                       key={item.id}
-                      className="glass-panel min-h-[240px] p-space-md flex flex-col gap-space-sm"
+                      className="glass-panel min-h-[240px] lg:min-h-0 p-space-md flex flex-col gap-space-sm"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col">

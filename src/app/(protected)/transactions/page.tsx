@@ -351,7 +351,7 @@ export default function TransactionsPage() {
       <div aria-busy={refreshing} className="min-w-0">
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[800px] border-collapse text-left text-body-sm">
-            <thead className="sticky top-0 z-10 bg-surface-container-low text-label-sm font-semibold text-on-surface-variant">
+            <thead className="sticky top-0 z-10 bg-surface-container-low text-label-sm font-semibold text-on-surface-variant lg:top-16">
               <tr className="border-y border-outline-variant/60"><th scope="col" className="px-3 py-3">Date</th><th scope="col" className="px-3 py-3">Activity</th><th scope="col" className="px-3 py-3">Type</th><th scope="col" className="px-3 py-3">Account</th><th scope="col" className="px-3 py-3">Category</th><th scope="col" className="px-3 py-3 text-right">Amount</th></tr>
             </thead>
             <tbody>

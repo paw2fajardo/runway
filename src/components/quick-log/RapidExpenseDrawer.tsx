@@ -215,13 +215,14 @@ export function RapidExpenseDrawer({
       const dialogBounds = dialog?.getBoundingClientRect();
       const footer = dialog?.querySelector<HTMLElement>(".quick-log-footer");
       const footerTop = footer?.getBoundingClientRect().top ?? dialogBounds?.bottom ?? window.innerHeight;
+      const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
       const topLimit = Math.max(8, dialogBounds?.top ?? 8);
-      const bottomLimit = Math.min(window.innerHeight - 8, footerTop - 8);
+      const bottomLimit = isDesktop ? window.innerHeight - 8 : Math.min(window.innerHeight - 8, footerTop - 8);
       const below = bottomLimit - anchor.bottom - 8;
       const above = anchor.top - topLimit - 8;
       const placeAbove = below < 220 && above > below;
       const available = Math.max(120, placeAbove ? above : below);
-      const maxHeight = Math.min(320, available);
+      const maxHeight = Math.min(isDesktop ? 240 : 320, available);
       const width = Math.min(anchor.width, window.innerWidth - 24);
       const left = Math.max(12, Math.min(anchor.left, window.innerWidth - width - 12));
 
@@ -466,7 +467,7 @@ export function RapidExpenseDrawer({
 
   return (
     <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log">
-      <div className="flex h-full min-h-0 flex-col pb-safe">
+      <div className="quick-log-layout flex h-full min-h-0 flex-col pb-safe">
         {/* Transaction Type Selector */}
         <div className="relative shrink-0 pb-space-xs">
           <div className="flex items-center justify-between w-full">
@@ -524,7 +525,7 @@ export function RapidExpenseDrawer({
             <label id="quick-log-amount-label" htmlFor="quick-log-amount" className="text-sm font-semibold text-on-surface">
               Amount
             </label>
-            <div className="flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
+            <div className="quick-log-amount-control flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
               <span runway-id="quick-log.amount.currency" aria-hidden="true" className="text-xl font-semibold text-on-surface-variant">₱</span>
               <input
                 runway-id="quick-log.amount.value"

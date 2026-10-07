@@ -33,7 +33,7 @@ export function SolvencyHero({
   revolvingCreditAccounts = [],
 }: SolvencyHeroProps) {
   return (
-    <section runway-id="runway.solvency-hero" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 flex flex-col gap-6">
+    <section runway-id="runway.solvency-hero" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 flex flex-col gap-6">
       {/* Top badge row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 border border-white/15 rounded-full">
