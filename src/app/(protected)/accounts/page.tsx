@@ -166,7 +166,7 @@ export default function AccountsPage() {
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">
-          <section className="forest-panel mt-space-xs p-6">
+          <section runway-id="accounts.summary" className="forest-panel mt-space-xs p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="flex flex-col">
               <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">

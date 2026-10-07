@@ -436,14 +436,14 @@ export default function RunwayDashboard() {
             paydayDateStr={paydayDateStr}
             isSolvent={forecast.is_solvent}
             revolvingCreditAccounts={accounts.filter((account) => account.type === "revolving_credit")}
-          /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
+          /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
             <span className="sr-only">Loading your runway…</span>
             <div className="flex justify-between gap-3"><Skeleton className="h-8 w-32 bg-white/15" /><Skeleton className="h-8 w-40 bg-white/15" /></div>
             <div className="space-y-3"><Skeleton className="h-12 w-3/4 bg-white/15" /><Skeleton className="h-5 w-2/3 bg-white/15" /></div>
             <div className="grid grid-cols-2 gap-4 border-t border-white/15 pt-4 sm:grid-cols-3">
               {[0, 1, 2].map((item) => <div key={item} className="space-y-2"><Skeleton className="h-4 w-20 bg-white/15" /><Skeleton className="h-6 w-28 bg-white/15" /></div>)}
             </div>
-          </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] p-6 text-body-md" role="status">
+          </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 text-body-md" role="status">
             Runway forecast unavailable.
             <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
@@ -488,7 +488,7 @@ export default function RunwayDashboard() {
             </button>
           </section>
 
-          {duesAvailable ? <div className="space-y-8">
+          {duesAvailable ? <div className="space-y-8 lg:space-y-5">
             {paymentError && <p runway-id="runway.dashboard.payment-error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
             {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />

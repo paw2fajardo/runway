@@ -700,6 +700,7 @@ export default function BillsPage() {
             {editingBill && <p className="text-body-sm text-on-surface-variant" role="status">Schedule changes move only the next unpaid occurrence. Amount changes update all outstanding unpaid bills.</p>}
             {billFormError && <p className="text-body-sm text-red-800" role="alert">{billFormError}</p>}
 
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.name.label" htmlFor="bill-name" className="font-label-sm text-label-sm text-on-surface-variant">
                 Bill or subscription name
@@ -730,7 +731,9 @@ export default function BillsPage() {
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-currency-md text-currency-md"
               />
             </div>
+            </div>
 
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.frequency.label" htmlFor="bill-frequency" className="font-label-sm text-label-sm text-on-surface-variant">
                 Frequency
@@ -756,7 +759,7 @@ export default function BillsPage() {
 
             <div className="flex flex-col space-y-1">
               <label runway-id="bills.add.occurrence-limit.label" htmlFor="bill-occurrence-limit" className="font-label-sm text-label-sm text-on-surface-variant">
-                Stop after this many payments (optional)
+                Payment limit (optional)
               </label>
               <input
                 runway-id="bills.add.occurrence-limit.input" id="bill-occurrence-limit"
@@ -767,7 +770,8 @@ export default function BillsPage() {
                 aria-describedby="bill-occurrence-limit-hint"
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md"
               />
-              <p id="bill-occurrence-limit-hint" className="text-body-sm text-on-surface-variant">Leave blank if it should keep repeating.</p>
+              <p id="bill-occurrence-limit-hint" className="text-body-sm text-on-surface-variant">Leave blank to keep repeating.</p>
+            </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

@@ -33,7 +33,8 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           }`}
         >
           <TrendingUp size={20} strokeWidth={1.8} aria-hidden="true" />
-          {isRunway && <span className="hidden min-[360px]:inline text-label-sm">Runway</span>}
+          <span className="hidden lg:inline text-label-sm">Runway</span>
+          {isRunway && <span className="hidden min-[360px]:inline lg:hidden text-label-sm">Runway</span>}
         </Link>
 
         {/* Tab 2: Bills */}
@@ -49,7 +50,8 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           }`}
         >
           <CalendarDays size={20} strokeWidth={1.8} aria-hidden="true" />
-          {isBills && <span className="hidden min-[360px]:inline text-label-sm">Bills</span>}
+          <span className="hidden lg:inline text-label-sm">Bills</span>
+          {isBills && <span className="hidden min-[360px]:inline lg:hidden text-label-sm">Bills</span>}
         </Link>
 
         {/* Tab 3: Center Action (+) FAB */}
@@ -62,6 +64,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
             className="w-11 h-11 rounded-full bg-secondary-fixed text-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform duration-100"
           >
             <Plus size={22} aria-hidden="true" />
+            <span className="hidden lg:inline text-label-sm font-semibold">Log</span>
           </button>
         </div>
 
@@ -78,7 +81,8 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           }`}
         >
           <Wallet size={20} strokeWidth={1.8} aria-hidden="true" />
-          {isAccounts && <span className="hidden min-[360px]:inline text-label-sm">Accounts</span>}
+          <span className="hidden lg:inline text-label-sm">Accounts</span>
+          {isAccounts && <span className="hidden min-[360px]:inline lg:hidden text-label-sm">Accounts</span>}
         </Link>
 
         {/* Tab 5: Transactions */}
@@ -94,7 +98,8 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           }`}
         >
           <ReceiptText size={20} strokeWidth={1.8} aria-hidden="true" />
-          {isTransactions && <span className="hidden min-[360px]:inline text-label-sm">Transactions</span>}
+          <span className="hidden lg:inline text-label-sm">Transactions</span>
+          {isTransactions && <span className="hidden min-[360px]:inline lg:hidden text-label-sm">Transactions</span>}
         </Link>
       </div>
     </nav>
