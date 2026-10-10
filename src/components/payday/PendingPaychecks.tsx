@@ -86,8 +86,8 @@ export function PendingPaychecks({ focusId, onComplete }: { focusId?: string; on
       : !visibleItems.length ? <p className="text-body-sm text-on-surface-variant">No paychecks need confirmation.</p>
       : <div className="space-y-3">{visibleItems.map(item => <article key={item.id} ref={focusId === item.id ? focusedRef : undefined} tabIndex={focusId === item.id ? -1 : undefined} className="rounded-2xl bg-white/65 p-4 space-y-3 outline-primary focus:outline">
         <div><p className="font-semibold">{item.streamName}</p><p className="text-body-sm text-on-surface-variant">{item.accountName ?? "Linked account"} · {displayDate(item.dueDate)}</p><p className="text-body-md">₱{(item.amountCents / 100).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p></div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" disabled={!!actionId} onClick={() => void submit(item, true)} className="min-h-11 rounded-full bg-primary text-white font-semibold disabled:opacity-50">{actionId === item.id ? "Saving…" : "Received"}</button>
+        <div className="grid grid-cols-2 items-end gap-2">
+          <button type="button" disabled={!!actionId} onClick={() => void submit(item, true)} className="min-h-11 self-end rounded-full bg-primary text-white font-semibold disabled:opacity-50">{actionId === item.id ? "Saving…" : "Received"}</button>
           <div className="space-y-2"><label className="block text-body-sm" htmlFor={`retry-${item.id}`}>Expected date</label><input id={`retry-${item.id}`} type="date" min={manilaTomorrow()} value={retryDates[item.id] ?? ""} onChange={e => setRetryDates(old => ({ ...old, [item.id]: e.target.value }))} className="min-h-11 w-full rounded-xl border border-outline-variant bg-white px-2" /><button type="button" disabled={!!actionId} onClick={() => void submit(item, false)} className="min-h-11 w-full rounded-full bg-surface-container-low text-secondary font-semibold disabled:opacity-50">Not received</button></div>
         </div>
       </article>)}</div>}

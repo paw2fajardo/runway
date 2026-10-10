@@ -70,6 +70,7 @@ export default function RunwayDashboard() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentSourceAccountId, setPaymentSourceAccountId] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
   const [isPaymentSaving, setIsPaymentSaving] = useState(false);
   const [accountsAvailable, setAccountsAvailable] = useState(false);
   const [duesAvailable, setDuesAvailable] = useState(false);
@@ -309,6 +310,7 @@ export default function RunwayDashboard() {
 
   const settleBill = async (due: DueItem, amount?: number, sourceAccountId?: string) => {
     setPaymentError(null);
+    setPaymentSuccess(null);
     setIsPaymentSaving(true);
     try {
       const res = await fetch(`/api/bills/${due.id}/settle`, {
@@ -324,6 +326,7 @@ export default function RunwayDashboard() {
         throw new Error(data?.error || "Unable to record this payment.");
       }
       setPaymentDue(null);
+      setPaymentSuccess(`Recorded payment for ${due.name}.`);
       await fetchData();
     } catch (err) {
       console.error("Payment failed:", err);
@@ -334,25 +337,22 @@ export default function RunwayDashboard() {
   };
 
   const handlePayBill = (due: DueItem) => {
-    if (!due.isVariableAmount && due.sourceAccountId) {
-      void settleBill(due);
-      return;
-    }
     setPaymentDue(due);
     setPaymentAmount((due.amountDue / 100).toFixed(2));
-    setPaymentSourceAccountId(due.sourceAccountId ?? "");
+    setPaymentSourceAccountId(accounts.some(account => account.id === due.sourceAccountId && account.type === "liquid") ? due.sourceAccountId ?? "" : "");
     setPaymentError(null);
+    setPaymentSuccess(null);
   };
 
-  const confirmVariablePayment = () => {
+  const confirmPayment = () => {
     if (!paymentDue || isPaymentSaving) return;
-    const amount = Math.round(Number(paymentAmount) * 100);
-    if (!Number.isSafeInteger(amount) || amount <= 0) {
+    const amount = paymentDue.isVariableAmount ? Math.round(Number(paymentAmount) * 100) : undefined;
+    if (paymentDue.isVariableAmount && (!Number.isSafeInteger(amount) || amount! <= 0)) {
       setPaymentError("Enter a payment amount greater than zero.");
       return;
     }
-    if (!paymentSourceAccountId) { setPaymentError("Choose the account that paid this bill."); return; }
-    void settleBill(paymentDue, paymentDue.isVariableAmount ? amount : undefined, paymentSourceAccountId);
+    if (!accounts.some(account => account.id === paymentSourceAccountId && account.type === "liquid")) { setPaymentError("Choose an active cash account that paid this bill."); return; }
+    void settleBill(paymentDue, amount, paymentSourceAccountId);
   };
 
   const handleReconcileClick = (accountId: string) => {
@@ -423,7 +423,7 @@ export default function RunwayDashboard() {
         <div className="flex flex-col w-full px-margin gap-6 pb-space-xl">
           <div className="space-y-2 pt-2">
             <h1 runway-id="runway.dashboard.title" className="text-headline-lg font-semibold tracking-tight">Cash Runway</h1>
-            <p runway-id="runway.dashboard.description" className="text-body-md text-on-surface-variant">Your liquidity overview, before the next income.</p>
+            <p runway-id="runway.dashboard.description" className="text-body-md text-on-surface-variant">Current cash, bills due, and your next payday at a glance.</p>
           </div>
           {/* Solvency Hero Card */}
           {forecast ? <SolvencyHero
@@ -448,19 +448,21 @@ export default function RunwayDashboard() {
             <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
 
-          {negativeDay && <p runway-id="runway.dashboard.forecast-warning" className="rounded-xl bg-error-container p-4 text-on-error-container text-body-md" role="status">
-            Forecast warning: your balance falls below zero on {negativeDay.date}.
-          </p>}
+          {negativeDay ? <div runway-id="runway.dashboard.forecast-warning" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-error-container p-4 text-on-error-container" role="status">
+            <p className="text-body-md">Your forecast shows a shortfall on {new Date(`${negativeDay.date}T12:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}.</p>
+            <button runway-id="runway.dashboard.forecast-warning-action" type="button" onClick={openForecast} disabled={!forecast} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">Review forecast</button>
+          </div> : <button runway-id="runway.dashboard.open-forecast" type="button" onClick={openForecast} disabled={!forecast || isLoading}
+            className="flex min-h-14 w-full items-center justify-between gap-3 border-y border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
+            <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">View full runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
+          </button>}
 
           <PendingPaychecks />
 
-          <section aria-labelledby="runway-dashboard-cash-plan" className="border-y border-outline-variant/55">
-            <div className="flex items-center justify-between gap-4 py-4">
-              <div>
-                <h2 id="runway-dashboard-cash-plan" className="text-body-lg font-semibold text-on-surface">Cash plan</h2>
-                <p className="mt-0.5 text-body-sm text-on-surface-variant">Income, forecast, and available accounts.</p>
-              </div>
-            </div>
+          <section aria-label="Cash plan management">
+            <details className="border-y border-outline-variant/55">
+              <summary runway-id="runway.dashboard.cash-plan-toggle" className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-body-md font-semibold text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                <span>Manage income and accounts</span><span className="text-body-sm font-normal text-on-surface-variant">Edit cash plan</span>
+              </summary>
             <div className="flex min-h-[76px] items-center justify-between gap-4 border-t border-outline-variant/40 py-3">
               <div className="min-w-0">
                 <h3 runway-id="runway.dashboard.income-title" className="text-body-md font-semibold">Income streams</h3>
@@ -478,18 +480,16 @@ export default function RunwayDashboard() {
                 Manage
               </button>
             </div>
-            <button runway-id="runway.dashboard.open-forecast" type="button" onClick={openForecast} disabled={!forecast || isLoading}
-              className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
-              <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">Runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
-            </button>
             <button runway-id="runway.dashboard.open-balances" ref={balancesTrigger} type="button" onClick={() => setIsBalancesOpen(true)} disabled={!accountsAvailable || isLoading}
               className="flex min-h-14 w-full items-center justify-between gap-3 border-t border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
               <span runway-id="runway.dashboard.open-balances-label" className="font-semibold">Balances</span><span runway-id="runway.dashboard.open-balances-status" className="text-on-surface-variant">{isLoading ? "Loading…" : accountsAvailable ? `${accounts.length} accounts →` : "Unavailable"}</span>
             </button>
+            </details>
           </section>
 
           {duesAvailable ? <div className="space-y-8 lg:space-y-5">
             {paymentError && <p runway-id="runway.dashboard.payment-error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
+            {paymentSuccess && <p runway-id="runway.dashboard.payment-success" className="text-body-sm text-secondary" role="status">{paymentSuccess}</p>}
             {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />
             </div>}
@@ -645,11 +645,12 @@ export default function RunwayDashboard() {
       </Dialog>
       <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Record bill payment">
         {paymentDue && <div className="space-y-4">
-          <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentDue.name}</span> from the account that paid it.</p>
-          {!paymentDue.sourceAccountId && <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose cash account</option>{accounts.filter((account) => account.type === "liquid").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}
+          <p className="text-body-md text-on-surface">This records <span className="font-semibold">{paymentDue.name}</span> as paid in Runway. It updates your ledger but does not send money.</p>
+          {!paymentDue.isVariableAmount && <p className="text-body-sm text-on-surface-variant">Amount: {formatPHP(paymentDue.amountDue)}{paymentSourceAccountId ? ` · Paid from ${accounts.find(account => account.id === paymentSourceAccountId)?.name ?? "selected account"}` : ""}</p>}
+          {!accounts.some(account => account.id === paymentDue.sourceAccountId && account.type === "liquid") && <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose cash account</option>{accounts.filter((account) => account.type === "liquid").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}
           {paymentDue.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>}
           {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
-          <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmVariablePayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : "Record payment"}</button></div>
+          <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmPayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : paymentDue.isVariableAmount ? "Record payment" : "Record paid"}</button></div>
         </div>}
       </Dialog>
 
