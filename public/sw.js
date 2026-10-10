@@ -48,7 +48,7 @@ function notificationTarget(value) {
   if (typeof value !== "string") return "/";
   try {
     const url = new URL(value, self.location.origin);
-    if (url.origin !== self.location.origin || !/^\/payday\/occurrences\/[a-zA-Z0-9-]+\/?$/.test(url.pathname)) return "/";
+    if (url.origin !== self.location.origin || !(url.pathname === "/bills" || /^\/payday\/occurrences\/[a-zA-Z0-9-]+\/?$/.test(url.pathname))) return "/";
     return url.pathname;
   } catch {
     return "/";
@@ -65,7 +65,7 @@ self.addEventListener("push", (event) => {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) payload = {};
   const title = typeof payload.title === "string" ? payload.title : "Runway";
   const options = {
-    body: typeof payload.body === "string" ? payload.body : "A paycheck update is ready.",
+    body: typeof payload.body === "string" ? payload.body : "A Runway update is ready.",
     icon: "/logo-192.png",
     data: { url: notificationTarget(payload.url) },
   };

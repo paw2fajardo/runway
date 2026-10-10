@@ -2,16 +2,18 @@ import { pathToFileURL } from "node:url";
 import { processDueOccurrences } from "../lib/payday/posting";
 import { deliverPendingPaydayNotifications } from "../lib/payday/push";
 import { processDueAutoPayBills } from "../lib/bills/posting";
+import { deliverDueBillNotifications } from "../lib/bills/push";
 
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 /** One idempotent polling cycle. Paycheck credits commit before push delivery starts. */
-export async function runPaydayWorkerOnce(now = new Date()): Promise<{ posted: number; notificationsSent: number }> {
+export async function runPaydayWorkerOnce(now = new Date()): Promise<{ posted: number; notificationsSent: number; billNotificationsSent: number }> {
   const posted = await processDueOccurrences(now);
   try { await processDueAutoPayBills(now); }
   catch (error) { console.error("Auto-pay worker cycle failed:", error); }
   const notificationsSent = await deliverPendingPaydayNotifications({ now });
-  return { posted, notificationsSent };
+  const billNotificationsSent = await deliverDueBillNotifications({ now });
+  return { posted, notificationsSent, billNotificationsSent };
 }
 
 export async function runPaydayWorker(options: {
