@@ -7,6 +7,7 @@ const forecast: RunwayForecastResponse = {
   confirmed_inflows: 100000,
   scheduled_bills_total: 50000,
   discretionary_burn_total: 25000,
+  planned_spending_total: 0,
   net_projected_buffer: 275000,
   daily_allowance: 12500,
   days_to_payday: 5,

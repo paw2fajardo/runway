@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Plus, ReceiptText, TrendingUp, Wallet } from "lucide-react";
+import { CalendarDays, Plus, ReceiptText, TrendingUp, Wallet, PiggyBank } from "lucide-react";
 
 interface BottomNavProps {
   onOpenQuickLog?: () => void;
@@ -16,6 +16,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
   const isBills = pathname.startsWith("/bills");
   const isAccounts = pathname.startsWith("/accounts");
   const isTransactions = pathname.startsWith("/transactions");
+  const isBudgets = pathname.startsWith("/budgets");
 
   return (
     <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 left-1/2 -translate-x-1/2 w-[calc(100%-40px)] max-w-[400px]" style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
@@ -52,6 +53,11 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <CalendarDays size={20} strokeWidth={1.8} aria-hidden="true" />
           <span className="hidden lg:inline text-label-sm">Bills</span>
           {isBills && <span className="hidden min-[360px]:inline lg:hidden text-label-sm">Bills</span>}
+        </Link>
+
+        <Link href="/budgets" aria-label="Budgets" aria-current={isBudgets ? "page" : undefined}
+          className={`min-w-11 h-11 shrink-0 rounded-full flex items-center justify-center gap-1.5 px-3 ${isBudgets ? "bg-white text-primary shadow-sm font-semibold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>
+          <PiggyBank size={20} aria-hidden="true" /><span className="hidden lg:inline text-label-sm">Budgets</span>
         </Link>
 
         {/* Tab 3: Center Action (+) FAB */}

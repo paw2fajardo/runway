@@ -432,6 +432,7 @@ export default function RunwayDashboard() {
             liquidCash={forecast.current_liquid_cash}
             upcomingDues={forecast.scheduled_bills_total}
             plannedSpending={forecast.discretionary_burn_total}
+            plannedBudgets={forecast.planned_spending_total}
             daysToPayday={forecast.days_to_payday}
             paydayDateStr={paydayDateStr}
             isSolvent={forecast.is_solvent}

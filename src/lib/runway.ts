@@ -142,6 +142,14 @@ interface BillItem {
   gracePeriodDays?: number;
 }
 
+export interface PlannedBudget {
+  id: string;
+  name: string;
+  amountCents: number;
+  startDate: string;
+  cadence: "once" | "weekly" | "biweekly" | "monthly";
+}
+
 interface RunwayCalculationParams {
   currentLiquidCash: number;
   salaryCycleDays?: string; // e.g. "15,30"
@@ -153,6 +161,7 @@ interface RunwayCalculationParams {
   paycheckOccurrences?: ForecastPaycheckOccurrence[];
   dailyDiscretionaryBurn: number;
   bills: BillItem[];
+  plannedBudgets?: PlannedBudget[];
   referenceDate?: Date;
   horizonDays?: number;
 }
@@ -181,6 +190,7 @@ export function calculateRunwayForecast({
   paycheckOccurrences = [],
   dailyDiscretionaryBurn,
   bills,
+  plannedBudgets = [],
   referenceDate = new Date(),
   horizonDays = 14,
 }: RunwayCalculationParams): RunwayForecastResponse {
@@ -222,9 +232,38 @@ export function calculateRunwayForecast({
     0
   );
 
+  const budgetDates = (budget: PlannedBudget, throughDate: string) => {
+    if (budget.startDate > throughDate) return [];
+    if (budget.cadence === "once") return [budget.startDate];
+    if (budget.cadence === "monthly") {
+      const dates: string[] = [];
+      const [year, month, day] = budget.startDate.split("-").map(Number);
+      for (let index = 0; ; index++) {
+        const date = new Date(Date.UTC(year, month - 1 + index, 1));
+        const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+        date.setUTCDate(Math.min(day, lastDay));
+        const value = date.toISOString().slice(0, 10);
+        if (value > throughDate) break;
+        dates.push(value);
+      }
+      return dates;
+    }
+    const interval = budget.cadence === "weekly" ? 7 : 14;
+    const first = calendarDay(budget.startDate);
+    const end = calendarDay(throughDate);
+    const dates: string[] = [];
+    for (let day = first; day <= end; day += interval) dates.push(new Date(day * msPerDay).toISOString().slice(0, 10));
+    return dates;
+  };
+  const budgetOccurrences = plannedBudgets.flatMap(budget => budgetDates(budget,
+    calendarDay(nextPaydayStr) > calendarDay(refDateStr) + horizonDays - 1 ? nextPaydayStr : new Date((calendarDay(refDateStr) + horizonDays - 1) * msPerDay).toISOString().slice(0, 10))
+    .map(date => ({ ...budget, date })));
+  const planned_spending_total = safeCents(budgetOccurrences.filter(item => item.date >= refDateStr && item.date <= nextPaydayStr)
+    .reduce((sum, item) => safeCents(sum + safeCents(item.amountCents)), 0));
+
   // 3. Discretionary Burn & Net Buffer
   const discretionary_burn_total = safeCents(dailyDiscretionaryBurn * daysToPayday);
-  const net_projected_buffer = safeCents(currentLiquidCash - safeCents(scheduled_bills_total));
+  const net_projected_buffer = safeCents(currentLiquidCash - safeCents(scheduled_bills_total + planned_spending_total + discretionary_burn_total));
 
   const daily_allowance = Math.max(
     0,
@@ -260,7 +299,9 @@ export function calculateRunwayForecast({
     );
 
     const billsSum = dayBills.reduce((acc, b) => acc + b.amountDue, 0);
-    const dayOutflow = safeCents(safeCents(billsSum) + dailyDiscretionaryBurn);
+    const dayBudgets = budgetOccurrences.filter(item => item.date === dateStr || (i === 0 && item.date < refDateStr));
+    const budgetSum = safeCents(dayBudgets.reduce((sum, item) => safeCents(sum + safeCents(item.amountCents)), 0));
+    const dayOutflow = safeCents(safeCents(billsSum) + budgetSum + dailyDiscretionaryBurn);
 
     runningBalance = safeCents(safeCents(runningBalance + dayInflow) - dayOutflow);
 
@@ -276,6 +317,7 @@ export function calculateRunwayForecast({
       balance: runningBalance,
       isPayday,
       hasDues: dayBills.length > 0,
+      ...(dayBudgets.length > 0 ? { plannedSpending: dayBudgets.map(item => item.name) } : {}),
       isGraceActive: dayBills.some((b) => b.status === "grace_period"),
       duesDescription: dayBills.map((b) => b.name),
       incomeDescription: [
@@ -292,6 +334,7 @@ export function calculateRunwayForecast({
     confirmed_inflows,
     scheduled_bills_total,
     discretionary_burn_total,
+    planned_spending_total,
     net_projected_buffer,
     daily_allowance,
     days_to_payday: daysToPayday,

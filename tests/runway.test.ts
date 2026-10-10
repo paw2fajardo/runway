@@ -81,6 +81,29 @@ describe("Predictive Cash Runway & Forward Solvency Engine", () => {
     expect(payday?.date).toBe("2026-10-15");
     expect(payday?.inflow).toBe(3000000);
   });
+
+  it("deducts a recurring planned budget from the buffer and its scheduled timeline dates", () => {
+    const forecast = calculateRunwayForecast({
+      currentLiquidCash: 500000, expectedSalaryAmount: 100000, dailyDiscretionaryBurn: 0, bills: [],
+      biweeklyPaydayAnchor: "2026-10-10", referenceDate: new Date("2026-10-10"), horizonDays: 15,
+      plannedBudgets: [{ id: "groceries", name: "Groceries", amountCents: 100000, startDate: "2026-10-10", cadence: "biweekly" }],
+    });
+    expect(forecast.planned_spending_total).toBe(100000);
+    expect(forecast.net_projected_buffer).toBe(400000);
+    expect(forecast.timeline[0].outflow).toBe(100000);
+    expect(forecast.timeline[0].plannedSpending).toEqual(["Groceries"]);
+    expect(forecast.timeline[14].outflow).toBe(100000);
+  });
+
+  it("includes a one-time budget on its selected date", () => {
+    const forecast = calculateRunwayForecast({
+      currentLiquidCash: 500000, expectedSalaryAmount: 100000, dailyDiscretionaryBurn: 0, bills: [],
+      biweeklyPaydayAnchor: "2026-10-10", referenceDate: new Date("2026-10-10"), horizonDays: 5,
+      plannedBudgets: [{ id: "trip", name: "Trip", amountCents: 200000, startDate: "2026-10-12", cadence: "once" }],
+    });
+    expect(forecast.timeline[2].outflow).toBe(200000);
+    expect(forecast.timeline[0].outflow).toBe(0);
+  });
 });
 
 describe("Biweekly take-home pay", () => {
