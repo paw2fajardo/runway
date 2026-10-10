@@ -107,7 +107,7 @@ export function UpcomingDuesList({
                 onClick={() => onPayClick?.(due)}
                 className="min-h-10 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
-                {due.isAutoPay ? "Record payment" : "Pay"}
+                {due.isAutoPay || due.isVariableAmount ? "Record payment" : "Record paid"}
               </button>}
             </div>
           </li>;

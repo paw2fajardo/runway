@@ -62,16 +62,18 @@ export function SolvencyHero({
             {formatPHP(safeToSpend)}
           </span>
         </div>
+        <p runway-id="runway.safe-to-spend-description" className="text-body-sm text-white/80">
+          Cash after bills due by payday. Planned daily spending is not deducted.
+        </p>
         <div className="flex items-center space-x-1.5">
           {isSolvent ? <CircleCheck size={17} className="shrink-0 text-secondary-fixed" aria-hidden="true" /> : <TriangleAlert size={17} className="shrink-0 text-rose-200" aria-hidden="true" />}
           <span runway-id="runway.daily-allowance-label" className="font-body-sm text-body-sm text-secondary-fixed font-medium">
-            {isSolvent ? "Buffer Safe" : "Impending Deficit"} •{" "}
-            <span runway-id="runway.daily-allowance" className="font-currency-sm text-currency-sm font-semibold text-white">
-              {formatPHP(dailyAllowance)}/day
-            </span>{" "}
-            if spread evenly
+            {isSolvent ? "No shortfall forecast" : "Shortfall forecast"}
           </span>
         </div>
+        <p runway-id="runway.daily-allowance-description" className="text-body-sm text-white/80">
+          Daily guide until payday, if spread evenly: <span runway-id="runway.daily-allowance" className="font-currency-sm text-currency-sm font-semibold text-white">{formatPHP(dailyAllowance)}/day</span>.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 sm:grid-cols-3">
