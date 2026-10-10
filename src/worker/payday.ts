@@ -1,8 +1,8 @@
 import { pathToFileURL } from "node:url";
 import { processDueOccurrences } from "../lib/payday/posting";
-import { deliverPendingPaydayNotifications } from "../lib/payday/push";
+import { deliverNtfyPaydayNotifications } from "../lib/ntfy";
 import { processDueAutoPayBills } from "../lib/bills/posting";
-import { deliverDueBillNotifications } from "../lib/bills/push";
+import { deliverBillNtfyNotifications } from "../lib/bills/ntfy";
 
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
@@ -11,8 +11,8 @@ export async function runPaydayWorkerOnce(now = new Date()): Promise<{ posted: n
   const posted = await processDueOccurrences(now);
   try { await processDueAutoPayBills(now); }
   catch (error) { console.error("Auto-pay worker cycle failed:", error); }
-  const notificationsSent = await deliverPendingPaydayNotifications({ now });
-  const billNotificationsSent = await deliverDueBillNotifications({ now });
+  const billNotificationsSent = await deliverBillNtfyNotifications({ now });
+  const notificationsSent = await deliverNtfyPaydayNotifications({ now });
   return { posted, notificationsSent, billNotificationsSent };
 }
 
