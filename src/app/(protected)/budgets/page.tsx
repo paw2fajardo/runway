@@ -4,12 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { formatPHP } from "@/lib/currency";
-import { format } from "date-fns";
 
 type Cadence = "once" | "weekly" | "biweekly" | "monthly";
 interface Budget { id: string; name: string; amountCents: number; startDate: string; cadence: Cadence }
 const cadenceLabel: Record<Cadence, string> = { once: "One time", weekly: "Weekly", biweekly: "Every 2 weeks", monthly: "Monthly" };
-const today = () => format(new Date(), "yyyy-MM-dd");
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
 export default function BudgetsPage() {
   const [items, setItems] = useState<Budget[]>([]);
