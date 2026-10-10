@@ -108,6 +108,7 @@ export interface TimelineDay {
   isGraceActive?: boolean;
   duesDescription?: string[];
   incomeDescription?: string[];
+  plannedSpending?: string[];
 }
 
 export interface RunwayForecastResponse {
@@ -115,6 +116,7 @@ export interface RunwayForecastResponse {
   confirmed_inflows: number;
   scheduled_bills_total: number;
   discretionary_burn_total: number;
+  planned_spending_total: number;
   net_projected_buffer: number;
   daily_allowance: number;
   days_to_payday: number;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "../../../../db";
-import { accounts, projectionSettings, incomeStreams, paycheckOccurrences, billInstances, bills } from "../../../../db/schema";
+import { accounts, projectionSettings, incomeStreams, paycheckOccurrences, billInstances, bills, plannedBudgets } from "../../../../db/schema";
 import { calculateRunwayForecast } from "../../../../lib/runway";
 import { eq, and } from "drizzle-orm";
 import { DateOnlySchema } from "../../../../lib/types";
@@ -55,6 +55,9 @@ export async function GET(req: NextRequest) {
     const expectedSalaryAmount = proj.expectedSalaryAmount;
     const salaryCycleDays = proj.salaryCycleDays;
     const dailyDiscretionaryBurn = proj.dailyDiscretionaryBurn;
+    const budgetList = await db.select({ id: plannedBudgets.id, name: plannedBudgets.name,
+      amountCents: plannedBudgets.amountCents, startDate: plannedBudgets.startDate, cadence: plannedBudgets.cadence })
+      .from(plannedBudgets).where(eq(plannedBudgets.isActive, true));
 
     // 3. Fetch active bills and instances
     const billList = await db
@@ -82,6 +85,7 @@ export async function GET(req: NextRequest) {
       paycheckOccurrences: forecastOccurrences,
       dailyDiscretionaryBurn,
       bills: billList,
+      plannedBudgets: budgetList as import("../../../../lib/runway").PlannedBudget[],
       referenceDate,
       horizonDays,
     });
@@ -90,7 +94,7 @@ export async function GET(req: NextRequest) {
   } catch (error: unknown) {
     const cause = error && typeof error === "object" && "cause" in error ? error.cause : error;
     if (cause && typeof cause === "object" && "code" in cause && (cause.code === "42703" || cause.code === "42P01")) {
-      return NextResponse.json({ error: "Pay schedule database update is required.", code: "PAY_SCHEDULE_MIGRATION_REQUIRED" }, { status: 503 });
+      return NextResponse.json({ error: "Database migrations are required.", code: "DATABASE_MIGRATION_REQUIRED" }, { status: 503 });
     }
     return NextResponse.json({ error: "Unable to calculate the runway forecast." }, { status: 500 });
   }

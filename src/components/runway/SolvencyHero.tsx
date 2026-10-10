@@ -10,6 +10,7 @@ interface SolvencyHeroProps {
   liquidCash: number;
   upcomingDues: number;
   plannedSpending: number;
+  plannedBudgets: number;
   daysToPayday: number;
   paydayDateStr?: string;
   isSolvent?: boolean;
@@ -27,6 +28,7 @@ export function SolvencyHero({
   liquidCash,
   upcomingDues,
   plannedSpending,
+  plannedBudgets,
   daysToPayday,
   paydayDateStr = "Unavailable",
   isSolvent = true,
@@ -63,7 +65,7 @@ export function SolvencyHero({
           </span>
         </div>
         <p runway-id="runway.safe-to-spend-description" className="text-body-sm text-white/80">
-          Cash after bills due by payday. Planned daily spending is not deducted.
+          Cash after bills and planned spending by payday. Daily burn is deducted too.
         </p>
         <div className="flex items-center space-x-1.5">
           {isSolvent ? <CircleCheck size={17} className="shrink-0 text-secondary-fixed" aria-hidden="true" /> : <TriangleAlert size={17} className="shrink-0 text-rose-200" aria-hidden="true" />}
@@ -97,11 +99,15 @@ export function SolvencyHero({
 
         <div className="min-w-0">
           <span runway-id="runway.breakdown-planned-spending-label" className="font-label-sm text-label-sm text-white/70">
-            Planned spending (separate)
+            Daily spending
           </span>
           <div runway-id="runway.breakdown-planned-spending" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
             {formatPHP(plannedSpending)}
           </div>
+        </div>
+        <div className="min-w-0">
+          <span runway-id="runway.breakdown-planned-budgets-label" className="font-label-sm text-label-sm text-white/70">Budget plans by payday</span>
+          <div runway-id="runway.breakdown-planned-budgets" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">{formatPHP(plannedBudgets)}</div>
         </div>
       </div>
 

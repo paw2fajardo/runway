@@ -24,7 +24,7 @@ function summaryDate(date: string) {
 }
 
 function dayHasDetails(day: TimelineDay) {
-  return Boolean(day.inflow > 0 || day.isPayday || day.hasDues || day.duesDescription?.length || day.isGraceActive);
+  return Boolean(day.inflow > 0 || day.isPayday || day.hasDues || day.duesDescription?.length || day.plannedSpending?.length || day.isGraceActive);
 }
 
 export function RunwayTimeline({
@@ -61,7 +61,7 @@ export function RunwayTimeline({
 
       <div>
         <h3 runway-id="runway.forecast-daily-title" className="text-label-md font-semibold">Daily cash flow</h3>
-        <p runway-id="runway.forecast-daily-description" className="mt-1 text-body-sm text-on-surface-variant">Outflow includes bills and your daily spending estimate. Balances are projected at day’s end.</p>
+        <p runway-id="runway.forecast-daily-description" className="mt-1 text-body-sm text-on-surface-variant">Outflow includes bills, budget plans, and your daily spending estimate. Balances are projected at day’s end.</p>
       </div>
 
       <div className="min-w-0">
@@ -98,8 +98,9 @@ export function RunwayTimeline({
                     className="inline-flex min-h-11 items-center gap-1 text-label-sm font-semibold text-secondary focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     {day.inflow > 0 || day.isPayday ? "Income" : null}
-                    {(day.inflow > 0 || day.isPayday) && (day.hasDues || day.duesDescription?.length) ? " · " : null}
+                    {(day.inflow > 0 || day.isPayday) && (day.hasDues || day.duesDescription?.length || day.plannedSpending?.length) ? " · " : null}
                     {day.hasDues || day.duesDescription?.length ? "Bills" : null}
+                    {day.plannedSpending?.length ? `${day.hasDues || day.duesDescription?.length ? " · " : ""}Budget: ${day.plannedSpending.join(", ")}` : null}
                     {day.isGraceActive ? " · Grace period" : null}
                     <ChevronDown size={16} aria-hidden="true" className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
                     <span className="sr-only"> details for {dateLabel(day.date)}</span>
@@ -107,6 +108,7 @@ export function RunwayTimeline({
                   {expanded && <div id={detailsId} className="space-y-1 border-t border-outline-variant/30 pb-1 pt-2 text-body-sm [overflow-wrap:anywhere]">
                     {(day.inflow > 0 || day.isPayday) && <p runway-id={`runway.forecast-day.${day.date}.income-description`} className="text-secondary"><span runway-id={`runway.forecast-day.${day.date}.income-description-label`} className="font-semibold">Income: </span>{day.incomeDescription?.join(", ") || "Projected income"}</p>}
                     {(day.hasDues || !!day.duesDescription?.length) && <p runway-id={`runway.forecast-day.${day.date}.bills-description`}><span runway-id={`runway.forecast-day.${day.date}.bills-description-label`} className="font-semibold">Bills: </span>{day.duesDescription?.join(", ") || "Scheduled bills"}</p>}
+                    {!!day.plannedSpending?.length && <p runway-id={`runway.forecast-day.${day.date}.planned-spending`}><span className="font-semibold">Budget plans: </span>{day.plannedSpending.join(", ")}</p>}
                     {day.isGraceActive && <p runway-id={`runway.forecast-day.${day.date}.grace-warning`} className="text-error">Bill grace period active</p>}
                   </div>}
                 </div>}

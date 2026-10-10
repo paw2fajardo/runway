@@ -267,6 +267,21 @@ export const billPaymentEvents = pgTable("bill_payment_events", {
   kind: varchar("kind", { length: 20 }).notNull(),
 }, (table) => [index("idx_bill_payment_events_instance").on(table.billInstanceId)]);
 
+export const plannedBudgets = pgTable("planned_budgets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 120 }).notNull(),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+  startDate: date("start_date", { mode: "string" }).notNull(),
+  cadence: varchar("cadence", { length: 20 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check("planned_budgets_cadence_check", sql`${table.cadence} IN ('once', 'weekly', 'biweekly', 'monthly')`),
+  check("planned_budgets_amount_check", sql`${table.amountCents} > 0 AND ${table.amountCents} <= 9007199254740991`),
+  check("planned_budgets_name_check", sql`length(btrim(${table.name})) > 0`),
+]);
+
 // 7. Balance Checkpoints
 export const balanceCheckpoints = pgTable("balance_checkpoints", {
   id: uuid("id").primaryKey().defaultRandom(),
