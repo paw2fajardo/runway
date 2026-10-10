@@ -105,8 +105,8 @@ export async function PUT(req: NextRequest) {
         ? await tx.update(incomeStreams).set(values).where(scope).returning()
         : await tx.insert(incomeStreams).values({ id: settings.id, projectionSettingsId: settings.id,
             name: "Primary income", salaryCycleDays: settings.salaryCycleDays, ...values }).returning();
-      return { stream, dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents ?? settings.dailyDiscretionaryBurn };
+      return { stream, dailyDiscretionaryBurn: parsed.data.daily_discretionary_burn_cents ?? settings.dailyDiscretionaryBurn, billReminderTime: settings.billReminderTime ?? DEFAULT_BILL_REMINDER_TIME };
     });
-    return NextResponse.json(responseFor(saved.stream, saved.dailyDiscretionaryBurn));
+    return NextResponse.json(responseFor(saved.stream, saved.dailyDiscretionaryBurn, saved.billReminderTime));
   } catch (error) { return settingsError(error); }
 }
