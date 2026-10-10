@@ -68,6 +68,12 @@ export const paycheckPushDeliveryStatusEnum = pgEnum(
   ["pending", "retryable", "sent", "expired"]
 );
 
+export const ntfyDeliveryStatusEnum = pgEnum("ntfy_delivery_status", [
+  "pending",
+  "retryable",
+  "sent",
+]);
+
 // Single local owner account. The fixed key prevents multiple owners.
 export const ownerAuth = pgTable(
   "owner_auth",
@@ -501,6 +507,29 @@ export const billPushDeliveries = pgTable(
     index("idx_bill_push_deliveries_retry").on(table.status, table.nextAttemptAt),
     check("bill_push_deliveries_endpoint_hash_check", sql`${table.endpointHashSnapshot} ~ '^[0-9a-f]{64}$'`),
     check("bill_push_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  ]
+);
+
+export const ntfyDeliveries = pgTable(
+  "ntfy_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationKey: varchar("notification_key", { length: 180 }).notNull(),
+    title: varchar("title", { length: 120 }).notNull(),
+    message: text("message").notNull(),
+    status: ntfyDeliveryStatusEnum("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_ntfy_deliveries_notification_key").on(table.notificationKey),
+    index("idx_ntfy_deliveries_retry").on(table.status, table.nextAttemptAt),
+    check("ntfy_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
   ]
 );
 export const incomeStreamDeposits = pgTable("income_stream_deposits", {

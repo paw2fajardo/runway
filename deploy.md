@@ -72,9 +72,8 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: "postgres://app_user:URL_ENCODED_DATABASE_PASSWORD@db:5432/finance_platform"
-      VAPID_PUBLIC_KEY: ""
-      VAPID_PRIVATE_KEY: ""
-      VAPID_SUBJECT: "mailto:admin@localhost"
+      NTFY_SERVER_URL: "https://omv-fajardo.tail2ade97.ts.net:2587"
+      NTFY_TOPIC: "runway-finance"
 
 volumes:
   postgres_data:
@@ -83,6 +82,8 @@ volumes:
 The `migrate` service applies the Drizzle schema before the app or worker starts. Its logs should end with `[✓] Changes applied`, and the container should exit with code `0`. If migration fails, inspect its logs and resolve that before starting the app or worker.
 
 The app listens on container port `3000`; this example publishes host port `9999`. Change `9999` if another service already uses it, and configure Cloudflare Tunnel or your reverse proxy to send HTTPS traffic to that host port. Set `APP_ORIGIN` to the exact public HTTPS origin, with no path or trailing slash. The app image must include code that reads `APP_ORIGIN` for requests behind a reverse proxy.
+
+The payday worker sends bill-due, daily past-due, and paycheck alerts to the configured ntfy server and topic. Subscribe to `runway-finance` in the ntfy mobile app while connected to your tailnet. The topic has no authentication configured, so keep ntfy access limited to your tailnet.
 
 Do not publish PostgreSQL's port to the internet. The app and worker connect to it over the stack's internal network using hostname `db`.
 
