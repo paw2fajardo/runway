@@ -24,13 +24,21 @@ esac
 git checkout main
 git pull
 
-CURRENT_VERSION=$(node -p "require('./package.json').version")
-VERSION=$(node -e '
-  const [major, minor, patch] = process.argv[1].split(".").map(Number);
-  if (![major, minor, patch].every(Number.isSafeInteger)) process.exit(1);
-  const type = process.argv[2];
-  console.log(type === "major" ? `${major + 1}.0.0` : type === "big" ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`);
-' "$CURRENT_VERSION" "$VERSION_TYPE")
+CURRENT_VERSION=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' package.json)
+if [ -z "$CURRENT_VERSION" ]; then
+  echo "Could not read a numeric major.minor.patch version from package.json" >&2
+  exit 1
+fi
+
+IFS=. read -r MAJOR MINOR PATCH <<EOF
+$CURRENT_VERSION
+EOF
+
+case "$VERSION_TYPE" in
+  small) VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+  big) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+  major) VERSION="$((MAJOR + 1)).0.0" ;;
+esac
 
 echo "Building runway version $VERSION ($VERSION_TYPE bump from $CURRENT_VERSION)"
 
