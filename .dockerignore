@@ -1,6 +1,14 @@
 .git
 .gitignore
 .dockerignore
+.github
+.claude
+.gemini
+.codex
+.agents
+.augment
+.cursor
+.vscode
 
 node_modules
 .venv
@@ -10,9 +18,16 @@ out
 coverage
 build
 build_docs
+.drizzle
+.playwright-cli
+tests
 
-.env*
-!.env.example
+.aws
+.ssh
+
+.env
+.env.*
+.env.example
 
 .DS_Store
 *.log
