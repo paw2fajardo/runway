@@ -1,12 +1,18 @@
 #!/bin/sh
 set -e
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 small|big|major" >&2
+if [ "$#" -gt 1 ]; then
+  echo "Usage: $0 [small|big|major]" >&2
   exit 2
 fi
 
-VERSION_TYPE=$1
+if [ "$#" -eq 1 ]; then
+  VERSION_TYPE=$1
+else
+  printf "Version bump (small/big/major): "
+  IFS= read -r VERSION_TYPE
+fi
+
 case "$VERSION_TYPE" in
   small|big|major) ;;
   *)
