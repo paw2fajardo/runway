@@ -171,10 +171,23 @@ describe("Primary pay compatibility adapter", () => {
   });
   it("does not resurrect an absent primary stream from old salary fields", async () => {
     store.streams = [];
-    expect(await (await settingsGET(request(undefined, "GET", "/api/runway/settings"))).json()).toEqual({ configured: false, daily_discretionary_burn_cents: 85000 });
+    expect(await (await settingsGET(request(undefined, "GET", "/api/runway/settings"))).json()).toEqual({ configured: false, daily_discretionary_burn_cents: 85000, bill_reminder_time: "09:00" });
   });
   it("supports the settings page daily allowance field query", async () => {
     expect(await (await settingsGET(request(undefined, "GET", "/api/runway/settings?field=daily_discretionary_burn_cents"))).json()).toEqual({ daily_discretionary_burn_cents: 85000 });
+  });
+  it("loads and saves the bill reminder time without changing pay settings", async () => {
+    expect(await (await settingsGET(request(undefined, "GET", "/api/runway/settings?field=bill_reminder_time"))).json()).toEqual({ bill_reminder_time: "09:00" });
+    const response = await settingsPatch({ bill_reminder_time: "18:45" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ bill_reminder_time: "18:45" });
+    expect(store.settings[0].billReminderTime).toBe("18:45");
+    expect(store.streams[0].netPayCents).toBe(10000);
+  });
+  it.each(["24:00", "9:00", "12:60", "noon"])("rejects invalid bill reminder time %s before writes", async time => {
+    const response = await settingsPatch({ bill_reminder_time: time });
+    expect(response.status).toBe(400);
+    expect(store.writes).toEqual([]);
   });
   it("updates planned spending without changing pay settings", async () => {
     const response = await settingsPatch({ daily_discretionary_burn_cents: 12345 });

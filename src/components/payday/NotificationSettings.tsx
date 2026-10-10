@@ -74,7 +74,7 @@ export function NotificationSettings() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error(permission === "denied"
         ? "Notifications are blocked in this browser's settings."
-        : "Allow notifications to enable payday alerts.");
+        : "Allow notifications to enable bill and payday alerts.");
 
       const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       await navigator.serviceWorker.ready;
@@ -101,7 +101,7 @@ export function NotificationSettings() {
         throw new Error(data.error || "Unable to save this device's notification subscription.");
       }
       setState("enabled");
-      setMessage("Payday notifications are enabled on this device.");
+      setMessage("Bill and payday notifications are enabled on this device.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to enable notifications.");
     } finally { setBusy(false); }
@@ -122,7 +122,7 @@ export function NotificationSettings() {
         await subscription.unsubscribe();
       }
       setState("disabled");
-      setMessage("Payday notifications are disabled on this device.");
+      setMessage("Bill and payday notifications are disabled on this device.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to disable notifications.");
     } finally { setBusy(false); }
@@ -130,12 +130,12 @@ export function NotificationSettings() {
 
   return <section className="glass-panel mt-5 space-y-4 p-5" aria-labelledby="notification-settings-heading">
     <div>
-      <h2 id="notification-settings-heading" className="text-body-lg font-semibold">Payday notifications</h2>
-      <p className="text-body-sm text-on-surface-variant">Get a browser push notification when a scheduled paycheck is added to its linked account.</p>
+      <h2 id="notification-settings-heading" className="text-body-lg font-semibold">Bill and payday notifications</h2>
+      <p className="text-body-sm text-on-surface-variant">Get browser alerts for bills due today or tomorrow, and when scheduled paychecks are added to linked accounts.</p>
     </div>
     {state === "checking" ? <p role="status" className="text-body-sm text-on-surface-variant">Checking this device…</p> : null}
     {state === "unsupported" ? <p className="text-body-sm text-on-surface-variant">This browser does not support push notifications.</p> : null}
-    {state === "disabled" ? <button type="button" disabled={busy} onClick={() => void enableNotifications()} className="min-h-11 rounded-full bg-primary px-5 font-semibold text-white disabled:opacity-50">{busy ? "Enabling…" : "Enable payday notifications"}</button> : null}
+    {state === "disabled" ? <button type="button" disabled={busy} onClick={() => void enableNotifications()} className="min-h-11 rounded-full bg-primary px-5 font-semibold text-white disabled:opacity-50">{busy ? "Enabling…" : "Enable notifications"}</button> : null}
     {state === "enabled" ? <div className="space-y-3"><p className="text-body-sm text-secondary">Notifications are enabled for this device.</p><button type="button" disabled={busy} onClick={() => void disableNotifications()} className="min-h-11 rounded-full border border-outline-variant px-5 font-semibold text-on-surface disabled:opacity-50">{busy ? "Disabling…" : "Disable notifications"}</button></div> : null}
     {isAppleMobile() ? <p className="text-body-sm text-on-surface-variant">On iPhone and iPad, add Runway to the Home Screen and open it there before enabling notifications.</p> : null}
     {error ? <p role="alert" className="text-body-sm text-error">{error}</p> : null}

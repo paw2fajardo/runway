@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PaySettingsSchema } from "../src/lib/types";
+import { BillReminderTimeSettingsSchema, PaySettingsSchema } from "../src/lib/types";
 describe("Pay settings validation", () => {
+  it.each(["00:00", "09:30", "23:59"])("accepts bill reminder time %s", time => {
+    expect(BillReminderTimeSettingsSchema.safeParse({ bill_reminder_time: time }).success).toBe(true);
+  });
+  it.each(["24:00", "9:00", "12:60", "12:30:00", "invalid"])("rejects invalid bill reminder time %s", time => {
+    expect(BillReminderTimeSettingsSchema.safeParse({ bill_reminder_time: time }).success).toBe(false);
+  });
   it.each([undefined, 0, -1, 1.5, 367, "7"])("rejects invalid custom interval %s", interval => {
     expect(PaySettingsSchema.safeParse({ net_pay_cents: 100, next_pay_date: "2026-10-15", schedule_kind: "custom", interval_days: interval }).success).toBe(false);
   });

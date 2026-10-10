@@ -50,6 +50,9 @@ export const DailyDiscretionaryBurnSchema = z.object({
   daily_discretionary_burn_cents: z.number().int().nonnegative().max(MAX_DAILY_DISCRETIONARY_BURN_CENTS),
 }).strict();
 export type DailyDiscretionaryBurnInput = z.infer<typeof DailyDiscretionaryBurnSchema>;
+export const DEFAULT_BILL_REMINDER_TIME = "09:00";
+export const BillReminderTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+export const BillReminderTimeSettingsSchema = z.object({ bill_reminder_time: BillReminderTimeSchema }).strict();
 
 export const CategoryCreateSchema = z.object({ name: z.string().trim().min(1).max(100), is_income: z.boolean().default(false) }).strict();
 export const CategoryPatchSchema = z.object({ name: z.string().trim().min(1).max(100).optional(), is_income: z.boolean().optional(), is_archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0);

@@ -291,10 +291,16 @@ export const projectionSettings = pgTable("projection_settings", {
   dailyDiscretionaryBurn: bigint("daily_discretionary_burn", { mode: "number" })
     .notNull()
     .default(0),
+  billReminderTime: varchar("bill_reminder_time", { length: 5 }).notNull().default("09:00"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => ({
+  billReminderTimeFormat: check(
+    "projection_settings_bill_reminder_time_check",
+    sql`${table.billReminderTime} ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'`
+  ),
+}));
 
 export const incomeStreams = pgTable("income_streams", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -462,6 +468,39 @@ export const paycheckPushDeliveries = pgTable(
       "paycheck_push_deliveries_attempt_count_check",
       sql`${table.attemptCount} >= 0`
     ),
+  ]
+);
+
+// One reminder per bill occurrence, device, and Manila calendar day.
+export const billPushDeliveries = pgTable(
+  "bill_push_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billInstanceId: uuid("bill_instance_id")
+      .notNull()
+      .references(() => billInstances.id, { onDelete: "restrict" }),
+    subscriptionId: uuid("subscription_id").references(
+      () => pushSubscriptions.id,
+      { onDelete: "set null" }
+    ),
+    endpointHashSnapshot: varchar("endpoint_hash_snapshot", { length: 64 }).notNull(),
+    reminderDate: date("reminder_date", { mode: "string" }).notNull(),
+    status: paycheckPushDeliveryStatusEnum("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_bill_push_instance_endpoint_reminder").on(
+      table.billInstanceId, table.endpointHashSnapshot, table.reminderDate
+    ),
+    index("idx_bill_push_deliveries_retry").on(table.status, table.nextAttemptAt),
+    check("bill_push_deliveries_endpoint_hash_check", sql`${table.endpointHashSnapshot} ~ '^[0-9a-f]{64}$'`),
+    check("bill_push_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
   ]
 );
 export const incomeStreamDeposits = pgTable("income_stream_deposits", {
