@@ -21,10 +21,8 @@
 
 # Local env files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 build_docs/
 
 # Editor / AI tool metadata
@@ -56,3 +54,10 @@ yarn-error.log*
 .drizzle
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Local credentials and generated files
+.aws/
+.ssh/
+*.key
+*.p12
+*.tsbuildinfo
