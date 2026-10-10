@@ -60,6 +60,15 @@ function formatAmount(amount: number): string {
   return `PHP ${(amount / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatGroup(title: string, bills: RemindableBill[], includeDate = false): string[] {
+  if (!bills.length) return [];
+  const lines = [`${title} (${bills.length})`, ...bills.slice(0, 5).map(bill =>
+    `• ${bill.name}${includeDate ? ` — due ${bill.dueDate}` : ""} · ${formatAmount(bill.amount)}`,
+  )];
+  if (bills.length > 5) lines.push(`+ ${bills.length - 5} more`);
+  return lines;
+}
+
 /** Send daily reminders for bills due today, tomorrow, and already past due. */
 export async function deliverBillNtfyNotifications(options: {
   store?: BillNtfyStore;
@@ -78,13 +87,16 @@ export async function deliverBillNtfyNotifications(options: {
     store.listBillsDue(today, tomorrow),
     store.listPastDueBills(today),
   ]);
-
-  for (const bill of dueBills) {
-    const dueToday = bill.dueDate === today;
-    await store.queue(`bill:${bill.id}:${today}`, dueToday ? "Bill due today" : "Bill due tomorrow", `${bill.name} · ${formatAmount(bill.amount)}`);
-  }
-  for (const bill of pastDueBills) {
-    await store.queue(`past-due:${bill.id}:${today}`, "Past-due bill reminder", `${bill.name} was due ${bill.dueDate} · ${formatAmount(bill.amount)}`);
+  const dueToday = dueBills.filter(bill => bill.dueDate === today);
+  const dueTomorrow = dueBills.filter(bill => bill.dueDate === tomorrow);
+  const count = dueToday.length + dueTomorrow.length + pastDueBills.length;
+  if (count) {
+    const message = [
+      ...formatGroup("Due today", dueToday),
+      ...formatGroup("Due tomorrow", dueTomorrow),
+      ...formatGroup("Past due", pastDueBills, true),
+    ].join("\n");
+    await store.queue(`bill-digest:${today}`, `Runway bill reminders (${count})`, message);
   }
   return deliverQueuedNtfyNotifications({ ...options, sender, store });
 }

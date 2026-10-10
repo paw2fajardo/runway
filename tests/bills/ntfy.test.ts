@@ -26,16 +26,35 @@ function makeStore() {
 }
 
 describe("bill ntfy reminders", () => {
-  it("queues due-today, due-tomorrow, and daily past-due alerts", async () => {
+  it("queues one daily digest for due-today, due-tomorrow, and past-due bills", async () => {
     const { store, queued, calls } = makeStore();
     const sender = { send: vi.fn(async () => undefined) };
     await deliverBillNtfyNotifications({ store, sender, now: new Date("2026-10-10T01:30:00Z") });
     expect(calls).toEqual([["2026-10-10", "2026-10-11"], ["past-due", "2026-10-10"]]);
-    expect(queued).toEqual([
-      ["bill:due-today:2026-10-10", "Bill due today", "Internet · PHP 2,500.00"],
-      ["bill:due-tomorrow:2026-10-10", "Bill due tomorrow", "Electricity · PHP 1,250.50"],
-      ["past-due:late-bill:2026-10-10", "Past-due bill reminder", "Water was due 2026-10-03 · PHP 125.00"],
-    ]);
+    expect(queued).toEqual([[
+      "bill-digest:2026-10-10",
+      "Runway bill reminders (3)",
+      [
+        "Due today (1)",
+        "• Internet · PHP 2,500.00",
+        "Due tomorrow (1)",
+        "• Electricity · PHP 1,250.50",
+        "Past due (1)",
+        "• Water — due 2026-10-03 · PHP 125.00",
+      ].join("\n"),
+    ]]);
+  });
+
+  it("limits each digest section to five bill details", async () => {
+    const { store, queued } = makeStore();
+    store.listBillsDue = async (today) => Array.from({ length: 7 }, (_, index) => ({
+      id: `bill-${index}`, dueDate: today, name: `Bill ${index + 1}`, amount: 10000,
+    }));
+    store.listPastDueBills = async () => [];
+    await deliverBillNtfyNotifications({ store, sender: { send: vi.fn(async () => undefined) }, now: new Date("2026-10-10T01:30:00Z") });
+    expect(queued[0][2]).toContain("Due today (7)");
+    expect(queued[0][2]).toContain("+ 2 more");
+    expect(queued[0][2].match(/• Bill/g)).toHaveLength(5);
   });
 
   it("waits until the configured reminder time in Manila", async () => {
