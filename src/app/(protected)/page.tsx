@@ -422,7 +422,7 @@ export default function RunwayDashboard() {
       <Header />
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
-        <div className="flex flex-col w-full px-margin gap-6 pb-space-xl">
+        <div className="flex flex-col w-full px-margin gap-space-lg pb-space-xl">
           <div className="space-y-2 pt-2">
             <h1 runway-id="runway.dashboard.title" className="text-headline-lg font-semibold tracking-tight">Cash Runway</h1>
             <p runway-id="runway.dashboard.description" className="text-body-md text-on-surface-variant">Current cash, bills due, and your next payday at a glance.</p>
@@ -456,14 +456,14 @@ export default function RunwayDashboard() {
             <button runway-id="runway.dashboard.forecast-warning-action" type="button" onClick={openForecast} disabled={!forecast} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">Review forecast</button>
           </div> : <button runway-id="runway.dashboard.open-forecast" type="button" onClick={openForecast} disabled={!forecast || isLoading}
             className="flex min-h-14 w-full items-center justify-between gap-3 border-y border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
-            <span runway-id="runway.dashboard.open-forecast-label" className="font-semibold">View full runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
+            <span runway-id="runway.dashboard.open-forecast-label" className="font-medium">View full runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
           </button>}
 
           <PendingPaychecks />
 
           <section aria-label="Cash plan management">
             <details className="group/cash-plan border-y border-outline-variant/55">
-              <summary runway-id="runway.dashboard.cash-plan-toggle" className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-body-md font-semibold text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              <summary runway-id="runway.dashboard.cash-plan-toggle" className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-space-sm text-body-md font-medium text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span>Manage income and accounts</span><span className="flex shrink-0 items-center gap-space-sm text-body-sm font-normal text-on-surface-variant">Edit cash plan<ChevronDown size={18} aria-hidden="true" className="transition-transform group-open/cash-plan:rotate-180 motion-reduce:transition-none" /></span>
               </summary>
             <div className="flex min-h-[76px] items-center justify-between gap-4 border-t border-outline-variant/40 py-3">
@@ -490,19 +490,19 @@ export default function RunwayDashboard() {
             </details>
           </section>
 
-          {duesAvailable ? <div className="space-y-8 lg:space-y-5">
+          {duesAvailable ? <div className="space-y-space-lg">
             {paymentError && <p runway-id="runway.dashboard.payment-error" className="text-body-sm text-error" role="alert">{paymentError}</p>}
             {paymentSuccess && <p runway-id="runway.dashboard.payment-success" className="text-body-sm text-secondary" role="status">{paymentSuccess}</p>}
-            {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
+            {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-space-sm">
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />
             </div>}
-            {todayDues.length > 0 && <div className="border-t-2 border-primary/35 pt-4">
+            {todayDues.length > 0 && <div className="border-t-2 border-primary/35 pt-space-sm">
               <UpcomingDuesList dues={todayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.today-dues" title="Due today" />
             </div>}
             {forecast
-              ? <div className="border-t-2 border-primary/35 pt-4"><UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} /></div>
+              ? <div className="border-t-2 border-primary/35 pt-space-sm"><UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} /></div>
               : <p runway-id="runway.dashboard.upcoming-dues-unavailable" className="border-t-2 border-primary/35 pt-4 text-body-sm text-on-surface-variant" role="status">Your next payday is unavailable, so bills for this period can’t be shown.</p>}
-            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-semibold underline decoration-secondary/30 underline-offset-4">All unpaid bills ({unpaidDues.length}) →</button>
+            <button runway-id="runway.dashboard.all-upcoming-dues" type="button" onClick={() => setIsDuesOpen(true)} className="min-h-11 self-start text-secondary text-body-md font-medium underline decoration-secondary/30 underline-offset-4">All unpaid bills ({unpaidDues.length}) →</button>
           </div> : isLoading ? <section runway-id="runway.dashboard.dues-loading" className="space-y-3" role="status" aria-label="Loading unpaid bills"><span className="sr-only">Loading unpaid bills…</span><Skeleton className="h-6 w-44" />{[0, 1, 2].map((item) => <Skeleton key={item} className="h-16 w-full" />)}</section> : <p runway-id="runway.dashboard.dues-unavailable" className="text-body-md text-on-surface-variant" role="status">Unpaid bills unavailable.</p>}
         </div>
       </main>
