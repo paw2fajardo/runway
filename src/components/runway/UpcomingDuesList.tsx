@@ -48,10 +48,10 @@ export function UpcomingDuesList({
     <section runway-id={idPrefix} className="flex flex-col space-y-space-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <h2 runway-id={`${idPrefix}.title`} className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+          <h2 runway-id={`${idPrefix}.title`} className="font-body-lg text-body-lg text-on-surface font-medium">
             {title}
           </h2>
-          <span runway-id={`${idPrefix}.count`} className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-bold">
+          <span runway-id={`${idPrefix}.count`} className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-medium">
             {dues.length}
           </span>
         </div>
@@ -70,11 +70,11 @@ export function UpcomingDuesList({
           return <li
             key={due.id}
             runway-id={`${idPrefix}.item.${due.id}`}
-            className="grid grid-cols-1 gap-space-sm py-3 sm:flex sm:min-h-[68px] sm:items-center sm:justify-between sm:gap-3"
+            className="grid grid-cols-1 gap-space-xs py-space-sm sm:flex sm:min-h-[60px] sm:items-center sm:justify-between sm:gap-3"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span runway-id={`${idPrefix}.item.${due.id}.name`} className="break-words font-body-md text-body-md font-semibold text-on-surface sm:truncate">
+                <span runway-id={`${idPrefix}.item.${due.id}.name`} className="break-words font-body-md text-body-md font-medium text-on-surface sm:truncate">
                   {due.name}
                 </span>
                 {isPastDue ? <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="rounded px-1.5 py-0.5 text-label-sm font-bold text-error">
@@ -94,7 +94,7 @@ export function UpcomingDuesList({
             </div>
 
             <div className="flex min-w-0 items-center justify-between gap-space-sm sm:shrink-0 sm:justify-end sm:gap-3">
-              <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-bold tabular-nums text-on-surface">
+              <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-medium tabular-nums text-on-surface">
                 {formatPHP(due.amountDue)}
               </span>
               {autoPostScheduled || (due.isAutoPay && !onPayClick) ? <span className="text-body-sm text-secondary">Auto-post scheduled</span> : <button

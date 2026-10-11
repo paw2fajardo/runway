@@ -38,7 +38,7 @@
   display: flex;
   flex-direction: column;
   width: min(480px, calc(100% - 24px));
-  height: min(760px, calc(var(--quick-log-viewport-height, 100dvh) - 24px));
+  height: auto;
   max-height: calc(var(--quick-log-viewport-height, 100dvh) - 24px);
   overflow: hidden;
 }
@@ -49,7 +49,8 @@
   min-height: 0;
   overflow: hidden;
 }
-.quick-log-scroll { container-type: inline-size; }
+.quick-log-scroll { container-type: inline-size; scrollbar-width: none; }
+.quick-log-scroll::-webkit-scrollbar { display: none; }
 .quick-log-category-popover[popover] {
   position: fixed;
   inset: auto;
@@ -66,14 +67,6 @@
 .app-dialog-content { padding: 24px; }
 /* Desktop pages are for scanning and editing, rather than thumb-sized cards. */
 @media (min-width: 1024px) {
-  .text-body-md { font-size: 14px; line-height: 21px; }
-  .text-body-lg { font-size: 16px; line-height: 23px; }
-  .text-headline-sm { font-size: 18px; line-height: 24px; }
-  .text-headline-md { font-size: 21px; line-height: 27px; }
-  .text-headline-lg { font-size: 26px; line-height: 32px; }
-  .text-currency-display { font-size: 30px; line-height: 36px; }
-  .text-currency-lg { font-size: 18px; line-height: 24px; }
-
   main.app-bottom-clearance { padding-bottom: 80px; font-size: 14px; line-height: 1.5; }
   main.app-bottom-clearance > .flex.flex-col.w-full { gap: 20px; }
   main.app-bottom-clearance .min-h-11 { min-height: 40px; }
@@ -117,15 +110,13 @@
   .app-dialog-quick-log .quick-log-scroll { flex: 1 1 auto; gap: 16px; }
   .app-dialog-quick-log .quick-log-footer { margin-top: 12px; padding-top: 12px; }
   .app-dialog-quick-log .quick-log-amount-control { min-height: 52px; }
-  .app-dialog-quick-log [runway-id="quick-log.amount.value"] { font-size: 26px; line-height: 32px; }
+  .app-dialog-quick-log [runway-id="quick-log.amount.value"] { font-size: 20px; line-height: 28px; }
   .app-dialog-quick-log [runway-id="quick-log.confirm"] { min-height: 48px; padding-block: 10px; }
 }
-@media (max-width: 639px) {
-  .text-body-md { font-size: 14px; line-height: 20px; }
-  .text-body-lg { font-size: 15px; line-height: 22px; }
-  .text-headline-sm { font-size: 17px; line-height: 23px; }
-  .text-headline-md { font-size: 20px; line-height: 26px; }
-  .text-headline-lg { font-size: 24px; line-height: 30px; }
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([runway-id="quick-log.amount.value"]),
+  select,
+  textarea { font-size: 16px; }
 }
 .app-dialog.app-dialog-fullscreen {
   position: fixed;
@@ -192,6 +183,7 @@
     padding: 0;
   }
   body {
+    @apply text-body-md;
     overscroll-behavior-y: none;
     min-height: 100dvh;
   }
@@ -243,6 +235,8 @@
   outline: 1px solid #396756;
   outline-offset: 2px;
 }
+
+.quick-log-amount-control input:focus-visible { outline: none; }
 
 nav[aria-label="Main navigation"] :focus-visible {
   outline-color: #bbedd7;
@@ -297,7 +291,7 @@ nav[aria-label="Main navigation"] :focus-visible {
   }
   .app-dialog-header-region header { margin-bottom: 0; }
   .app-dialog-quick-log {
-    height: min(640px, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
+    height: auto;
     max-height: min(92dvh, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
   }
   .app-dialog-quick-log[open] { display: flex; }

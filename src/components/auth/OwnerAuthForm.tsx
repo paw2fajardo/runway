@@ -131,7 +131,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
             <RunwayMark />
             <div className="max-w-sm">
               <p className="mb-3 font-mono text-[10px] font-semibold tracking-[.2em] text-secondary-fixed">MONEY HAS DATES</p>
-              <h1 className="max-w-xs text-3xl font-semibold leading-[1.08] tracking-[-.045em] text-white sm:text-4xl lg:text-[3.25rem]">
+              <h1 className="max-w-xs text-headline-lg font-semibold text-white">
                 See what your balance can carry.
               </h1>
               <p className="mt-4 max-w-xs text-sm leading-6 text-white/65 sm:text-base">
@@ -172,7 +172,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
             ) : setupClosed ? (
               <div>
                 <p className="font-mono text-[11px] font-semibold tracking-[.15em] text-secondary">OWNER ACCESS</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] text-on-surface">Setup is complete.</h2>
+                <h2 className="mt-3 text-headline-md font-semibold text-on-surface">Setup is complete.</h2>
                 <p className="mt-3 text-sm leading-6 text-on-surface-variant">This Runway already has an owner account. Sign in to continue.</p>
                 <Link href="/login" className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-on-primary shadow-md shadow-primary/15 transition hover:bg-secondary">
                   Go to sign in <ArrowRight size={17} aria-hidden="true" />
@@ -181,7 +181,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
             ) : mode === "login" && setupStatus === "ready" ? (
               <div>
                 <p className="font-mono text-[11px] font-semibold tracking-[.15em] text-secondary">FIRST VISIT</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] text-on-surface">Set up your owner account.</h2>
+                <h2 className="mt-3 text-headline-md font-semibold text-on-surface">Set up your owner account.</h2>
                 <p className="mt-3 text-sm leading-6 text-on-surface-variant">Create the one account that protects this private Runway instance.</p>
                 <Link href="/setup" className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-on-primary shadow-md shadow-primary/15 transition hover:bg-secondary">
                   Set up Runway <ArrowRight size={17} aria-hidden="true" />
@@ -190,7 +190,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
             ) : (
               <>
                 <p className="font-mono text-[11px] font-semibold tracking-[.15em] text-secondary">{mode === "setup" ? "FIRST VISIT" : "OWNER ACCESS"}</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] text-on-surface sm:text-[2.1rem]">
+                <h2 className="mt-3 text-headline-md font-semibold text-on-surface">
                   {mode === "setup" ? "Set up your Runway." : "Welcome back."}
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-on-surface-variant">

@@ -468,7 +468,7 @@ export function RapidExpenseDrawer({
 
   return (
     <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log app-dialog-top" initialFocus="#quick-log-amount">
-      <div className="quick-log-layout flex h-full min-h-0 flex-col pb-safe">
+      <div className="quick-log-layout flex min-h-0 flex-1 flex-col pb-safe">
         {/* Transaction Type Selector */}
         <div className="relative shrink-0 pb-space-xs">
           <div className="flex items-center justify-between w-full">
@@ -546,7 +546,7 @@ export function RapidExpenseDrawer({
                 aria-label="Amount in Philippine pesos"
                 aria-describedby="quick-log-amount-hint"
                 placeholder="0.00"
-                className="min-w-0 flex-1 bg-transparent py-2 text-3xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
+                className="min-w-0 flex-1 bg-transparent py-2 text-xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
               />
             </div>
             <p id="quick-log-amount-hint" runway-id="quick-log.amount.hint" className="text-sm text-on-surface-variant">
