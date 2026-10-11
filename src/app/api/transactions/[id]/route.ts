@@ -7,6 +7,7 @@ import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurre
 import { CompoundTransactionSchema } from "../../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 import { accountBalanceAdjustments, isQuickLogEligible } from "../../../../lib/transaction-crud";
+import { balanceAfterAccountLeg } from "../../../../lib/account-balance";
 
 const idSchema = z.string().uuid();
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -79,7 +80,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       if (!account) throw new Error("Selected account is unavailable.");
     }
     const feeCategory = parsed.fee_amount ? (await tx.select().from(categories).where(and(eq(categories.isSystemFee, true), eq(categories.isArchived, false))).limit(1))[0] : null;
-      for (const [accountId, amount] of accountBalanceAdjustments(current.legs, "reverse")) await tx.update(accounts).set({ currentBalance: sql`${accounts.currentBalance} + ${amount}`, updatedAt: new Date() }).where(eq(accounts.id, accountId));
+      for (const [accountId, amount] of accountBalanceAdjustments(current.legs, "reverse")) await tx.update(accounts).set({ currentBalance: balanceAfterAccountLeg(amount), updatedAt: new Date() }).where(eq(accounts.id, accountId));
       await tx.delete(transactionLegs).where(eq(transactionLegs.transactionId, id));
       await tx.update(transactions).set({ type: parsed.type, description: parsed.description, transactedAt: new Date(parsed.transacted_at) }).where(eq(transactions.id, id));
       const newAccountLegs: { accountId: string | null; amount: number }[] = [];
@@ -87,7 +88,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       if (parsed.type === "expense") { const gross = parsed.gross_outflow ?? 0, fee = parsed.fee_amount ?? 0; await add(parsed.source_account_id, null, -gross); await add(null, parsed.category_id, gross - fee); if (fee) await add(null, feeCategory?.id, fee); }
       else if (parsed.type === "income") { const net = parsed.net_inflow ?? 0; await add(parsed.destination_account_id, null, net); await add(null, parsed.category_id, -net); }
       else { const gross = parsed.gross_outflow ?? 0, net = parsed.net_inflow ?? gross - (parsed.fee_amount ?? 0), fee = parsed.fee_amount ?? 0; await add(parsed.source_account_id, null, -gross); await add(parsed.destination_account_id, null, net); if (fee) await add(null, feeCategory?.id, fee); }
-      for (const [accountId, amount] of accountBalanceAdjustments(newAccountLegs, "apply")) await tx.update(accounts).set({ currentBalance: sql`${accounts.currentBalance} + ${amount}`, updatedAt: new Date() }).where(eq(accounts.id, accountId));
+      for (const [accountId, amount] of accountBalanceAdjustments(newAccountLegs, "apply")) await tx.update(accounts).set({ currentBalance: balanceAfterAccountLeg(amount), updatedAt: new Date() }).where(eq(accounts.id, accountId));
       return { id };
     });
     if (!result) return NextResponse.json({ error: "Transaction not found or cannot be edited." }, { status: 404 });
@@ -106,7 +107,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       if (!locked.length) return false;
       const record = await loadEligible(tx, id);
       if (!record) return false;
-      for (const [accountId, amount] of accountBalanceAdjustments(record.legs, "reverse")) await tx.update(accounts).set({ currentBalance: sql`${accounts.currentBalance} + ${amount}`, updatedAt: new Date() }).where(eq(accounts.id, accountId));
+      for (const [accountId, amount] of accountBalanceAdjustments(record.legs, "reverse")) await tx.update(accounts).set({ currentBalance: balanceAfterAccountLeg(amount), updatedAt: new Date() }).where(eq(accounts.id, accountId));
       await tx.delete(transactions).where(eq(transactions.id, id));
       return true;
     });
