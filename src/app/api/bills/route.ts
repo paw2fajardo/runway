@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
       : `${year}-${month}`;
     const pastDue = dueDate < today;
     if (parsed.is_auto_pay && !parsed.source_account_id) {
-      return NextResponse.json({ error: "Choose the cash account used for auto-pay." }, { status: 400 });
+      return NextResponse.json({ error: "Choose the account used for auto-pay." }, { status: 400 });
     }
     if (parsed.is_auto_pay && pastDue && parsed.first_occurrence_paid === undefined) {
       return NextResponse.json({ error: "Confirm whether this month's auto-pay already happened." }, { status: 400 });
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     const result = await db.transaction(async (tx) => {
       if (parsed.source_account_id) {
         const [source] = await tx.select().from(accounts).where(eq(accounts.id, parsed.source_account_id)).limit(1);
-        if (!source || !source.isActive || source.type !== "liquid") throw new Error("Choose an active cash account.");
+        if (!source || !source.isActive || !["liquid", "revolving_credit"].includes(source.type)) throw new Error("Choose an active cash or credit account.");
       }
       const [newBill] = await tx
         .insert(bills)
