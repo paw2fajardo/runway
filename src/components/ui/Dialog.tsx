@@ -2,6 +2,10 @@
 
 import { useEffect, useId, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
+// Nested dialogs can clean up in either order; restore scrolling only after the last one closes.
+let openDialogCount = 0;
+let previousBodyOverflow = "";
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
@@ -53,12 +57,14 @@ export function Dialog({ open, onClose, title, children, fullScreen = false, cla
     const dialog = ref.current;
     if (!dialog || !open) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
     if (!dialog.open) dialog.showModal();
+    if (openDialogCount === 0) previousBodyOverflow = document.body.style.overflow;
+    openDialogCount += 1;
     document.body.style.overflow = "hidden";
     return () => {
       if (dialog.open) dialog.close();
-      document.body.style.overflow = previousOverflow;
+      openDialogCount -= 1;
+      if (openDialogCount === 0) document.body.style.overflow = previousBodyOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, [open]);
