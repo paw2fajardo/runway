@@ -109,13 +109,14 @@ export function RapidExpenseDrawer({
   const categoryMenuRef = useRef<HTMLDivElement>(null);
   const customFeeInputRef = useRef<HTMLInputElement>(null);
 
-  // Set default source account
+  // Keep the destination distinct when the source changes.
   useEffect(() => {
     if (accounts.length > 0 && !selectedSourceId) {
       setSelectedSourceId(accounts[0].id);
     }
-    if (accounts.length > 1 && !selectedDestId) {
-      setSelectedDestId(accounts[1].id);
+    const sourceId = selectedSourceId || accounts[0]?.id;
+    if (!accounts.some(account => account.id === selectedDestId && account.id !== sourceId)) {
+      setSelectedDestId(accounts.find(account => account.id !== sourceId)?.id ?? "");
     }
   }, [accounts, selectedSourceId, selectedDestId]);
 
@@ -737,36 +738,29 @@ export function RapidExpenseDrawer({
 
           {/* Destination Account (if Transfer mode) */}
           {mode === "transfer" && (
-            <div className="flex min-w-0 flex-col gap-2">
-              <span runway-id="quick-log.destination-account.label" className="text-sm font-semibold text-on-surface">
+            <div className="flex min-w-0 flex-col gap-space-xs">
+              <label runway-id="quick-log.destination-account.label" htmlFor="quick-log-destination-account" className="text-sm font-semibold text-on-surface">
                 Transfer to
-              </span>
-              <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 scrollbar-none">
+              </label>
+              <div className="relative">
+                <select
+                  runway-id="quick-log.destination-account.select"
+                  id="quick-log-destination-account"
+                  value={selectedDestId === selectedSourceId ? "" : selectedDestId}
+                  disabled={accounts.length < 2}
+                  onChange={(event) => setSelectedDestId(event.target.value)}
+                  className="min-h-11 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                >
+                  {accounts.length < 2 && <option value="" disabled>No other accounts available</option>}
                 {accounts
                   .filter((a) => a.id !== selectedSourceId)
-                  .map((acc) => {
-                    const isSelected = acc.id === selectedDestId;
-                    return (
-                      <button
-                        runway-id={`quick-log.destination-account.${acc.id}`}
-                        key={acc.id}
-                        type="button"
-                        aria-pressed={isSelected} onClick={() => setSelectedDestId(acc.id)}
-                        className={`flex-shrink-0 flex items-center gap-space-xs min-h-11 px-space-md py-space-xs rounded-full font-label-md text-label-md transition-colors ${
-                          isSelected
-                            ? "bg-primary text-white shadow-sm border border-primary font-semibold"
-                            : "bg-surface-container-low text-on-surface-variant hover:text-on-surface"
-                        }`}
-                      >
-                        {isSelected && (
-                          <span runway-id={`quick-log.destination-account.${acc.id}.selected-icon`} className="material-symbols-outlined hidden min-[400px]:inline text-[16px] text-white">
-                            check_circle
-                          </span>
-                        )}
-                        <span runway-id={`quick-log.destination-account.${acc.id}.name`}>{acc.name}</span>
-                      </button>
-                    );
-                  })}
+                  .map((acc) => (
+                    <option runway-id={`quick-log.destination-account.option.${acc.id}`} key={acc.id} value={acc.id}>
+                      {acc.name} · ₱{(acc.currentBalance / 100000).toFixed(1)}k
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={18} aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               </div>
             </div>
             )}

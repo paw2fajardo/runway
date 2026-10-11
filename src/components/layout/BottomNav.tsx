@@ -92,7 +92,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         </Link>
       </div>
     </nav>
-    <button
+    {pathname !== "/settings" && <button
       onClick={onOpenQuickLog}
       runway-id="runway.nav.quick-log"
       aria-label="Open Rapid Expense Log"
@@ -100,7 +100,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
       className="fixed z-40 right-space-lg bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] lg:bottom-space-lg h-14 w-14 rounded-full bg-secondary-fixed text-primary flex flex-col items-center justify-center gap-0.5 shadow-lg active:scale-95 transition-transform duration-100 motion-reduce:transition-none"
     >
       <Plus size={22} aria-hidden="true" />
-    </button>
+    </button>}
     </>
   );
 }

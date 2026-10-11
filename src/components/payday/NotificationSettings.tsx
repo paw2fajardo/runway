@@ -20,9 +20,9 @@ export async function clearPrivatePageCaches() {
 }
 
 export function NotificationSettings() {
-  return <section className="glass-panel mt-5 space-y-4 p-5" aria-labelledby="notification-settings-heading">
+  return <section className="glass-panel mt-space-md space-y-space-sm p-space-md" aria-labelledby="notification-settings-heading">
     <div>
-      <h2 id="notification-settings-heading" className="text-body-lg font-semibold">Bill and payday notifications</h2>
+      <h2 id="notification-settings-heading" className="text-body-lg font-medium">Bill and payday notifications</h2>
       <p className="text-body-sm text-on-surface-variant">Runway sends bill due, past-due, and payday alerts through ntfy. Install the ntfy app and subscribe to the <span className="font-medium text-on-surface">runway-finance</span> topic on your tailnet.</p>
     </div>
   </section>;
