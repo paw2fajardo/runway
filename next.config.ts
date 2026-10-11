@@ -3,6 +3,10 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // libsql loads its platform binary dynamically, so tracing can miss it.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/@libsql/linux-*/**/*"],
+  },
   reactStrictMode: true,
   images: {
     remotePatterns: [
