@@ -546,7 +546,7 @@ export function RapidExpenseDrawer({
                 aria-label="Amount in Philippine pesos"
                 aria-describedby="quick-log-amount-hint"
                 placeholder="0.00"
-                className="min-w-0 flex-1 bg-transparent py-2 text-3xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
+                className="min-w-0 flex-1 bg-transparent py-2 text-xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
               />
             </div>
             <p id="quick-log-amount-hint" runway-id="quick-log.amount.hint" className="text-sm text-on-surface-variant">

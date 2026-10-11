@@ -117,7 +117,7 @@
   .app-dialog-quick-log .quick-log-scroll { flex: 1 1 auto; gap: 16px; }
   .app-dialog-quick-log .quick-log-footer { margin-top: 12px; padding-top: 12px; }
   .app-dialog-quick-log .quick-log-amount-control { min-height: 52px; }
-  .app-dialog-quick-log [runway-id="quick-log.amount.value"] { font-size: 26px; line-height: 32px; }
+  .app-dialog-quick-log [runway-id="quick-log.amount.value"] { font-size: 20px; line-height: 28px; }
   .app-dialog-quick-log [runway-id="quick-log.confirm"] { min-height: 48px; padding-block: 10px; }
 }
 @media (max-width: 639px) {
@@ -243,6 +243,8 @@
   outline: 1px solid #396756;
   outline-offset: 2px;
 }
+
+.quick-log-amount-control input:focus-visible { outline: none; }
 
 nav[aria-label="Main navigation"] :focus-visible {
   outline-color: #bbedd7;
