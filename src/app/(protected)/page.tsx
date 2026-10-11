@@ -339,7 +339,7 @@ export default function RunwayDashboard() {
   const handlePayBill = (due: DueItem) => {
     setPaymentDue(due);
     setPaymentAmount((due.amountDue / 100).toFixed(2));
-    setPaymentSourceAccountId(accounts.some(account => account.id === due.sourceAccountId && account.type === "liquid") ? due.sourceAccountId ?? "" : "");
+    setPaymentSourceAccountId(accounts.some(account => account.id === due.sourceAccountId && ["liquid", "revolving_credit"].includes(account.type)) ? due.sourceAccountId ?? "" : "");
     setPaymentError(null);
     setPaymentSuccess(null);
   };
@@ -351,7 +351,7 @@ export default function RunwayDashboard() {
       setPaymentError("Enter a payment amount greater than zero.");
       return;
     }
-    if (!accounts.some(account => account.id === paymentSourceAccountId && account.type === "liquid")) { setPaymentError("Choose an active cash account that paid this bill."); return; }
+    if (!accounts.some(account => account.id === paymentSourceAccountId && ["liquid", "revolving_credit"].includes(account.type))) { setPaymentError("Choose an active cash or credit account that paid this bill."); return; }
     void settleBill(paymentDue, amount, paymentSourceAccountId);
   };
 
@@ -648,7 +648,7 @@ export default function RunwayDashboard() {
         {paymentDue && <div className="space-y-4">
           <p className="text-body-md text-on-surface">This records <span className="font-semibold">{paymentDue.name}</span> as paid in Runway. It updates your ledger but does not send money.</p>
           {!paymentDue.isVariableAmount && <p className="text-body-sm text-on-surface-variant">Amount: {formatPHP(paymentDue.amountDue)}{paymentSourceAccountId ? ` · Paid from ${accounts.find(account => account.id === paymentSourceAccountId)?.name ?? "selected account"}` : ""}</p>}
-          {!accounts.some(account => account.id === paymentDue.sourceAccountId && account.type === "liquid") && <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose cash account</option>{accounts.filter((account) => account.type === "liquid").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}
+          <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose account</option>{accounts.filter((account) => account.type === "liquid" || account.type === "revolving_credit").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
           {paymentDue.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>}
           {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
           <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmPayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : paymentDue.isVariableAmount ? "Record payment" : "Record paid"}</button></div>

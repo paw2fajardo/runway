@@ -113,9 +113,9 @@ export async function PATCH(req: NextRequest, context: Context) {
       const autoPayEnabled = parsed.is_auto_pay ?? current.isAutoPay;
       const sourceAccountId = parsed.source_account_id !== undefined ? parsed.source_account_id : current.sourceAccountId;
       if (autoPayEnabled) {
-        if (!sourceAccountId) throw new Error("Choose the cash account used for auto-pay.");
+        if (!sourceAccountId) throw new Error("Choose the account used for auto-pay.");
         const [source] = await tx.select().from(accounts).where(eq(accounts.id, sourceAccountId)).limit(1);
-        if (!source || !source.isActive || source.type !== "liquid") throw new Error("Choose an active cash account for auto-pay.");
+        if (!source || !source.isActive || !["liquid", "revolving_credit"].includes(source.type)) throw new Error("Choose an active cash or credit account for auto-pay.");
       }
       const [bill] = await tx.update(bills).set({
         ...(parsed.name !== undefined && { name: parsed.name }),

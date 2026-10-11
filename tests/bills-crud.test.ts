@@ -53,6 +53,7 @@ function makeTx({ bill = currentBill, instances = [] }: { bill?: unknown; instan
 describe("bill CRUD", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.select.mockReset();
     mocks.requireOwner.mockResolvedValue(owner);
     mocks.assertSameOrigin.mockImplementation((req: Request) => req.headers.get("origin") === origin ? null : Response.json({ error: "Request origin is not allowed." }, { status: 403 }));
   });
@@ -93,6 +94,31 @@ describe("bill CRUD", () => {
     expect(invalidBody.status).toBe(400);
     expect(invalidId.status).toBe(400);
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["liquid", true, 200],
+    ["revolving_credit", true, 200],
+    ["revolving_credit", false, 400],
+    ["installment_loan", true, 400],
+  ])("validates %s accounts (active: %s) for auto-pay", async (type, isActive, status) => {
+    const accountId = "22222222-2222-4222-8222-222222222222";
+    const account = { id: accountId, type, isActive };
+    makeTx();
+    const selection = (rows: unknown[]) => ({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(rows) }) }),
+    });
+    mocks.select
+      .mockReturnValueOnce(selection([{ ...currentBill, isAutoPay: true, autoPostFrom: "2026-10-01" }]))
+      .mockReturnValueOnce(selection(isActive ? [account] : []))
+      .mockReturnValueOnce(selection([account]))
+      .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) });
+
+    const response = await PATCH(request("PATCH", {
+      is_auto_pay: true, source_account_id: accountId,
+    }), context());
+
+    expect(response.status).toBe(status);
   });
 
   it("returns 404 for missing or inactive bill", async () => {

@@ -74,8 +74,8 @@ export async function postBillInstanceInTransaction(
   const [account] = await tx.select().from(accounts)
     .where(and(eq(accounts.id, accountId), eq(accounts.isActive, true)))
     .for("update").limit(1);
-  if (!account || account.type !== "liquid") {
-    throw new BillPostingError("Choose an active cash account for this bill.");
+  if (!account || !["liquid", "revolving_credit"].includes(account.type)) {
+    throw new BillPostingError("Choose an active cash or credit account for this bill.");
   }
 
   if (bill.isVariableAmount && !options.automatic && options.amount === undefined) {

@@ -48,7 +48,7 @@ const billFrequencyLabels: Record<BillItem["frequency"], string> = {
 
 export default function BillsPage() {
   const [bills, setBills] = useState<BillItem[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<Array<{ id: string; name: string; type: string; currentBalance: number }>>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<Array<{ id: string; name: string; type: string; currentBalance: number }>>([]);
   const [isBillsLoading, setIsBillsLoading] = useState(true);
   const [billsAvailable, setBillsAvailable] = useState(false);
   const [billsError, setBillsError] = useState<string | null>(null);
@@ -118,8 +118,8 @@ export default function BillsPage() {
       if (!response.ok) throw new Error("Accounts unavailable");
       return response.json();
     }).then((items: Array<{ id: string; name: string; type: string; currentBalance: number }>) => {
-      setCashAccounts(items.filter((account) => account.type === "liquid"));
-    }).catch(() => setCashAccounts([]));
+      setPaymentAccounts(items.filter((account) => account.type === "liquid" || account.type === "revolving_credit"));
+    }).catch(() => setPaymentAccounts([]));
   }, []);
 
   useEffect(() => {
@@ -177,10 +177,6 @@ export default function BillsPage() {
   };
 
   const handlePayBill = (bill: BillItem) => {
-    if (!bill.isVariableAmount && bill.sourceAccountId) {
-      void settleBill(bill);
-      return;
-    }
     setPaymentBill(bill);
     setPaymentAmount((bill.amountDue / 100).toFixed(2));
     setPaymentSourceAccountId(bill.sourceAccountId ?? "");
@@ -722,7 +718,7 @@ export default function BillsPage() {
         isOpen={isQuickLogOpen}
         onClose={() => setIsQuickLogOpen(false)}
         onSuccess={fetchBills}
-        accounts={cashAccounts}
+        accounts={paymentAccounts}
       />
 
       {/* Add Recurring Modal */}
@@ -901,8 +897,8 @@ export default function BillsPage() {
                 <select id="bill-source-account" runway-id="bills.add.source-account.input" value={newBillSourceAccountId}
                   required={newBillAutoPay} onChange={(event) => setNewBillSourceAccountId(event.target.value)}
                   className="h-11 w-full appearance-none rounded-full border border-outline-variant/50 bg-white/70 px-4 pr-11 font-body-md text-body-md">
-                  <option value="">Choose cash account</option>
-                  {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  <option value="">Choose account</option>
+                  {paymentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
                 <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               </div>
@@ -952,17 +948,17 @@ export default function BillsPage() {
       <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Record bill payment">
         {paymentBill && <div className="space-y-4">
           <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentBill.name}</span> from the account that paid it.</p>
-          {!paymentBill.sourceAccountId && <label className="flex flex-col gap-1" htmlFor="payment-source-account">
+          <label className="flex flex-col gap-1" htmlFor="payment-source-account">
             <span className="text-body-sm font-semibold text-on-surface">Paid from</span>
             <span className="relative block">
               <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)}
                 className="h-11 w-full appearance-none rounded-xl border border-outline-variant/60 bg-white px-3 pr-11 text-body-md text-on-surface">
-                <option value="">Choose cash account</option>
-                {cashAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                <option value="">Choose account</option>
+                {paymentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
               <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             </span>
-          </label>}
+          </label>
           {paymentBill.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
             <span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span>
             <input id="variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" />
