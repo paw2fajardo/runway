@@ -15,7 +15,9 @@ import {
   uniqueIndex,
   index,
   check,
-} from "drizzle-orm/pg-core";
+  hexDigestCheck,
+  reminderTimeCheck,
+} from "./columns";
 import { relations, sql } from "drizzle-orm";
 
 // Enums
@@ -109,7 +111,7 @@ export const ownerSessions = pgTable(
     index("idx_owner_sessions_owner_id").on(table.ownerId),
     check(
       "owner_sessions_token_digest_check",
-      sql`${table.tokenDigest} ~ '^[0-9a-f]{64}$'`
+      hexDigestCheck(table.tokenDigest)
     ),
   ]
 );
@@ -279,7 +281,7 @@ export const plannedBudgets = pgTable("planned_budgets", {
 }, (table) => [
   check("planned_budgets_cadence_check", sql`${table.cadence} IN ('once', 'weekly', 'biweekly', 'monthly')`),
   check("planned_budgets_amount_check", sql`${table.amountCents} > 0 AND ${table.amountCents} <= 9007199254740991`),
-  check("planned_budgets_name_check", sql`length(btrim(${table.name})) > 0`),
+  check("planned_budgets_name_check", sql`length(trim(${table.name})) > 0`),
 ]);
 
 // 7. Balance Checkpoints
@@ -319,7 +321,7 @@ export const projectionSettings = pgTable("projection_settings", {
 }, (table) => ({
   billReminderTimeFormat: check(
     "projection_settings_bill_reminder_time_check",
-    sql`${table.billReminderTime} ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'`
+    reminderTimeCheck(table.billReminderTime)
   ),
 }));
 
@@ -337,7 +339,7 @@ export const incomeStreams = pgTable("income_streams", {
   isEnabled: boolean("is_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  validName: check("income_streams_name_check", sql`length(btrim(${table.name})) > 0`),
+  validName: check("income_streams_name_check", sql`length(trim(${table.name})) > 0`),
   validAmount: check("income_streams_amount_check", sql`${table.netPayCents} > 0 AND ${table.netPayCents} <= 9007199254740991`),
   validSchedule: check("income_streams_schedule_check", sql`
     (${table.scheduleKind} IS NULL AND ${table.intervalDays} IS NULL)
@@ -435,7 +437,7 @@ export const pushSubscriptions = pgTable(
     index("idx_push_subscriptions_owner_id").on(table.ownerId),
     check(
       "push_subscriptions_endpoint_hash_check",
-      sql`${table.endpointHash} ~ '^[0-9a-f]{64}$'`
+      hexDigestCheck(table.endpointHash)
     ),
   ]
 );
@@ -483,7 +485,7 @@ export const paycheckPushDeliveries = pgTable(
     ),
     check(
       "paycheck_push_deliveries_endpoint_hash_check",
-      sql`${table.endpointHashSnapshot} ~ '^[0-9a-f]{64}$'`
+      hexDigestCheck(table.endpointHashSnapshot)
     ),
     check(
       "paycheck_push_deliveries_attempt_count_check",
@@ -520,7 +522,7 @@ export const billPushDeliveries = pgTable(
       table.billInstanceId, table.endpointHashSnapshot, table.reminderDate
     ),
     index("idx_bill_push_deliveries_retry").on(table.status, table.nextAttemptAt),
-    check("bill_push_deliveries_endpoint_hash_check", sql`${table.endpointHashSnapshot} ~ '^[0-9a-f]{64}$'`),
+    check("bill_push_deliveries_endpoint_hash_check", hexDigestCheck(table.endpointHashSnapshot)),
     check("bill_push_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
   ]
 );

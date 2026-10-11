@@ -1,13 +1,11 @@
 import { defineConfig } from "drizzle-kit";
-import * as dotenv from "dotenv";
-
-dotenv.config();
+import { databaseConfig } from "./src/db/config";
 
 export default defineConfig({
   schema: "./src/db/schema.ts",
-  out: "./src/db/migrations",
-  dialect: "postgresql",
+  out: databaseConfig.sqlite ? "./src/db/migrations-sqlite" : "./src/db/migrations",
+  dialect: databaseConfig.sqlite ? "sqlite" : "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL || "postgres://app_user:change_me_secure_pw@127.0.0.1:5433/finance_platform",
+    url: databaseConfig.url,
   },
 });

@@ -21,7 +21,7 @@ The app combines account balances, recurring income, and scheduled bills into a 
 - Flexible income scheduling: weekly, biweekly, monthly, and custom intervals
 - Offline-safe transaction capture using IndexedDB and background sync
 - AI-assisted inbox parsing for incoming expense or transaction data
-- PostgreSQL-backed persistence with Drizzle ORM
+- SQLite persistence for local development and PostgreSQL in production, using Drizzle ORM
 
 ## Tech stack
 
@@ -36,9 +36,9 @@ The app combines account balances, recurring income, and scheduled bills into a 
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22+
 - npm
-- Docker and Docker Compose (recommended for Postgres)
+- Docker and Docker Compose (only needed for the PostgreSQL stack)
 
 ## Local setup
 
@@ -48,32 +48,36 @@ The app combines account balances, recurring income, and scheduled bills into a 
    cp .env.example .env
    ```
 
-2. Start the database:
-
-   ```bash
-   docker compose up -d db
-   ```
-
-3. Install dependencies:
+2. Install dependencies:
 
    ```bash
    npm install
    ```
 
-4. Generate and push the database schema:
+3. Create or update the local SQLite schema:
 
    ```bash
-   npm run db:generate
    npm run db:push
    ```
 
-5. Start the app:
+4. Optionally add sample data with `npm run db:seed`, then start the app:
 
    ```bash
    npm run dev
    ```
 
-6. Open http://localhost:3000
+5. Open http://localhost:3000
+
+Local development defaults to `file:runway.sqlite`; no database server is required.
+If an existing `.env` or `.env.local` contains a PostgreSQL `DATABASE_URL`, change
+it to `file:runway.sqlite` to use SQLite. SQLite files are ignored by Git.
+Run `npm run db:push` after schema changes. Generated SQLite migrations go in
+`src/db/migrations-sqlite`, separate from the PostgreSQL migrations.
+
+Production continues to use PostgreSQL. Set `DATABASE_URL` to your PostgreSQL
+connection URL for production builds, app servers, workers and database commands.
+SQLite URLs are rejected when `NODE_ENV=production`. Local SQLite data is
+independent of production data; this setup does not migrate or copy either.
 
 ## Docker
 
@@ -124,7 +128,7 @@ npm run db:studio
 
 ## Notes
 
-- The database is configured for a PostgreSQL 16 instance.
+- Docker continues to configure PostgreSQL 16 for the app, worker and migration service.
 - The runway forecast is driven by liquid account balances, enabled income streams, and active bills.
 - If no income schedule is configured, the forecast API will return a structured setup error until the required pay settings are added.
 - The app is designed for personal finance use and assumes a local or self-hosted environment rather than a multi-tenant platform.

@@ -1,5 +1,6 @@
+import { lockIncomeSettings } from "../../../../db/locking";
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../../../db";
 import { projectionSettings, incomeStreams } from "../../../../db/schema";
 import { incomeStreamResponse } from "../../../../lib/runway";
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest) {
   }
   try {
     const saved = await db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
+      await lockIncomeSettings(tx);
       let [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
       if (!settings) [settings] = await tx.insert(projectionSettings).values({ expectedSalaryAmount: 0 }).returning();
       if (parsedReminderTime.success) {
@@ -85,7 +86,7 @@ export async function PUT(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Enter positive net pay in whole cents and a real YYYY-MM-DD pay date." }, { status: 400 });
   try {
     const saved = await db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
+      await lockIncomeSettings(tx);
       let [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
       if (!settings) [settings] = await tx.insert(projectionSettings).values({ expectedSalaryAmount: parsed.data.net_pay_cents }).returning();
       const scope = and(eq(incomeStreams.id, settings.id), eq(incomeStreams.projectionSettingsId, settings.id));

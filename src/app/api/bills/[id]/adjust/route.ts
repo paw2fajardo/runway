@@ -1,3 +1,4 @@
+import { lockForUpdate } from "../../../../../db/locking";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!parsed.success) return NextResponse.json({ error: "Choose a valid correction." }, { status: 400 });
   try {
     const result = await db.transaction(async (tx) => {
-      const [instance] = await tx.select().from(billInstances).where(eq(billInstances.id, id)).for("update").limit(1);
+      const [instance] = await lockForUpdate(tx.select().from(billInstances).where(eq(billInstances.id, id))).limit(1);
       if (!instance || instance.status !== "auto_debited" || !instance.linkedTransactionId) return null;
       const [bill] = await tx.select().from(bills).where(eq(bills.id, instance.billId)).limit(1);
       if (!bill) return null;
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         isNotNull(transactionLegs.accountId),
       )).limit(1);
       if (!accountLeg?.accountId || accountLeg.amount >= 0) throw new Error("Original payment account is unavailable.");
-      const [account] = await tx.select().from(accounts).where(eq(accounts.id, accountLeg.accountId)).for("update").limit(1);
+      const [account] = await lockForUpdate(tx.select().from(accounts).where(eq(accounts.id, accountLeg.accountId))).limit(1);
       if (!account) throw new Error("Original payment account is unavailable.");
 
       if (parsed.data.kind === "correct" && !bill.isVariableAmount) {

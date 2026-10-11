@@ -1,5 +1,6 @@
+import { lockIncomeSettings } from "../../../../../db/locking";
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../../db";
 import { accounts, incomeStreams, projectionSettings } from "../../../../../db/schema";
@@ -18,7 +19,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   if (!z.string().uuid().safeParse(id).success || !parsed.success) return NextResponse.json({ error: "Provide a valid income stream and changes." }, { status: 400 });
   try {
     const result = await db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
+      await lockIncomeSettings(tx);
       const [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
       if (!settings) return { status: 404 as const, error: "Income stream not found." };
       const scope = and(eq(incomeStreams.id, id), eq(incomeStreams.projectionSettingsId, settings.id));

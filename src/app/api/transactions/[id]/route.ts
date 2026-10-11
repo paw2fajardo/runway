@@ -1,3 +1,4 @@
+import { lockForUpdate } from "../../../../db/locking";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const body = await req.json();
     const patch = z.object({ type: z.enum(["income", "expense", "transfer"]).optional(), description: z.string().min(1).optional(), transacted_at: z.string().datetime().optional(), source_account_id: z.string().uuid().nullable().optional(), destination_account_id: z.string().uuid().nullable().optional(), category_id: z.string().uuid().nullable().optional(), gross_outflow: z.number().int().nonnegative().optional(), net_inflow: z.number().int().nonnegative().optional(), fee_amount: z.number().int().nonnegative().optional() }).strict().parse(body);
     const result = await db.transaction(async (tx) => {
-    const locked = await tx.select().from(transactions).where(eq(transactions.id, id)).for("update").limit(1);
+    const locked = await lockForUpdate(tx.select().from(transactions).where(eq(transactions.id, id))).limit(1);
     if (!locked.length) return null;
     const current = await loadEligible(tx, id);
     if (!current) return null;
@@ -101,7 +102,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   if (!idSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid transaction id." }, { status: 400 });
   try {
     const deleted = await db.transaction(async (tx) => {
-      const locked = await tx.select().from(transactions).where(eq(transactions.id, id)).for("update").limit(1);
+      const locked = await lockForUpdate(tx.select().from(transactions).where(eq(transactions.id, id))).limit(1);
       if (!locked.length) return false;
       const record = await loadEligible(tx, id);
       if (!record) return false;

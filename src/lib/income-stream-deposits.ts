@@ -1,3 +1,4 @@
+import { lockIncomeSettings } from "../db/locking";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { accounts, incomeStreamDeposits, incomeStreams, projectionSettings } from "../db/schema";
@@ -13,7 +14,7 @@ function localDateOnly(date: Date): string {
 export async function applyDueIncomeStreamDeposits(asOf = new Date()): Promise<number> {
   const today = localDateOnly(asOf);
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
+    await lockIncomeSettings(tx);
     const [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
     if (!settings) return 0;
     const streams = await tx.select().from(incomeStreams).where(and(

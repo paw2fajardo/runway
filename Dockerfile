@@ -19,10 +19,11 @@ RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 recovery
 RUN npm init -y \
     && npm pkg set 'scripts.auth:reset-owner-password=tsx scripts/reset-owner-password.ts' \
-    && npm install --omit=dev --no-save --package-lock=false tsx@4.23.15 drizzle-orm@0.40.1 postgres@3.4.9 dotenv@16.6.1
+    && npm install --omit=dev --no-save --package-lock=false tsx@4.23.15 drizzle-orm@0.40.1 postgres@3.4.9 dotenv@16.6.1 @libsql/client@0.18.0
 COPY --chown=recovery:nodejs scripts/reset-owner-password.ts ./scripts/reset-owner-password.ts
 COPY --chown=recovery:nodejs src/db/index.ts ./src/db/index.ts
 COPY --chown=recovery:nodejs src/db/schema.ts ./src/db/schema.ts
+COPY --chown=recovery:nodejs src/db/config.ts src/db/columns.ts ./src/db/
 COPY --chown=recovery:nodejs src/lib/auth/password.ts ./src/lib/auth/password.ts
 USER recovery
 CMD ["npm", "run", "auth:reset-owner-password"]

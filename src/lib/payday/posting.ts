@@ -1,3 +1,4 @@
+import { lockForUpdate } from "../../db/locking";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../../db";
 import {
@@ -59,21 +60,21 @@ function databaseStore(): OccurrencePostingStore {
 function databaseTransaction(tx: DrizzleTx): OccurrenceTransaction {
   return {
     async lockStream(id, includeDisabled = false) {
-      const [row] = await tx.select().from(incomeStreams)
+      const [row] = await lockForUpdate(tx.select().from(incomeStreams)
         .where(includeDisabled ? eq(incomeStreams.id, id) : and(eq(incomeStreams.id, id), eq(incomeStreams.isEnabled, true)))
-        .for("update").limit(1);
+        ).limit(1);
       return row ?? null;
     },
     async lockOccurrence(id) {
-      const [row] = await tx.select().from(paycheckOccurrences).where(eq(paycheckOccurrences.id, id)).for("update").limit(1);
+      const [row] = await lockForUpdate(tx.select().from(paycheckOccurrences).where(eq(paycheckOccurrences.id, id))).limit(1);
       return row ?? null;
     },
     async lockParent(id) {
-      const [row] = await tx.select().from(paycheckOccurrences).where(eq(paycheckOccurrences.id, id)).for("update").limit(1);
+      const [row] = await lockForUpdate(tx.select().from(paycheckOccurrences).where(eq(paycheckOccurrences.id, id))).limit(1);
       return row ?? null;
     },
     async lockAccount(id) {
-      const [row] = await tx.select().from(accounts).where(eq(accounts.id, id)).for("update").limit(1);
+      const [row] = await lockForUpdate(tx.select().from(accounts).where(eq(accounts.id, id))).limit(1);
       return row ?? null;
     },
     async claimScheduled(stream, dueDate, account) {
