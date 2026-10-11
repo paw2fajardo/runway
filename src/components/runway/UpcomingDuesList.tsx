@@ -2,6 +2,7 @@
 
 import React from "react";
 import { formatPHP } from "@/lib/currency";
+import { billDueState, todayInManila } from "@/lib/bills/due-date";
 
 export interface DueItem {
   id: string;
@@ -25,14 +26,6 @@ function formatDueDate(value: string) {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
-function todayInManila() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 interface UpcomingDuesListProps {
   dues: DueItem[];
   onPayClick?: (due: DueItem) => void;
@@ -50,6 +43,7 @@ export function UpcomingDuesList({
   description = "Unpaid bills",
   emptyMessage = "No bills due before the next payday.",
 }: UpcomingDuesListProps) {
+  const today = todayInManila();
   return (
     <section runway-id={idPrefix} className="flex flex-col space-y-space-sm">
       <div className="flex items-center justify-between gap-3">
@@ -69,8 +63,10 @@ export function UpcomingDuesList({
       {dues.length > 0 ? <ul className="divide-y divide-outline-variant/40 border-y border-outline-variant/50">
         {dues.map((due) => {
           const isGrace = due.status === "grace_period";
-          const isPastDue = isGrace || due.status === "past_due";
-          const autoPostScheduled = Boolean(due.isAutoPay && due.autoPostFrom && due.dueDate >= todayInManila());
+          const dueState = billDueState(due, today);
+          const isPastDue = dueState === "past_due";
+          const dueLabel = dueState === "due_today" ? "Due today" : `Due ${formatDueDate(due.dueDate)}`;
+          const autoPostScheduled = Boolean(due.isAutoPay && due.autoPostFrom && due.dueDate >= today);
           return <li
             key={due.id}
             runway-id={`${idPrefix}.item.${due.id}`}
@@ -92,8 +88,8 @@ export function UpcomingDuesList({
                 {isPastDue
                   ? `Due ${formatDueDate(due.dueDate)} · ${isGrace ? "in grace period" : "past due"}`
                   : due.isAutoPay
-                    ? `Auto-pay from ${due.sourceAccountName || "linked account"} · ${formatDueDate(due.dueDate)}`
-                    : `Due ${formatDueDate(due.dueDate)} · Pay manually`}
+                    ? `Auto-pay from ${due.sourceAccountName || "linked account"} · ${dueState === "due_today" ? "Due today" : formatDueDate(due.dueDate)}`
+                    : `${dueLabel} · Pay manually`}
               </span>
             </div>
 
