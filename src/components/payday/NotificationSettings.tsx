@@ -70,9 +70,9 @@ export function NotificationSettings() {
     } finally { setSaving(false); }
   }
 
-  return <section className="glass-panel mt-space-lg space-y-space-lg p-space-lg" aria-labelledby="notification-settings-heading">
+  return <section className="glass-panel mt-space-md space-y-space-sm p-space-md" aria-labelledby="notification-settings-heading">
     <div>
-      <h2 id="notification-settings-heading" className="text-body-lg font-semibold">Bill and payday notifications</h2>
+      <h2 id="notification-settings-heading" className="text-body-lg font-medium">Bill and payday notifications</h2>
       <p className="text-body-sm text-on-surface-variant">Runway sends bill due, past-due, and payday alerts through ntfy. Install the ntfy app and subscribe to the <span className="font-medium text-on-surface">runway-finance</span> topic on your tailnet.</p>
     </div>
     <p id="notification-schedules-hint" className="text-body-sm text-on-surface-variant">Choose daily times in Manila time (UTC+8). Each time sends one message with your selected bill alerts. Paycheck alerts arrive when a paycheck is deposited.</p>
