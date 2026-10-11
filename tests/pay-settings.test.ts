@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { BillReminderTimeSettingsSchema, PaySettingsSchema } from "../src/lib/types";
+import { BILL_NOTIFICATION_ALERTS, BillNotificationSchedulesSettingsSchema, BillReminderTimeSettingsSchema,
+  PaySettingsSchema, resolveBillNotificationSchedules } from "../src/lib/types";
 describe("Pay settings validation", () => {
+  it("preserves the old reminder time and treats an empty saved list as disabled", () => {
+    expect(resolveBillNotificationSchedules({ billReminderTime: "18:45" })).toEqual([
+      { time: "18:45", alerts: [...BILL_NOTIFICATION_ALERTS] },
+    ]);
+    expect(resolveBillNotificationSchedules({ billNotificationSchedules: [] })).toEqual([]);
+    expect(() => resolveBillNotificationSchedules({ billNotificationSchedules: [{ time: "bad", alerts: [] }] })).toThrow();
+  });
+  it("accepts multiple times with different alert selections", () => {
+    expect(BillNotificationSchedulesSettingsSchema.safeParse({ bill_notification_schedules: [
+      { time: "09:00", alerts: ["past_due", "due_today"] },
+      { time: "18:00", alerts: ["due_tomorrow", "until_payday"] },
+    ] }).success).toBe(true);
+  });
+  it.each([
+    [{ time: "24:00", alerts: ["past_due"] }],
+    [{ time: "09:00", alerts: [] }],
+    [{ time: "09:00", alerts: ["unknown"] }],
+    [{ time: "09:00", alerts: ["past_due", "past_due"] }],
+    [{ time: "09:00", alerts: ["past_due"], unknown: true }],
+    [{ time: "09:00", alerts: ["past_due"] }, { time: "09:00", alerts: ["due_today"] }],
+    Array.from({ length: 9 }, (_, i) => ({ time: `${String(i).padStart(2, "0")}:00`, alerts: ["past_due"] })),
+  ])("rejects invalid schedules before persistence: %j", (...schedules) => {
+    expect(BillNotificationSchedulesSettingsSchema.safeParse({ bill_notification_schedules: schedules }).success).toBe(false);
+  });
   it.each(["00:00", "09:30", "23:59"])("accepts bill reminder time %s", time => {
     expect(BillReminderTimeSettingsSchema.safeParse({ bill_reminder_time: time }).success).toBe(true);
   });

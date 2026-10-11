@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { processDueOccurrences } from "../lib/payday/posting";
-import { deliverNtfyPaydayNotifications } from "../lib/ntfy";
+import { configuredNtfySender, deliverNtfyPaydayNotifications } from "../lib/ntfy";
 import { processDueAutoPayBills } from "../lib/bills/posting";
 import { deliverBillNtfyNotifications } from "../lib/bills/ntfy";
 
@@ -48,6 +48,9 @@ export async function runPaydayWorker(options: {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (!configuredNtfySender()) {
+    console.warn("ntfy notifications disabled: set NTFY_SERVER_URL and NTFY_TOPIC on payday-worker.");
+  }
   void runPaydayWorker().catch(error => {
     console.error("Payday worker stopped:", error instanceof Error ? error.message : "unknown error");
     process.exitCode = 1;

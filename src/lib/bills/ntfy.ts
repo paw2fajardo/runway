@@ -1,7 +1,9 @@
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { db } from "../../db";
-import { billInstances, bills, projectionSettings } from "../../db/schema";
-import { DEFAULT_BILL_REMINDER_TIME } from "../types";
+import { billInstances, bills, incomeStreams, projectionSettings } from "../../db/schema";
+import { BILL_NOTIFICATION_ALERTS, BillNotificationSchedulesSchema, DEFAULT_BILL_REMINDER_TIME,
+  type BillNotificationSchedule } from "../types";
+import { getNextPaydayDate } from "../runway";
 import {
   configuredNtfySender,
   databaseNtfyDeliveryStore,
@@ -15,24 +17,44 @@ type RemindableBill = { id: string; dueDate: string; name: string; amount: numbe
 
 interface BillNtfyStore extends NtfyDeliveryStore {
   getReminderTime(): Promise<string>;
-  listBillsDue(today: string, tomorrow: string): Promise<RemindableBill[]>;
+  getSchedules(): Promise<BillNotificationSchedule[] | null>;
+  getNextPayday(today: string): Promise<string | null>;
+  listBillsDue(today: string, through: string): Promise<RemindableBill[]>;
   listPastDueBills(today: string): Promise<RemindableBill[]>;
 }
 
 const databaseBillNtfyStore: BillNtfyStore = {
   ...databaseNtfyDeliveryStore,
+  async getSchedules() {
+    const [settings] = await db.select({ schedules: projectionSettings.billNotificationSchedules })
+      .from(projectionSettings).orderBy(projectionSettings.id).limit(1);
+    return settings?.schedules == null ? null : BillNotificationSchedulesSchema.parse(settings.schedules);
+  },
   async getReminderTime() {
     const [settings] = await db.select({ billReminderTime: projectionSettings.billReminderTime })
       .from(projectionSettings).orderBy(projectionSettings.id).limit(1);
     return settings?.billReminderTime ?? DEFAULT_BILL_REMINDER_TIME;
   },
-  async listBillsDue(today, tomorrow) {
+  async getNextPayday(today) {
+    const [settings] = await db.select({ id: projectionSettings.id })
+      .from(projectionSettings).orderBy(projectionSettings.id).limit(1);
+    if (!settings) return null;
+    const streams = await db.select().from(incomeStreams).where(and(
+      eq(incomeStreams.projectionSettingsId, settings.id), eq(incomeStreams.isEnabled, true),
+    ));
+    // Use the Manila civil date even when the worker runs in UTC.
+    const reference = new Date(`${today}T00:00:00`);
+    return streams.map(stream => getNextPaydayDate(reference, stream.salaryCycleDays,
+      stream.paydayAnchor, stream.scheduleKind, stream.intervalDays)).sort()[0] ?? null;
+  },
+  async listBillsDue(today, through) {
     return db.select({ id: billInstances.id, dueDate: billInstances.dueDate, name: bills.name, amount: billInstances.amountDue })
       .from(billInstances).innerJoin(bills, eq(billInstances.billId, bills.id)).where(and(
         eq(bills.isActive, true),
-        inArray(billInstances.dueDate, [today, tomorrow]),
+        gte(billInstances.dueDate, today),
+        lte(billInstances.dueDate, through),
         inArray(billInstances.status, ["upcoming", "due_today", "grace_period", "past_due"]),
-      ));
+      )).orderBy(billInstances.dueDate, bills.name);
   },
   async listPastDueBills(today) {
     return db.select({ id: billInstances.id, dueDate: billInstances.dueDate, name: bills.name, amount: billInstances.amountDue })
@@ -40,7 +62,7 @@ const databaseBillNtfyStore: BillNtfyStore = {
         eq(bills.isActive, true),
         inArray(billInstances.status, ["upcoming", "due_today", "grace_period", "past_due"]),
         lt(billInstances.dueDate, today),
-      ));
+      )).orderBy(billInstances.dueDate, bills.name);
   },
 };
 
@@ -69,7 +91,7 @@ function formatGroup(title: string, bills: RemindableBill[], includeDate = false
   return lines;
 }
 
-/** Send daily reminders for bills due today, tomorrow, and already past due. */
+/** Send each configured daily digest once, with only its selected alerts. */
 export async function deliverBillNtfyNotifications(options: {
   store?: BillNtfyStore;
   sender?: NtfySender | null;
@@ -81,22 +103,35 @@ export async function deliverBillNtfyNotifications(options: {
   if (!sender) return 0;
 
   const today = manilaDate(now);
-  if (manilaClockTime(now) < await store.getReminderTime()) return 0;
+  const savedSchedules = await store.getSchedules();
+  const schedules = savedSchedules ?? [{ time: await store.getReminderTime(), alerts: [...BILL_NOTIFICATION_ALERTS] }];
+  const dueSchedules = schedules.filter(schedule => schedule.time <= manilaClockTime(now));
+  if (!dueSchedules.length) return 0;
   const tomorrow = addCalendarDay(today);
+  const payday = dueSchedules.some(schedule => schedule.alerts.includes("until_payday"))
+    ? await store.getNextPayday(today) : null;
+  const through = payday && payday > tomorrow ? payday : tomorrow;
   const [dueBills, pastDueBills] = await Promise.all([
-    store.listBillsDue(today, tomorrow),
+    store.listBillsDue(today, through),
     store.listPastDueBills(today),
   ]);
-  const dueToday = dueBills.filter(bill => bill.dueDate === today);
-  const dueTomorrow = dueBills.filter(bill => bill.dueDate === tomorrow);
-  const count = dueToday.length + dueTomorrow.length + pastDueBills.length;
-  if (count) {
+  for (const schedule of dueSchedules) {
+    const dueToday = schedule.alerts.includes("due_today") ? dueBills.filter(bill => bill.dueDate === today) : [];
+    const dueTomorrow = schedule.alerts.includes("due_tomorrow") ? dueBills.filter(bill => bill.dueDate === tomorrow) : [];
+    const pastDue = schedule.alerts.includes("past_due") ? pastDueBills : [];
+    const alreadyListed = new Set([...dueToday, ...dueTomorrow].map(bill => bill.id));
+    const untilPayday = schedule.alerts.includes("until_payday")
+      ? dueBills.filter(bill => payday && bill.dueDate <= payday && !alreadyListed.has(bill.id)) : [];
+    const count = dueToday.length + dueTomorrow.length + pastDue.length + untilPayday.length;
+    if (!count) continue;
     const message = [
       ...formatGroup("Due today", dueToday),
       ...formatGroup("Due tomorrow", dueTomorrow),
-      ...formatGroup("Past due", pastDueBills, true),
+      ...formatGroup("Past due", pastDue, true),
+      ...formatGroup(`Until payday (${payday})`, untilPayday, true),
     ].join("\n");
-    await store.queue(`bill-digest:${today}`, `Runway bill reminders (${count})`, message);
+    const key = savedSchedules === null ? `bill-digest:${today}` : `bill-digest:${today}:${schedule.time}`;
+    await store.queue(key, `Runway bill reminders (${count})`, message);
   }
   return deliverQueuedNtfyNotifications({ ...options, sender, store });
 }
