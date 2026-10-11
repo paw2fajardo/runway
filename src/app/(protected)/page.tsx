@@ -14,6 +14,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { formatPHP } from "@/lib/currency";
 import { PendingPaychecks } from "@/components/payday/PendingPaychecks";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { billDueState, todayInManila } from "@/lib/bills/due-date";
 
 const MINIMUM_FORECAST_DAYS = 14;
 
@@ -397,14 +398,14 @@ export default function RunwayDashboard() {
   };
 
   const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited");
-  const today = new Date();
-  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const todayDate = todayInManila();
   const nextPaydayDate = forecast?.next_payday_date.slice(0, 10);
   const warningDues = unpaidDues.filter((due) =>
-    due.status === "grace_period" || due.status === "past_due" || due.dueDate < todayDate
+    billDueState(due, todayDate) === "past_due"
   );
+  const todayDues = unpaidDues.filter((due) => billDueState(due, todayDate) === "due_today");
   const upcomingPaydayDues = nextPaydayDate ? unpaidDues
-    .filter((due) => due.dueDate >= todayDate && due.dueDate <= nextPaydayDate && !warningDues.includes(due))
+    .filter((due) => billDueState(due, todayDate) === "upcoming" && due.dueDate <= nextPaydayDate)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name)) : [];
   const negativeDay = forecast?.timeline.find((day) => day.balance < 0);
   const enabledIncomeStreams = incomeStreams?.filter(stream => stream.is_enabled) ?? [];
@@ -493,6 +494,9 @@ export default function RunwayDashboard() {
             {paymentSuccess && <p runway-id="runway.dashboard.payment-success" className="text-body-sm text-secondary" role="status">{paymentSuccess}</p>}
             {warningDues.length > 0 && <div className="border-t-2 border-amber-500/65 pt-4">
               <UpcomingDuesList dues={warningDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.payment-warnings" title="Past-due bills" description="Needs attention" emptyMessage="No past-due bills." />
+            </div>}
+            {todayDues.length > 0 && <div className="border-t-2 border-primary/35 pt-4">
+              <UpcomingDuesList dues={todayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.today-dues" title="Due today" />
             </div>}
             {forecast
               ? <div className="border-t-2 border-primary/35 pt-4"><UpcomingDuesList dues={upcomingPaydayDues} onPayClick={handlePayBill} idPrefix="runway.dashboard.ordinary-dues" title="Upcoming bills" description={`Due through ${paydayDateStr}`} /></div>
