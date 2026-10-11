@@ -7,9 +7,10 @@ import {
   categories,
 } from "../../../../db/schema";
 import { CompoundTransactionSchema } from "../../../../lib/types";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 import { BillPostingError, postBillInstance } from "../../../../lib/bills/posting";
+import { balanceAfterAccountLeg } from "../../../../lib/account-balance";
 
 export async function POST(req: NextRequest) {
   const originError = assertSameOrigin(req);
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
         await tx
           .update(accounts)
           .set({
-            currentBalance: sql`${accounts.currentBalance} - ${grossOutflow}`,
+            currentBalance: balanceAfterAccountLeg(-grossOutflow),
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, parsed.source_account_id));
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
         await tx
           .update(accounts)
           .set({
-            currentBalance: sql`${accounts.currentBalance} + ${netInflow}`,
+            currentBalance: balanceAfterAccountLeg(netInflow),
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, parsed.destination_account_id));
@@ -208,7 +209,7 @@ export async function POST(req: NextRequest) {
         await tx
           .update(accounts)
           .set({
-            currentBalance: sql`${accounts.currentBalance} - ${grossOutflow}`,
+            currentBalance: balanceAfterAccountLeg(-grossOutflow),
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, parsed.source_account_id));
@@ -245,7 +246,7 @@ export async function POST(req: NextRequest) {
         await tx
           .update(accounts)
           .set({
-            currentBalance: sql`${accounts.currentBalance} + ${netInflow}`,
+            currentBalance: balanceAfterAccountLeg(netInflow),
             updatedAt: new Date(),
           })
           .where(eq(accounts.id, parsed.destination_account_id));

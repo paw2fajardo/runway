@@ -88,6 +88,75 @@ describe("local SQLite persistence", () => {
     await expect(postBillInstance(instance.id)).rejects.toThrow("already been recorded");
   });
 
+  it("reduces available credit on spending and restores it on edits, deletion and repayment", async () => {
+    const { NextRequest } = await import("next/server");
+    const { createOwnerSession } = await import("../src/lib/auth/session");
+    const { POST } = await import("../src/app/api/transactions/compound/route");
+    const { PATCH, DELETE } = await import("../src/app/api/transactions/[id]/route");
+    const token = await createOwnerSession(1);
+    const [credit] = await database.db.insert(schema.accounts).values({ name: "Credit test", type: "revolving_credit", currentBalance: 10000, creditLimit: 50000 }).returning();
+    const [cash] = await database.db.insert(schema.accounts).values({ name: "Cash test", type: "liquid", currentBalance: 10000 }).returning();
+    const request = (method: string, body?: unknown) => new NextRequest("http://localhost/api/transactions", {
+      method, headers: { Cookie: `runway_owner_session=${token}`, "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const balance = async (id: string) => (await database.db.select().from(schema.accounts).where(eq(schema.accounts.id, id)))[0].currentBalance;
+    const post = async (body: object) => {
+      const response = await POST(request("POST", { description: "Credit test", ...body }));
+      expect(response.status).toBe(201);
+      return (await response.json()).transaction.id as string;
+    };
+    const remove = async (id: string) => {
+      expect((await DELETE(request("DELETE"), { params: Promise.resolve({ id }) })).status).toBe(200);
+    };
+
+    const expenseId = await post({ type: "expense", source_account_id: credit.id, gross_outflow: 1100, fee_amount: 100, category_name: "Credit test expense" });
+    expect(await balance(credit.id)).toBe(11100);
+    expect(credit.creditLimit! - await balance(credit.id)).toBe(38900);
+    expect((await PATCH(request("PATCH", { gross_outflow: 1600 }), { params: Promise.resolve({ id: expenseId }) })).status).toBe(200);
+    expect(await balance(credit.id)).toBe(11600);
+    expect((await PATCH(request("PATCH", { source_account_id: cash.id }), { params: Promise.resolve({ id: expenseId }) })).status).toBe(200);
+    expect(await balance(credit.id)).toBe(10000);
+    expect(await balance(cash.id)).toBe(8400);
+    await remove(expenseId);
+    expect(await balance(cash.id)).toBe(10000);
+
+    const repaymentId = await post({ type: "transfer", source_account_id: cash.id, destination_account_id: credit.id, gross_outflow: 1500, net_inflow: 1500 });
+    expect(await balance(cash.id)).toBe(8500);
+    expect(await balance(credit.id)).toBe(8500);
+    expect(credit.creditLimit! - await balance(credit.id)).toBe(41500);
+    await remove(repaymentId);
+    expect(await balance(cash.id)).toBe(10000);
+    expect(await balance(credit.id)).toBe(10000);
+
+    const advanceId = await post({ type: "transfer", source_account_id: credit.id, destination_account_id: cash.id, gross_outflow: 700, net_inflow: 600, fee_amount: 100 });
+    expect(await balance(credit.id)).toBe(10700);
+    expect(await balance(cash.id)).toBe(10600);
+    await remove(advanceId);
+    expect(await balance(credit.id)).toBe(10000);
+    expect(await balance(cash.id)).toBe(10000);
+
+    const refundId = await post({ type: "income", destination_account_id: credit.id, net_inflow: 200 });
+    expect(await balance(credit.id)).toBe(9800);
+    expect((await PATCH(request("PATCH", { net_inflow: 300 }), { params: Promise.resolve({ id: refundId }) })).status).toBe(200);
+    expect(await balance(credit.id)).toBe(9700);
+    await remove(refundId);
+    expect(await balance(credit.id)).toBe(10000);
+  });
+
+  it("reduces available credit when a bill is paid with credit", async () => {
+    const [credit] = await database.db.insert(schema.accounts).values({ name: "Bill credit test", type: "revolving_credit", currentBalance: 10000, creditLimit: 50000 }).returning();
+    const [bill] = await database.db.insert(schema.bills).values({ name: "Credit bill", type: "fixed_subscription", sourceAccountId: credit.id, amount: 500, dueDayOfMonth: 11 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-11", dueDate: "2026-10-11", targetSettlementDate: "2026-10-11", amountDue: 500 }).returning();
+    const { postBillInstance } = await import("../src/lib/bills/posting");
+    await postBillInstance(instance.id);
+    const [account] = await database.db.select().from(schema.accounts).where(eq(schema.accounts.id, credit.id));
+    expect(account.currentBalance).toBe(10500);
+    expect(account.creditLimit! - account.currentBalance).toBe(39500);
+    await expect(postBillInstance(instance.id)).rejects.toThrow("already been recorded");
+    expect((await database.db.select().from(schema.accounts).where(eq(schema.accounts.id, credit.id)))[0].currentBalance).toBe(10500);
+  });
+
   it("creates, validates and revokes an owner session", async () => {
     const { createOwnerSession, getOwnerFromRequest, revokeSession } = await import("../src/lib/auth/session");
     const token = await createOwnerSession(1);

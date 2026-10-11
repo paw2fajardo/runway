@@ -4,6 +4,7 @@ import { db } from "../../db";
 import { accounts, billInstances, billPaymentEvents, bills, categories, transactionLegs, transactions } from "../../db/schema";
 import { nextBillDueDate, type BillFrequency } from "../bill-schedule";
 import { manilaDate } from "../payday/occurrences";
+import { balanceAfterAccountLeg } from "../account-balance";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -100,7 +101,7 @@ export async function postBillInstanceInTransaction(
     transactionId: transaction.id, categoryId, amount,
   });
   await tx.update(accounts).set({
-    currentBalance: sql`${accounts.currentBalance} - ${amount}`,
+    currentBalance: balanceAfterAccountLeg(-amount),
     updatedAt: now,
   }).where(eq(accounts.id, accountId));
   const [posted] = await tx.update(billInstances).set({
