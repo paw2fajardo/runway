@@ -7,6 +7,7 @@ function makeStore() {
   const store: BillNtfyStore = {
     listPaydayOccurrences: async () => [],
     getReminderTime: async () => "09:00",
+    getSchedules: async () => null,
     getNextPayday: async () => null,
     listBillsDue: async (today, through) => {
       calls.push([today, through]);
@@ -119,5 +120,54 @@ describe("bill ntfy reminders", () => {
     expect(await deliverBillNtfyNotifications({ store, sender: null, now: new Date("2026-10-10T01:30:00Z") })).toBe(0);
     expect(calls).toHaveLength(0);
     expect(queued).toHaveLength(0);
+  });
+  it("queues each due time with its own selected alerts and skips later times", async () => {
+    const { store, queued } = makeStore();
+    store.getSchedules = async () => [
+      { time: "08:00", alerts: ["past_due"] },
+      { time: "09:00", alerts: ["due_today"] },
+      { time: "18:00", alerts: ["due_tomorrow"] },
+    ];
+    await deliverBillNtfyNotifications({ store, sender: { send: vi.fn() }, now: new Date("2026-10-10T01:30:00Z") });
+    expect(queued.map(row => row[0])).toEqual(["bill-digest:2026-10-10:08:00", "bill-digest:2026-10-10:09:00"]);
+    expect(queued[0][2]).toContain("Past due (1)");
+    expect(queued[0][2]).not.toContain("Internet");
+    expect(queued[1][2]).toContain("Due today (1)");
+    expect(queued[1][2]).not.toContain("Water");
+    expect(queued.every(row => !row[2].includes("Electricity"))).toBe(true);
+  });
+  it("includes today and tomorrow in a payday-only selection", async () => {
+    const { store, queued } = makeStore();
+    store.getSchedules = async () => [{ time: "09:00", alerts: ["until_payday"] }];
+    store.getNextPayday = async () => "2026-10-15";
+    await deliverBillNtfyNotifications({ store, sender: { send: vi.fn() }, now: new Date("2026-10-10T01:00:00Z") });
+    expect(queued[0][2]).toContain("Until payday (2026-10-15) (2)");
+    expect(queued[0][2]).toContain("Internet");
+    expect(queued[0][2]).toContain("Electricity");
+    expect(queued[0][2]).not.toContain("Past due");
+  });
+  it("does not fetch bills or queue messages when all times are removed", async () => {
+    const { store, queued, calls } = makeStore();
+    store.getSchedules = async () => [];
+    await deliverBillNtfyNotifications({ store, sender: { send: vi.fn() }, now: new Date("2026-10-10T12:00:00Z") });
+    expect(queued).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+  it("sends each time once per Manila day across repeated worker polls", async () => {
+    const { store } = makeStore();
+    store.getSchedules = async () => [{ time: "09:00", alerts: ["due_today"] }, { time: "18:00", alerts: ["due_tomorrow"] }];
+    const deliveries = new Map<string, { id: string; title: string; message: string; attemptCount: number; sent: boolean }>();
+    store.queue = async (id, title, message) => {
+      if (!deliveries.has(id)) deliveries.set(id, { id, title, message, attemptCount: 0, sent: false });
+    };
+    store.dueDeliveries = async () => [...deliveries.values()].filter(row => !row.sent);
+    store.finishAttempt = async id => { deliveries.get(id)!.sent = true; };
+    const sender = { send: vi.fn(async () => undefined) };
+    for (const time of ["01:00", "01:01", "10:00", "10:01"]) {
+      await deliverBillNtfyNotifications({ store, sender, now: new Date(`2026-10-10T${time}:00Z`) });
+    }
+    expect(sender.send).toHaveBeenCalledTimes(2);
+    await deliverBillNtfyNotifications({ store, sender, now: new Date("2026-10-11T01:00:00Z") });
+    expect(sender.send).toHaveBeenCalledTimes(3);
   });
 });

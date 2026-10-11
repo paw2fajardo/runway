@@ -19,6 +19,7 @@ import {
   reminderTimeCheck,
 } from "./columns";
 import { relations, sql } from "drizzle-orm";
+import type { BillNotificationSchedule } from "../lib/types";
 
 // Enums
 export const accountTypeEnum = pgEnum("account_type", [
@@ -315,6 +316,7 @@ export const projectionSettings = pgTable("projection_settings", {
     .notNull()
     .default(0),
   billReminderTime: varchar("bill_reminder_time", { length: 5 }).notNull().default("09:00"),
+  billNotificationSchedules: jsonb("bill_notification_schedules").$type<BillNotificationSchedule[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

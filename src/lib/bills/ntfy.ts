@@ -1,7 +1,8 @@
 import { and, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { db } from "../../db";
 import { billInstances, bills, incomeStreams, projectionSettings } from "../../db/schema";
-import { DEFAULT_BILL_REMINDER_TIME } from "../types";
+import { BILL_NOTIFICATION_ALERTS, BillNotificationSchedulesSchema, DEFAULT_BILL_REMINDER_TIME,
+  type BillNotificationSchedule } from "../types";
 import { getNextPaydayDate } from "../runway";
 import {
   configuredNtfySender,
@@ -16,6 +17,7 @@ type RemindableBill = { id: string; dueDate: string; name: string; amount: numbe
 
 interface BillNtfyStore extends NtfyDeliveryStore {
   getReminderTime(): Promise<string>;
+  getSchedules(): Promise<BillNotificationSchedule[] | null>;
   getNextPayday(today: string): Promise<string | null>;
   listBillsDue(today: string, through: string): Promise<RemindableBill[]>;
   listPastDueBills(today: string): Promise<RemindableBill[]>;
@@ -23,6 +25,11 @@ interface BillNtfyStore extends NtfyDeliveryStore {
 
 const databaseBillNtfyStore: BillNtfyStore = {
   ...databaseNtfyDeliveryStore,
+  async getSchedules() {
+    const [settings] = await db.select({ schedules: projectionSettings.billNotificationSchedules })
+      .from(projectionSettings).orderBy(projectionSettings.id).limit(1);
+    return settings?.schedules == null ? null : BillNotificationSchedulesSchema.parse(settings.schedules);
+  },
   async getReminderTime() {
     const [settings] = await db.select({ billReminderTime: projectionSettings.billReminderTime })
       .from(projectionSettings).orderBy(projectionSettings.id).limit(1);
@@ -84,7 +91,7 @@ function formatGroup(title: string, bills: RemindableBill[], includeDate = false
   return lines;
 }
 
-/** Send one daily digest for unpaid bills, including those due through payday. */
+/** Send each configured daily digest once, with only its selected alerts. */
 export async function deliverBillNtfyNotifications(options: {
   store?: BillNtfyStore;
   sender?: NtfySender | null;
@@ -96,26 +103,35 @@ export async function deliverBillNtfyNotifications(options: {
   if (!sender) return 0;
 
   const today = manilaDate(now);
-  if (manilaClockTime(now) < await store.getReminderTime()) return 0;
+  const savedSchedules = await store.getSchedules();
+  const schedules = savedSchedules ?? [{ time: await store.getReminderTime(), alerts: [...BILL_NOTIFICATION_ALERTS] }];
+  const dueSchedules = schedules.filter(schedule => schedule.time <= manilaClockTime(now));
+  if (!dueSchedules.length) return 0;
   const tomorrow = addCalendarDay(today);
-  const payday = await store.getNextPayday(today);
+  const payday = dueSchedules.some(schedule => schedule.alerts.includes("until_payday"))
+    ? await store.getNextPayday(today) : null;
   const through = payday && payday > tomorrow ? payday : tomorrow;
   const [dueBills, pastDueBills] = await Promise.all([
     store.listBillsDue(today, through),
     store.listPastDueBills(today),
   ]);
-  const dueToday = dueBills.filter(bill => bill.dueDate === today);
-  const dueTomorrow = dueBills.filter(bill => bill.dueDate === tomorrow);
-  const untilPayday = dueBills.filter(bill => payday && bill.dueDate > tomorrow && bill.dueDate <= payday);
-  const count = dueToday.length + dueTomorrow.length + pastDueBills.length + untilPayday.length;
-  if (count) {
+  for (const schedule of dueSchedules) {
+    const dueToday = schedule.alerts.includes("due_today") ? dueBills.filter(bill => bill.dueDate === today) : [];
+    const dueTomorrow = schedule.alerts.includes("due_tomorrow") ? dueBills.filter(bill => bill.dueDate === tomorrow) : [];
+    const pastDue = schedule.alerts.includes("past_due") ? pastDueBills : [];
+    const alreadyListed = new Set([...dueToday, ...dueTomorrow].map(bill => bill.id));
+    const untilPayday = schedule.alerts.includes("until_payday")
+      ? dueBills.filter(bill => payday && bill.dueDate <= payday && !alreadyListed.has(bill.id)) : [];
+    const count = dueToday.length + dueTomorrow.length + pastDue.length + untilPayday.length;
+    if (!count) continue;
     const message = [
       ...formatGroup("Due today", dueToday),
       ...formatGroup("Due tomorrow", dueTomorrow),
-      ...formatGroup("Past due", pastDueBills, true),
+      ...formatGroup("Past due", pastDue, true),
       ...formatGroup(`Until payday (${payday})`, untilPayday, true),
     ].join("\n");
-    await store.queue(`bill-digest:${today}`, `Runway bill reminders (${count})`, message);
+    const key = savedSchedules === null ? `bill-digest:${today}` : `bill-digest:${today}:${schedule.time}`;
+    await store.queue(key, `Runway bill reminders (${count})`, message);
   }
   return deliverQueuedNtfyNotifications({ ...options, sender, store });
 }

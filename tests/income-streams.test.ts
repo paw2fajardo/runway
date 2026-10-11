@@ -184,6 +184,39 @@ describe("Primary pay compatibility adapter", () => {
     expect(store.settings[0].billReminderTime).toBe("18:45");
     expect(store.streams[0].netPayCents).toBe(10000);
   });
+  it("loads legacy timing, then persists independent notification times and alert choices", async () => {
+    store.settings[0].billReminderTime = "08:30";
+    const path = "/api/runway/settings?field=bill_notification_schedules";
+    expect(await (await settingsGET(request(undefined, "GET", path))).json()).toMatchObject({
+      bill_notification_schedules: [{ time: "08:30", alerts: ["past_due", "due_today", "due_tomorrow", "until_payday"] }],
+    });
+    const payload = { bill_notification_schedules: [
+      { time: "08:30", alerts: ["past_due", "due_today"] }, { time: "18:00", alerts: ["due_tomorrow"] },
+    ] };
+    expect(await (await settingsPatch(payload)).json()).toEqual(payload);
+    expect(await (await settingsGET(request(undefined, "GET", path))).json()).toEqual(payload);
+    expect(store.settings[0].billReminderTime).toBe("08:30");
+    expect(store.settings[0].dailyDiscretionaryBurn).toBe(85000);
+    expect(store.streams[0].netPayCents).toBe(10000);
+    expect(store.locked).toBe(true);
+  });
+  it("saves an empty schedule list without restoring the legacy reminder", async () => {
+    const payload = { bill_notification_schedules: [] };
+    expect((await settingsPatch(payload)).status).toBe(200);
+    expect(await (await settingsGET(request(undefined, "GET", "/api/runway/settings?field=bill_notification_schedules"))).json()).toEqual(payload);
+  });
+  it("rejects invalid schedules before any writes", async () => {
+    expect((await settingsPatch({ bill_notification_schedules: [{ time: "09:00", alerts: [] }] })).status).toBe(400);
+    expect(store.writes).toEqual([]);
+  });
+  it("requires owner access and same-origin requests for notification schedules", async () => {
+    const payload = { bill_notification_schedules: [] };
+    authMocks.requireOwner.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    expect((await settingsPatch(payload)).status).toBe(401);
+    authMocks.assertSameOrigin.mockReturnValueOnce(new Response(null, { status: 403 }));
+    expect((await settingsPatch(payload)).status).toBe(403);
+    expect(store.writes).toEqual([]);
+  });
   it.each(["24:00", "9:00", "12:60", "noon"])("rejects invalid bill reminder time %s before writes", async time => {
     const response = await settingsPatch({ bill_reminder_time: time });
     expect(response.status).toBe(400);

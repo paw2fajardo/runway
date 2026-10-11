@@ -54,6 +54,31 @@ export const DEFAULT_BILL_REMINDER_TIME = "09:00";
 export const BillReminderTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 export const BillReminderTimeSettingsSchema = z.object({ bill_reminder_time: BillReminderTimeSchema }).strict();
 
+export const BILL_NOTIFICATION_ALERTS = ["past_due", "due_today", "due_tomorrow", "until_payday"] as const;
+export const MAX_BILL_NOTIFICATION_SCHEDULES = 8;
+export const BillNotificationSchedulesSchema = z.array(z.object({
+  time: BillReminderTimeSchema,
+  alerts: z.array(z.enum(BILL_NOTIFICATION_ALERTS)).min(1).max(BILL_NOTIFICATION_ALERTS.length)
+    .refine(alerts => new Set(alerts).size === alerts.length, "Choose each alert once."),
+}).strict()).max(MAX_BILL_NOTIFICATION_SCHEDULES)
+  .refine(schedules => new Set(schedules.map(schedule => schedule.time)).size === schedules.length,
+    "Use a different time for each schedule.");
+export type BillNotificationSchedule = z.infer<typeof BillNotificationSchedulesSchema>[number];
+export const BillNotificationSchedulesSettingsSchema = z.object({
+  bill_notification_schedules: BillNotificationSchedulesSchema,
+}).strict();
+
+export function resolveBillNotificationSchedules(settings?: {
+  billNotificationSchedules?: unknown;
+  billReminderTime?: string | null;
+}): BillNotificationSchedule[] {
+  if (settings?.billNotificationSchedules != null) {
+    return BillNotificationSchedulesSchema.parse(settings.billNotificationSchedules);
+  }
+  return [{ time: BillReminderTimeSchema.parse(settings?.billReminderTime ?? DEFAULT_BILL_REMINDER_TIME),
+    alerts: [...BILL_NOTIFICATION_ALERTS] }];
+}
+
 export const CategoryCreateSchema = z.object({ name: z.string().trim().min(1).max(100), is_income: z.boolean().default(false) }).strict();
 export const CategoryPatchSchema = z.object({ name: z.string().trim().min(1).max(100).optional(), is_income: z.boolean().optional(), is_archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0);
 const incomeStreamFields = {

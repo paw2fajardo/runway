@@ -6,9 +6,11 @@ import { projectionSettings, incomeStreams } from "../../../../db/schema";
 import { incomeStreamResponse } from "../../../../lib/runway";
 import {
   BillReminderTimeSettingsSchema,
+  BillNotificationSchedulesSettingsSchema,
   DailyDiscretionaryBurnSchema,
   DEFAULT_BILL_REMINDER_TIME,
   PaySettingsSchema,
+  resolveBillNotificationSchedules,
 } from "../../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 
@@ -31,6 +33,9 @@ export async function GET(req: NextRequest) {
   try {
     const [settings] = await db.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
     const billReminderTime = settings?.billReminderTime ?? DEFAULT_BILL_REMINDER_TIME;
+    if (req.nextUrl.searchParams.get("field") === "bill_notification_schedules") {
+      return NextResponse.json({ bill_notification_schedules: resolveBillNotificationSchedules(settings) });
+    }
     if (req.nextUrl.searchParams.get("field") === "daily_discretionary_burn_cents") {
       return NextResponse.json({ daily_discretionary_burn_cents: settings?.dailyDiscretionaryBurn ?? 0 });
     }
@@ -54,14 +59,20 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => undefined);
   const parsed = DailyDiscretionaryBurnSchema.safeParse(body);
   const parsedReminderTime = BillReminderTimeSettingsSchema.safeParse(body);
-  if (!parsed.success && !parsedReminderTime.success) {
-    return NextResponse.json({ error: "Enter a nonnegative whole-cent allowance or a valid bill reminder time (HH:MM)." }, { status: 400 });
+  const parsedSchedules = BillNotificationSchedulesSettingsSchema.safeParse(body);
+  if (!parsed.success && !parsedReminderTime.success && !parsedSchedules.success) {
+    return NextResponse.json({ error: "Use valid settings: up to eight distinct notification times (HH:MM), with at least one alert per time." }, { status: 400 });
   }
   try {
     const saved = await db.transaction(async tx => {
       await lockIncomeSettings(tx);
       let [settings] = await tx.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
       if (!settings) [settings] = await tx.insert(projectionSettings).values({ expectedSalaryAmount: 0 }).returning();
+      if (parsedSchedules.success) {
+        await tx.update(projectionSettings).set({ billNotificationSchedules: parsedSchedules.data.bill_notification_schedules,
+          updatedAt: new Date() }).where(eq(projectionSettings.id, settings.id));
+        return parsedSchedules.data;
+      }
       if (parsedReminderTime.success) {
         await tx.update(projectionSettings).set({ billReminderTime: parsedReminderTime.data.bill_reminder_time, updatedAt: new Date() })
           .where(eq(projectionSettings.id, settings.id));
