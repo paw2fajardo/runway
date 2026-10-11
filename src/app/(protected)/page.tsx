@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { ChevronDown } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SolvencyHero } from "@/components/runway/SolvencyHero";
@@ -442,10 +443,10 @@ export default function RunwayDashboard() {
             <span className="sr-only">Loading your runway…</span>
             <div className="flex justify-between gap-3"><Skeleton className="h-8 w-32 bg-white/15" /><Skeleton className="h-8 w-40 bg-white/15" /></div>
             <div className="space-y-3"><Skeleton className="h-12 w-3/4 bg-white/15" /><Skeleton className="h-5 w-2/3 bg-white/15" /></div>
-            <div className="grid grid-cols-2 gap-4 border-t border-white/15 pt-4 sm:grid-cols-3">
-              {[0, 1, 2].map((item) => <div key={item} className="space-y-2"><Skeleton className="h-4 w-20 bg-white/15" /><Skeleton className="h-6 w-28 bg-white/15" /></div>)}
+            <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => <div key={item} className="space-y-2"><Skeleton className="h-4 w-20 bg-white/15" /><Skeleton className="h-6 w-28 bg-white/15" /></div>)}
             </div>
-          </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 text-body-md" role="status">
+          </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel p-6 text-body-md" role="status">
             Runway forecast unavailable.
             <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
@@ -461,9 +462,9 @@ export default function RunwayDashboard() {
           <PendingPaychecks />
 
           <section aria-label="Cash plan management">
-            <details className="border-y border-outline-variant/55">
+            <details className="group/cash-plan border-y border-outline-variant/55">
               <summary runway-id="runway.dashboard.cash-plan-toggle" className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-body-md font-semibold text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <span>Manage income and accounts</span><span className="text-body-sm font-normal text-on-surface-variant">Edit cash plan</span>
+                <span>Manage income and accounts</span><span className="flex shrink-0 items-center gap-space-sm text-body-sm font-normal text-on-surface-variant">Edit cash plan<ChevronDown size={18} aria-hidden="true" className="transition-transform group-open/cash-plan:rotate-180 motion-reduce:transition-none" /></span>
               </summary>
             <div className="flex min-h-[76px] items-center justify-between gap-4 border-t border-outline-variant/40 py-3">
               <div className="min-w-0">
@@ -648,7 +649,7 @@ export default function RunwayDashboard() {
           ? <UpcomingDuesList dues={unpaidDues} onPayClick={handlePayBill} idPrefix="runway.all-dues" title="All unpaid bills" description={`${unpaidDues.length} total`} emptyMessage="No unpaid bills." />
           : <p runway-id="runway.all-dues.empty" className="text-body-md">No unpaid bills.</p>}
       </Dialog>
-      <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Record bill payment">
+      <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Record bill payment" className="app-dialog-top" initialFocus={paymentDue?.isVariableAmount ? "#dashboard-variable-payment-amount" : "#dashboard-payment-source"}>
         {paymentDue && <div className="space-y-4">
           <p className="text-body-md text-on-surface">This records <span className="font-semibold">{paymentDue.name}</span> as paid in Runway. It updates your ledger but does not send money.</p>
           {!paymentDue.isVariableAmount && <p className="text-body-sm text-on-surface-variant">Amount: {formatPHP(paymentDue.amountDue)}{paymentSourceAccountId ? ` · Paid from ${accounts.find(account => account.id === paymentSourceAccountId)?.name ?? "selected account"}` : ""}</p>}

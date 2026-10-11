@@ -240,8 +240,8 @@
 }
 
 :focus-visible {
-  outline: 3px solid #396756;
-  outline-offset: 3px;
+  outline: 1px solid #396756;
+  outline-offset: 2px;
 }
 
 nav[aria-label="Main navigation"] :focus-visible {
@@ -297,7 +297,18 @@ nav[aria-label="Main navigation"] :focus-visible {
   }
   .app-dialog-header-region header { margin-bottom: 0; }
   .app-dialog-quick-log {
-    height: min(760px, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
+    height: min(640px, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
     max-height: min(92dvh, calc(var(--quick-log-viewport-height, 100dvh) - 8px));
+  }
+  .app-dialog-quick-log[open] { display: flex; }
+  .app-dialog.app-dialog-top {
+    inset: max(8px, env(safe-area-inset-top, 0px)) 0 auto;
+    max-height: calc(var(--quick-log-viewport-height, 100dvh) - env(safe-area-inset-top, 0px) - 16px);
+    border-radius: 0 0 1.25rem 1.25rem;
+    transform: translateY(-100%);
+  }
+  .app-dialog.app-dialog-top[open] { transform: translateY(0); }
+  @starting-style {
+    .app-dialog.app-dialog-top[open] { transform: translateY(-100%); }
   }
 }

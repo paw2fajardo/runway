@@ -945,7 +945,7 @@ export default function BillsPage() {
             </div>
           </form>
       </Dialog>
-      <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Record bill payment">
+      <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Record bill payment" className="app-dialog-top" initialFocus={paymentBill?.isVariableAmount ? "#variable-payment-amount" : "#payment-source-account"}>
         {paymentBill && <div className="space-y-4">
           <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentBill.name}</span> from the account that paid it.</p>
           <label className="flex flex-col gap-1" htmlFor="payment-source-account">

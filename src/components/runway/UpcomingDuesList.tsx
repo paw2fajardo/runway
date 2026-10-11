@@ -70,21 +70,21 @@ export function UpcomingDuesList({
           return <li
             key={due.id}
             runway-id={`${idPrefix}.item.${due.id}`}
-            className="flex min-h-[68px] items-center justify-between gap-3 py-3"
+            className="grid grid-cols-1 gap-space-sm py-3 sm:flex sm:min-h-[68px] sm:items-center sm:justify-between sm:gap-3"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span runway-id={`${idPrefix}.item.${due.id}.name`} className="truncate font-body-md text-body-md font-semibold text-on-surface">
+                <span runway-id={`${idPrefix}.item.${due.id}.name`} className="break-words font-body-md text-body-md font-semibold text-on-surface sm:truncate">
                   {due.name}
                 </span>
-                {isPastDue ? <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="rounded px-1.5 py-0.5 text-[10px] font-bold text-error">
+                {isPastDue ? <span runway-id={`${idPrefix}.item.${due.id}.grace-status`} className="rounded px-1.5 py-0.5 text-label-sm font-bold text-error">
                   {isGrace ? "Grace period" : "Past due"}
                 </span> : null}
-                {due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+                {due.isAutoPay ? <span runway-id={`${idPrefix}.item.${due.id}.autopay-status`} className="rounded px-1.5 py-0.5 text-label-sm font-semibold text-on-surface-variant">
                   Auto-pay
                 </span> : null}
               </div>
-              <span runway-id={`${idPrefix}.item.${due.id}.schedule`} className={`block truncate text-body-sm ${isPastDue ? "text-error" : "text-on-surface-variant"}`}>
+              <span runway-id={`${idPrefix}.item.${due.id}.schedule`} className={`block break-words text-body-sm sm:truncate ${isPastDue ? "text-error" : "text-on-surface-variant"}`}>
                 {isPastDue
                   ? `Due ${formatDueDate(due.dueDate)} · ${isGrace ? "in grace period" : "past due"}`
                   : due.isAutoPay
@@ -93,7 +93,7 @@ export function UpcomingDuesList({
               </span>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex min-w-0 items-center justify-between gap-space-sm sm:shrink-0 sm:justify-end sm:gap-3">
               <span runway-id={`${idPrefix}.item.${due.id}.amount`} className="whitespace-nowrap font-currency-md text-currency-md font-bold tabular-nums text-on-surface">
                 {formatPHP(due.amountDue)}
               </span>
@@ -101,7 +101,7 @@ export function UpcomingDuesList({
                 runway-id={`${idPrefix}.item.${due.id}.pay`}
                 type="button"
                 onClick={() => onPayClick?.(due)}
-                className="min-h-10 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="min-h-12 rounded-full px-3 text-label-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {due.isAutoPay || due.isVariableAmount ? "Record payment" : "Record paid"}
               </button>}

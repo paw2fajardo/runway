@@ -217,11 +217,12 @@ export function RapidExpenseDrawer({
       const footerTop = footer?.getBoundingClientRect().top ?? dialogBounds?.bottom ?? window.innerHeight;
       const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
       const topLimit = Math.max(8, dialogBounds?.top ?? 8);
-      const bottomLimit = isDesktop ? window.innerHeight - 8 : Math.min(window.innerHeight - 8, footerTop - 8);
+      const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      const bottomLimit = isDesktop ? viewportBottom - 8 : Math.min(viewportBottom - 8, footerTop - 8);
       const below = bottomLimit - anchor.bottom - 8;
       const above = anchor.top - topLimit - 8;
       const placeAbove = below < 220 && above > below;
-      const available = Math.max(120, placeAbove ? above : below);
+      const available = Math.max(0, placeAbove ? above : below);
       const maxHeight = Math.min(isDesktop ? 240 : 320, available);
       const width = Math.min(anchor.width, window.innerWidth - 24);
       const left = Math.max(12, Math.min(anchor.left, window.innerWidth - width - 12));
@@ -466,7 +467,7 @@ export function RapidExpenseDrawer({
   };
 
   return (
-    <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log">
+    <Dialog open={isOpen} onClose={requestClose} title={editTransaction ? "Edit entry" : "Quick log"} className="app-dialog-quick-log app-dialog-top" initialFocus="#quick-log-amount">
       <div className="quick-log-layout flex h-full min-h-0 flex-col pb-safe">
         {/* Transaction Type Selector */}
         <div className="relative shrink-0 pb-space-xs">
@@ -525,7 +526,7 @@ export function RapidExpenseDrawer({
             <label id="quick-log-amount-label" htmlFor="quick-log-amount" className="text-sm font-semibold text-on-surface">
               Amount
             </label>
-            <div className="quick-log-amount-control flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
+            <div className="quick-log-amount-control flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
               <span runway-id="quick-log.amount.currency" aria-hidden="true" className="text-xl font-semibold text-on-surface-variant">₱</span>
               <input
                 runway-id="quick-log.amount.value"
@@ -604,7 +605,7 @@ export function RapidExpenseDrawer({
                     setActiveCategoryIndex(categoriesList.indexOf(selectedCategory));
                     setIsCategoryOpen((open) => !open);
                   }}
-                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/75 px-4 text-left text-body-md text-on-surface shadow-sm transition-colors hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/75 px-4 text-left text-body-md text-on-surface shadow-sm transition-colors hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   <span className="truncate">{selectedCategory}</span>
                   <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-on-surface-variant transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
@@ -643,7 +644,7 @@ export function RapidExpenseDrawer({
                         }}
                         onKeyDown={handleCategorySearchKeyDown}
                         placeholder="Search categories"
-                        className="min-h-11 w-full rounded-xl bg-surface-container-low pl-10 pr-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        className="min-h-11 w-full rounded-xl bg-surface-container-low pl-10 pr-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus-visible:outline focus-visible:outline-1 focus-visible:outline-primary"
                       />
                     </div>
 
@@ -721,7 +722,7 @@ export function RapidExpenseDrawer({
                 value={selectedSourceId}
                 disabled={accounts.length === 0}
                 onChange={(event) => setSelectedSourceId(event.target.value)}
-                className="min-h-12 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                className="min-h-12 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
               >
                 {accounts.length === 0 && <option value="">No accounts available</option>}
                 {accounts.map((account) => (
@@ -867,7 +868,7 @@ export function RapidExpenseDrawer({
                   <label htmlFor="quick-log-custom-fee" className="text-sm font-semibold text-on-surface">
                     Custom fee amount
                   </label>
-                  <div className="flex min-h-12 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
+                  <div className="flex min-h-12 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
                     <span aria-hidden="true" className="text-base font-semibold text-on-surface-variant">₱</span>
                     <input
                       id="quick-log-custom-fee"

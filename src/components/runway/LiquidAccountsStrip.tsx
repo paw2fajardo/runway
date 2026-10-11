@@ -74,7 +74,7 @@ export function LiquidAccountsStrip({
                 </div>
 
                 {isCredit ? (
-                  <span runway-id={`${idPrefix}.item.${acc.id}.type`} className="inline-flex shrink-0 px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant text-[10px] font-semibold">
+                  <span runway-id={`${idPrefix}.item.${acc.id}.type`} className="inline-flex shrink-0 px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant text-label-sm font-semibold">
                     Credit
                   </span>
                 ) : null}
