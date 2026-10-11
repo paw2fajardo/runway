@@ -49,7 +49,8 @@
   min-height: 0;
   overflow: hidden;
 }
-.quick-log-scroll { container-type: inline-size; }
+.quick-log-scroll { container-type: inline-size; scrollbar-width: none; }
+.quick-log-scroll::-webkit-scrollbar { display: none; }
 .quick-log-category-popover[popover] {
   position: fixed;
   inset: auto;
