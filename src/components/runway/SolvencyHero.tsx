@@ -78,7 +78,7 @@ export function SolvencyHero({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 lg:grid-cols-4">
         <div className="min-w-0">
           <span runway-id="runway.breakdown-liquid-cash-label" className="font-label-sm text-label-sm text-white/70">
             Liquid Cash

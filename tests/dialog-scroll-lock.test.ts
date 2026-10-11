@@ -41,6 +41,30 @@ function openDialog() {
 }
 
 describe("Dialog page scroll lock", () => {
+  it("focuses the requested field after showModal on every open", () => {
+    setup();
+    const focus = vi.fn();
+    const dialog = {
+      open: false,
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      querySelector: vi.fn(() => {
+        expect(dialog.open).toBe(true);
+        return { focus };
+      }),
+    };
+    dialogs.push(dialog);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      effects.length = 0;
+      Dialog({ open: true, onClose: () => {}, title: "Payment", children: null, initialFocus: "#amount" });
+      const close = effects[0]() as () => void;
+      expect(dialog.querySelector).toHaveBeenLastCalledWith("#amount");
+      expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+      close();
+    }
+    expect(focus).toHaveBeenCalledTimes(2);
+  });
+
   it("restores the original overflow after a single dialog closes", () => {
     const body = setup("auto");
     const close = openDialog();

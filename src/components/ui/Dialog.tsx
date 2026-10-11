@@ -13,9 +13,10 @@ interface DialogProps {
   children: ReactNode;
   fullScreen?: boolean;
   className?: string;
+  initialFocus?: string;
 }
 
-export function Dialog({ open, onClose, title, children, fullScreen = false, className = "" }: DialogProps) {
+export function Dialog({ open, onClose, title, children, fullScreen = false, className = "", initialFocus }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const instanceId = useId();
@@ -33,11 +34,12 @@ export function Dialog({ open, onClose, title, children, fullScreen = false, cla
     const dialog = ref.current;
     if (!start || start.pointerId !== event.pointerId || !dialog) return;
 
-    const deltaY = event.clientY - start.y;
+    const direction = className.split(/\s+/).includes("app-dialog-top") && window.matchMedia("(max-width: 639px)").matches ? -1 : 1;
+    const deltaY = (event.clientY - start.y) * direction;
     const deltaX = event.clientX - start.x;
     if (deltaY > 0 && Math.abs(deltaY) > Math.abs(deltaX)) {
       dialog.classList.add("app-dialog-dragging");
-      dialog.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+      dialog.style.transform = `translate3d(0, ${deltaY * direction}px, 0)`;
     }
   };
 
@@ -45,7 +47,8 @@ export function Dialog({ open, onClose, title, children, fullScreen = false, cla
     const start = dragStart.current;
     const dialog = ref.current;
     if (!start || start.pointerId !== event.pointerId || !dialog) return;
-    const deltaY = event.clientY - start.y;
+    const direction = className.split(/\s+/).includes("app-dialog-top") && window.matchMedia("(max-width: 639px)").matches ? -1 : 1;
+    const deltaY = (event.clientY - start.y) * direction;
     const deltaX = event.clientX - start.x;
     dragStart.current = null;
     dialog.classList.remove("app-dialog-dragging");
@@ -58,6 +61,7 @@ export function Dialog({ open, onClose, title, children, fullScreen = false, cla
     if (!dialog || !open) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!dialog.open) dialog.showModal();
+    if (initialFocus) dialog.querySelector<HTMLElement>(initialFocus)?.focus({ preventScroll: true });
     if (openDialogCount === 0) previousBodyOverflow = document.body.style.overflow;
     openDialogCount += 1;
     document.body.style.overflow = "hidden";
@@ -67,10 +71,10 @@ export function Dialog({ open, onClose, title, children, fullScreen = false, cla
       if (openDialogCount === 0) document.body.style.overflow = previousBodyOverflow;
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
-  }, [open]);
+  }, [open, initialFocus]);
 
   useEffect(() => {
-    if (!open || !className.split(/\s+/).includes("app-dialog-quick-log")) return;
+    if (!open || !className.split(/\s+/).some(name => name === "app-dialog-quick-log" || name === "app-dialog-top")) return;
     const dialog = ref.current;
     const viewport = window.visualViewport;
     if (!dialog || !viewport) return;
