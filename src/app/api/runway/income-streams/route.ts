@@ -1,5 +1,6 @@
+import { lockIncomeSettings } from "../../../../db/locking";
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../../../db";
 import { accounts, projectionSettings, incomeStreams } from "../../../../db/schema";
 import { IncomeStreamCreateSchema } from "../../../../lib/types";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Enter a name, positive take-home pay, a valid date, schedule and destination account." }, { status: 400 });
   try {
     const saved = await db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(73142001)`);
+      await lockIncomeSettings(tx);
       const [account] = await tx.select().from(accounts).where(and(
         eq(accounts.id, parsed.data.destination_account_id), eq(accounts.type, "liquid"), eq(accounts.isActive, true),
       )).limit(1);

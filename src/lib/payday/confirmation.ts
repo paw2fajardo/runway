@@ -1,3 +1,4 @@
+import { lockForUpdate } from "../../db/locking";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "../../db";
 import {
@@ -49,8 +50,8 @@ function databaseStore(): ConfirmationStore {
 function databaseTransaction(tx: DrizzleTx): ConfirmationTransaction {
   return {
     async lockOccurrence(id) {
-      const [row] = await tx.select().from(paycheckOccurrences)
-        .where(eq(paycheckOccurrences.id, id)).for("update").limit(1);
+      const [row] = await lockForUpdate(tx.select().from(paycheckOccurrences)
+        .where(eq(paycheckOccurrences.id, id))).limit(1);
       return row ?? null;
     },
     async getOriginalLegs(transactionId) {

@@ -1,3 +1,4 @@
+import { lockForUpdate } from "../../db/locking";
 import { and, eq, inArray, lte, notInArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { accounts, billInstances, billPaymentEvents, bills, categories, transactionLegs, transactions } from "../../db/schema";
@@ -36,7 +37,7 @@ async function createNextOccurrence(
   bill: typeof bills.$inferSelect,
   instance: typeof billInstances.$inferSelect,
 ) {
-  const [{ count }] = await tx.select({ count: sql<number>`count(*)::int` })
+  const [{ count }] = await tx.select({ count: sql<number>`cast(count(*) as integer)` })
     .from(billInstances).where(eq(billInstances.billId, bill.id));
   if (bill.occurrenceLimit !== null && count >= bill.occurrenceLimit) return;
   const nextDueDate = nextBillDueDate(
@@ -58,8 +59,8 @@ export async function postBillInstanceInTransaction(
   instanceId: string,
   options: PostBillOptions = {},
 ) {
-  const [instance] = await tx.select().from(billInstances)
-    .where(eq(billInstances.id, instanceId)).for("update").limit(1);
+  const [instance] = await lockForUpdate(tx.select().from(billInstances)
+    .where(eq(billInstances.id, instanceId))).limit(1);
   if (!instance) throw new BillPostingError("Bill occurrence not found.", 404);
   if (instance.status === "paid" || instance.status === "auto_debited" || instance.linkedTransactionId) {
     throw new BillPostingError("This bill has already been recorded.", 409);
@@ -71,9 +72,8 @@ export async function postBillInstanceInTransaction(
 
   const accountId = options.sourceAccountId ?? bill.sourceAccountId;
   if (!accountId) throw new BillPostingError("Choose the account that paid this bill.");
-  const [account] = await tx.select().from(accounts)
-    .where(and(eq(accounts.id, accountId), eq(accounts.isActive, true)))
-    .for("update").limit(1);
+  const [account] = await lockForUpdate(tx.select().from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.isActive, true)))).limit(1);
   if (!account || !["liquid", "revolving_credit"].includes(account.type)) {
     throw new BillPostingError("Choose an active cash or credit account for this bill.");
   }
@@ -125,13 +125,13 @@ export async function linkExistingBillPaymentInTransaction(
   instanceId: string,
   transactionId: string,
 ) {
-  const [instance] = await tx.select().from(billInstances)
-    .where(eq(billInstances.id, instanceId)).for("update").limit(1);
+  const [instance] = await lockForUpdate(tx.select().from(billInstances)
+    .where(eq(billInstances.id, instanceId))).limit(1);
   if (!instance || instance.status === "paid" || instance.status === "auto_debited" || instance.linkedTransactionId) {
     throw new BillPostingError("This bill is already recorded or unavailable.", 409);
   }
   const [bill] = await tx.select().from(bills).where(eq(bills.id, instance.billId)).limit(1);
-  const [transaction] = await tx.select().from(transactions).where(eq(transactions.id, transactionId)).for("update").limit(1);
+  const [transaction] = await lockForUpdate(tx.select().from(transactions).where(eq(transactions.id, transactionId))).limit(1);
   if (!bill || !transaction || transaction.type !== "expense" || !bill.sourceAccountId) {
     throw new BillPostingError("Choose a matching logged expense.");
   }
