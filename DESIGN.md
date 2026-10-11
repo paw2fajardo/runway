@@ -21,27 +21,27 @@ colors:
 typography:
   headline-lg:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "30px"
+    fontSize: "24px"
     fontWeight: 700
-    lineHeight: "36px"
+    lineHeight: "30px"
     letterSpacing: "-0.025em"
   headline-md:
-    fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "24px"
-    fontWeight: 600
-    lineHeight: "30px"
-    letterSpacing: "-0.015em"
-  headline-sm:
     fontFamily: "Manrope, system-ui, sans-serif"
     fontSize: "20px"
     fontWeight: 600
     lineHeight: "26px"
+    letterSpacing: "-0.015em"
+  headline-sm:
+    fontFamily: "Manrope, system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 600
+    lineHeight: "24px"
     letterSpacing: "-0.01em"
   body-md:
     fontFamily: "Manrope, system-ui, sans-serif"
-    fontSize: "16px"
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: "24px"
+    lineHeight: "20px"
     letterSpacing: "0em"
   body-sm:
     fontFamily: "Manrope, system-ui, sans-serif"
@@ -63,9 +63,9 @@ typography:
     letterSpacing: "0.01em"
   currency-display:
     fontFamily: "var(--font-mono), JetBrains Mono, monospace"
-    fontSize: "34px"
+    fontSize: "26px"
     fontWeight: 600
-    lineHeight: "40px"
+    lineHeight: "32px"
     letterSpacing: "-0.03em"
   currency-md:
     fontFamily: "var(--font-mono), JetBrains Mono, monospace"
