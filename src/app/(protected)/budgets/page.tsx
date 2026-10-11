@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
 
 type Cadence = "once" | "weekly" | "biweekly" | "monthly";
@@ -18,6 +19,18 @@ export default function BudgetsPage() {
   const [cadence, setCadence] = useState<Cadence>("once");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState(false);
+  const [accounts, setAccounts] = useState<NonNullable<ComponentProps<typeof RapidExpenseDrawer>["accounts"]>>([]);
+  const loadAccounts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/accounts");
+      if (!response.ok) throw new Error("Could not load accounts.");
+      setAccounts(await response.json());
+    } catch {
+      setError("Could not load accounts. Close Quick log and try again.");
+    }
+  }, []);
+  useEffect(() => { if (isQuickLogOpen) void loadAccounts(); }, [isQuickLogOpen, loadAccounts]);
   const load = useCallback(async () => {
     const response = await fetch("/api/planned-budgets");
     if (response.ok) setItems(await response.json());
@@ -54,5 +67,7 @@ export default function BudgetsPage() {
       <button disabled={saving} className="min-h-11 rounded-full bg-secondary-fixed px-4 font-semibold text-primary disabled:opacity-50">{saving ? "Saving…" : "Add to forecast"}</button>
     </form>
     <section className="space-y-3" aria-label="Active budget plans"><h2 className="text-title-md font-semibold">Active plans</h2>{items.length ? items.map(item => <article key={item.id} className="flex items-center justify-between gap-3 border-b border-outline-variant/50 py-3"><div><h3 className="font-semibold">{item.name}</h3><p className="text-body-sm text-on-surface-variant">{formatPHP(item.amountCents)} · {cadenceLabel[item.cadence]} · from {item.startDate}</p></div><button type="button" onClick={() => void deactivate(item.id)} className="min-h-11 rounded-full px-3 text-label-md font-semibold text-error">Remove</button></article>) : <p className="text-body-md text-on-surface-variant">No budget plans yet.</p>}</section>
-  </main><BottomNav /></div>;
+  </main><BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+    <RapidExpenseDrawer isOpen={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} onSuccess={loadAccounts} accounts={accounts} />
+  </div>;
 }

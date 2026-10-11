@@ -214,7 +214,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       placeholder="e.g. alex"
-                      className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface placeholder:text-outline focus:border-secondary focus:bg-white focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                      className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface placeholder:text-outline focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20"
                     />
                     {mode === "setup" ? <p className="mt-2 text-xs leading-5 text-on-surface-variant">3–80 characters; letters, numbers, dots, underscores, and hyphens.</p> : null}
                   </div>
@@ -231,7 +231,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
                       maxLength={1024}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface placeholder:text-outline focus:border-secondary focus:bg-white focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                      className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface placeholder:text-outline focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20"
                     />
                     {mode === "setup" ? <p className="mt-2 text-xs leading-5 text-on-surface-variant">Use at least 12 characters. Longer passphrases work well.</p> : null}
                   </div>
@@ -251,7 +251,7 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
                         onChange={(event) => setConfirmation(event.target.value)}
                         aria-invalid={Boolean(confirmationError)}
                         aria-describedby={confirmationError ? "owner-confirm-error" : undefined}
-                        className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface focus:border-secondary focus:bg-white focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                        className="min-h-12 w-full rounded-xl border border-outline-variant bg-white/80 px-4 text-base text-on-surface focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary/20"
                       />
                       {confirmationError ? <p id="owner-confirm-error" className="mt-2 text-sm font-medium text-error" role="alert">{confirmationError}</p> : null}
                     </div>

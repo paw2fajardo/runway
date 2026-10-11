@@ -520,13 +520,13 @@ export function RapidExpenseDrawer({
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="quick-log-scroll flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1">
+        <div className="quick-log-scroll flex min-h-0 flex-1 flex-col gap-space-md overflow-y-auto overscroll-contain pr-1">
           {/* Amount Display & Runway Impact */}
-          <section className="flex flex-col gap-2" aria-labelledby="quick-log-amount-label">
+          <section className="flex flex-col gap-space-xs" aria-labelledby="quick-log-amount-label">
             <label id="quick-log-amount-label" htmlFor="quick-log-amount" className="text-sm font-semibold text-on-surface">
               Amount
             </label>
-            <div className="quick-log-amount-control flex min-h-16 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
+            <div className="quick-log-amount-control flex min-h-11 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
               <span runway-id="quick-log.amount.currency" aria-hidden="true" className="text-xl font-semibold text-on-surface-variant">₱</span>
               <input
                 runway-id="quick-log.amount.value"
@@ -546,13 +546,13 @@ export function RapidExpenseDrawer({
                 aria-label="Amount in Philippine pesos"
                 aria-describedby="quick-log-amount-hint"
                 placeholder="0.00"
-                className="min-w-0 flex-1 bg-transparent py-2 text-xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
+                className="min-w-0 flex-1 bg-transparent py-1 text-xl font-semibold tabular-nums tracking-tight text-on-surface outline-none placeholder:text-outline-variant"
               />
             </div>
             <p id="quick-log-amount-hint" runway-id="quick-log.amount.hint" className="text-sm text-on-surface-variant">
               Enter an amount in pesos.
             </p>
-            {editTransaction && <div className="flex flex-col gap-2"><label htmlFor="quick-log-description" className="text-sm font-semibold text-on-surface">Description</label><input id="quick-log-description" value={descriptionInput} onChange={(event) => setDescriptionInput(event.target.value)} className="min-h-12 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
+            {editTransaction && <div className="flex flex-col gap-space-xs"><label htmlFor="quick-log-description" className="text-sm font-semibold text-on-surface">Description</label><input id="quick-log-description" value={descriptionInput} onChange={(event) => setDescriptionInput(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
 
             {/* Runway Impact Readout */}
             {mode === "expense" && daysToPayday !== undefined && daysToPayday > 0 && baseCents > 0 && (
@@ -587,7 +587,7 @@ export function RapidExpenseDrawer({
           {/* Category Allocation (if Expense) */}
           <div className={`quick-log-core-fields${mode === "inflow" ? " quick-log-core-fields-single" : ""}`}>
             {(mode === "expense" || (editTransaction && mode === "inflow")) && (
-              <div className="flex min-w-0 flex-col gap-2">
+              <div className="flex min-w-0 flex-col gap-space-xs">
                 <span runway-id="quick-log.category.label" className="text-sm font-semibold text-on-surface">
                   Category
                 </span>
@@ -605,7 +605,7 @@ export function RapidExpenseDrawer({
                     setActiveCategoryIndex(categoriesList.indexOf(selectedCategory));
                     setIsCategoryOpen((open) => !open);
                   }}
-                  className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/75 px-4 text-left text-body-md text-on-surface shadow-sm transition-colors hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-white/70 bg-white/75 px-4 text-left text-body-md text-on-surface shadow-sm transition-colors hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   <span className="truncate">{selectedCategory}</span>
                   <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-on-surface-variant transition-transform ${isCategoryOpen ? "rotate-180" : ""}`} />
@@ -708,10 +708,10 @@ export function RapidExpenseDrawer({
                 </div>
               </div>
             )}
-            {editTransaction && <div className="flex flex-col gap-2"><label htmlFor="quick-log-date" className="text-sm font-semibold text-on-surface">Date and time</label><input id="quick-log-date" type="datetime-local" value={transactedAt} onChange={(event) => setTransactedAt(event.target.value)} className="min-h-12 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
+            {editTransaction && <div className="flex flex-col gap-space-xs"><label htmlFor="quick-log-date" className="text-sm font-semibold text-on-surface">Date and time</label><input id="quick-log-date" type="datetime-local" value={transactedAt} onChange={(event) => setTransactedAt(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant bg-white px-4 text-on-surface" /></div>}
 
             {/* Source Account Selector */}
-            <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-space-xs">
               <label runway-id="quick-log.source-account.label" htmlFor="quick-log-source-account" className="text-sm font-semibold text-on-surface">
                 {mode === "inflow" ? "Deposit to" : mode === "transfer" ? "Transfer from" : "Paid from"}
               </label>
@@ -722,7 +722,7 @@ export function RapidExpenseDrawer({
                 value={selectedSourceId}
                 disabled={accounts.length === 0}
                 onChange={(event) => setSelectedSourceId(event.target.value)}
-                className="min-h-12 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                className="min-h-11 w-full appearance-none rounded-xl border border-white/70 bg-white/75 px-4 pr-11 text-body-md text-on-surface shadow-sm transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
               >
                 {accounts.length === 0 && <option value="">No accounts available</option>}
                 {accounts.map((account) => (
@@ -774,7 +774,7 @@ export function RapidExpenseDrawer({
 
           {/* Instant Fee Chips (Only for Expense & Transfer) */}
           {mode !== "inflow" && (
-            <div className="flex flex-col gap-3 border-t border-outline-variant/70 pt-4">
+            <div className="flex flex-col gap-space-sm border-t border-outline-variant/70 pt-space-sm">
               <div className="flex items-center justify-between gap-3">
                 <span runway-id="quick-log.fee.label" className="text-sm font-semibold text-on-surface">
                   Fee
@@ -868,7 +868,7 @@ export function RapidExpenseDrawer({
                   <label htmlFor="quick-log-custom-fee" className="text-sm font-semibold text-on-surface">
                     Custom fee amount
                   </label>
-                  <div className="flex min-h-12 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
+                  <div className="flex min-h-11 items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 transition focus-within:border-secondary">
                     <span aria-hidden="true" className="text-base font-semibold text-on-surface-variant">₱</span>
                     <input
                       id="quick-log-custom-fee"
@@ -898,7 +898,7 @@ export function RapidExpenseDrawer({
         </div>
 
         {/* Confirm Button Area */}
-        <div className="quick-log-footer mt-4 shrink-0 border-t border-outline-variant/70 pt-4">
+        <div className="quick-log-footer mt-space-sm shrink-0 border-t border-outline-variant/70 pt-space-sm">
           {!editTransaction && <a href="/transactions" className="mb-3 block text-center text-body-sm text-secondary underline">View logged activity</a>}
           {successMessage && <p role="status" aria-live="polite" className="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-secondary-container px-4 text-center text-body-sm font-semibold text-on-secondary-container"><Check size={18} aria-hidden="true" />{successMessage}</p>}
           {submitError && <p runway-id="quick-log.submit.error" role="alert" className="mb-space-xs text-center text-body-sm text-error">{submitError}</p>}
@@ -908,7 +908,7 @@ export function RapidExpenseDrawer({
               type="button"
               onClick={handleConfirm}
               disabled={isSubmitting || !!successMessage || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
-              className="w-full min-h-16 py-4 rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
+              className="w-full min-h-11 py-space-sm rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">
                 <span runway-id="quick-log.confirm.icon" className="material-symbols-outlined text-[18px]">verified</span>

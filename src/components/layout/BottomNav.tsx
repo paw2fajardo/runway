@@ -19,8 +19,9 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
   const isBudgets = pathname.startsWith("/budgets");
 
   return (
+    <>
     <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-full max-w-lg px-space-xs">
-      <div className="grid grid-cols-6 rounded-full border border-white/15 bg-primary-container/95 p-space-xs shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
+      <div className="grid grid-cols-5 rounded-full border border-white/15 bg-primary-container/95 p-space-xs shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
         {/* Tab 1: Runway */}
         <Link
           href="/"
@@ -58,18 +59,6 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <PiggyBank size={20} aria-hidden="true" /><span className="text-label-sm">Budgets</span>
         </Link>
 
-        {/* Tab 3: Center Action (+) FAB */}
-          <button
-            onClick={onOpenQuickLog}
-            runway-id="runway.nav.quick-log"
-            aria-label="Open Rapid Expense Log"
-            type="button"
-            className="min-w-0 min-h-14 rounded-full bg-secondary-fixed text-primary flex flex-col items-center justify-center gap-0.5 shadow-sm active:scale-95 transition-transform duration-100"
-          >
-            <Plus size={22} aria-hidden="true" />
-            <span className="text-label-sm font-semibold">Log</span>
-          </button>
-
         {/* Tab 4: Accounts */}
         <Link
           href="/accounts"
@@ -103,5 +92,15 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
         </Link>
       </div>
     </nav>
+    <button
+      onClick={onOpenQuickLog}
+      runway-id="runway.nav.quick-log"
+      aria-label="Open Rapid Expense Log"
+      type="button"
+      className="fixed z-40 right-space-lg bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] lg:bottom-space-lg h-14 w-14 rounded-full bg-secondary-fixed text-primary flex flex-col items-center justify-center gap-0.5 shadow-lg active:scale-95 transition-transform duration-100 motion-reduce:transition-none"
+    >
+      <Plus size={22} aria-hidden="true" />
+    </button>
+    </>
   );
 }
