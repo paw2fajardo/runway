@@ -19,6 +19,7 @@ interface BillItem {
   amountDue: number;
   dueDate: string;
   status: string;
+  cashPaidAt?: string | null;
   isEstimate: boolean;
   isAutoPay: boolean;
   autoPostFrom?: string | null;
@@ -159,7 +160,7 @@ export default function BillsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(amount !== undefined && { amount }),
-          ...(sourceAccountId && { source_account_id: sourceAccountId }),
+          ...(sourceAccountId === "cash" ? { payment_method: "cash" } : sourceAccountId && { source_account_id: sourceAccountId }),
         }),
       });
       if (!res.ok) {
@@ -318,7 +319,7 @@ export default function BillsPage() {
   };
 
   const activeBills = bills.filter((b) => b.status !== "paid" && b.status !== "auto_debited");
-  const postedAutoBills = bills.filter((b) => b.status === "auto_debited").slice(-5).reverse();
+  const recentPaidBills = bills.filter((b) => b.status === "auto_debited" || (b.status === "paid" && b.cashPaidAt)).slice(-5).reverse();
   const committedTotal = activeBills.reduce((acc, b) => acc + b.amountDue, 0);
   const utilitiesTotal = activeBills
     .filter((b) => b.type === "variable_utility")
@@ -344,7 +345,7 @@ export default function BillsPage() {
   const matchingPaidBills = searchTerm
     ? bills.filter((b) => (b.status === "paid" || b.status === "auto_debited") && b.name.toLocaleLowerCase().includes(searchTerm))
       .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
-    : postedAutoBills;
+    : recentPaidBills;
   const searchResultCount = visibleBills.length + (searchTerm ? matchingPaidBills.length : 0);
   // Groups use the selected list so the tabs filter every rendered obligation.
   const graceBills = visibleBills.filter((b) => b.status === "grace_period" && !b.isAutoPay);
@@ -669,10 +670,12 @@ export default function BillsPage() {
             )}
           </div>}
 
-          {matchingPaidBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label={searchTerm ? "Paid bills" : "Recent auto-pay"}>
-            <h2 className="font-label-md text-label-md font-semibold text-on-surface">{searchTerm ? "Paid bills" : "Recently posted in Runway"}</h2>
+          {matchingPaidBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label={searchTerm ? "Paid bills" : "Recent payments"}>
+            <h2 className="font-label-md text-label-md font-semibold text-on-surface">{searchTerm ? "Paid bills" : "Recent payments"}</h2>
             {matchingPaidBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/40 py-2 text-body-sm last:border-b-0">
-              <span><span className="font-semibold text-on-surface">{bill.name}</span> · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && !bill.hasCorrection ? " estimated" : ""}</span>
+              <span><span className="font-semibold text-on-surface">{bill.name}</span> · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && bill.status === "auto_debited" && !bill.hasCorrection ? " estimated" : ""}
+                {bill.cashPaidAt && <span className="block text-on-surface-variant">Paid in cash · {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(bill.cashPaidAt))}</span>}
+              </span>
               <div className="flex items-center gap-2">
                 {searchTerm && <button type="button" onClick={() => setDetailBill(bill)} className="min-h-11 px-2 font-semibold text-primary lg:min-h-10">Details</button>}
                 {bill.status === "auto_debited" && <>
@@ -947,18 +950,20 @@ export default function BillsPage() {
       </Dialog>
       <Dialog open={paymentBill !== null} onClose={() => { if (!isPaymentSaving) { setPaymentBill(null); setPaymentError(null); } }} title="Record bill payment" className="app-dialog-top" initialFocus={paymentBill?.isVariableAmount ? "#variable-payment-amount" : "#payment-source-account"}>
         {paymentBill && <div className="space-y-4">
-          <p className="text-body-md text-on-surface">Record <span className="font-semibold">{paymentBill.name}</span> from the account that paid it.</p>
+          <p className="text-body-md text-on-surface">Record how you paid <span className="font-semibold">{paymentBill.name}</span>.</p>
           <label className="flex flex-col gap-1" htmlFor="payment-source-account">
             <span className="text-body-sm font-semibold text-on-surface">Paid from</span>
             <span className="relative block">
-              <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)}
+              <select id="payment-source-account" value={paymentSourceAccountId} onChange={(event) => { setPaymentSourceAccountId(event.target.value); setPaymentError(null); }}
                 className="h-11 w-full appearance-none rounded-xl border border-outline-variant/60 bg-white px-3 pr-11 text-body-md text-on-surface">
-                <option value="">Choose account</option>
+                <option value="">Choose account or cash</option>
+                <option value="cash">Cash (untracked)</option>
                 {paymentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
               <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             </span>
           </label>
+          {paymentSourceAccountId === "cash" && <p role="status" className="text-body-sm text-on-surface-variant">Marks this bill paid. No account balance or transaction will change.</p>}
           {paymentBill.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="variable-payment-amount">
             <span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span>
             <input id="variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" />

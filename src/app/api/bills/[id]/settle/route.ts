@@ -4,9 +4,10 @@ import { assertSameOrigin, requireOwner } from "../../../../../lib/auth/guard";
 import { BillPostingError, postBillInstance } from "../../../../../lib/bills/posting";
 
 const settlementSchema = z.object({
-  amount: z.number().int().positive().optional(),
+  amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
   source_account_id: z.string().uuid().optional(),
-}).strict();
+  payment_method: z.enum(["account", "cash"]).optional(),
+}).strict().refine(value => value.payment_method !== "cash" || !value.source_account_id);
 
 export async function POST(
   req: NextRequest,
@@ -29,6 +30,7 @@ export async function POST(
     const result = await postBillInstance(id, {
       amount: parsed.data.amount,
       sourceAccountId: parsed.data.source_account_id,
+      paymentMethod: parsed.data.payment_method,
     });
     return NextResponse.json(result);
   } catch (error) {

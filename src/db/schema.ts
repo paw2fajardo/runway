@@ -247,6 +247,7 @@ export const billInstances = pgTable(
     }).notNull(),
     amountDue: bigint("amount_due", { mode: "number" }).notNull(),
     status: billStatusEnum("status").notNull().default("upcoming"),
+    cashPaidAt: timestamp("cash_paid_at", { withTimezone: true }),
     linkedTransactionId: uuid("linked_transaction_id").references(
       () => transactions.id,
       { onDelete: "set null" }

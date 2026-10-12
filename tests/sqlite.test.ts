@@ -88,6 +88,93 @@ describe("local SQLite persistence", () => {
     await expect(postBillInstance(instance.id)).rejects.toThrow("already been recorded");
   });
 
+  it.each([null, "liquid", "revolving_credit"] as const)("records cash payment with configured account type %s without changing money", async type => {
+    const sourceId = type === "liquid" ? accountId : type === "revolving_credit"
+      ? (await database.db.insert(schema.accounts).values({ name: "Cash payment credit", type,
+        currentBalance: 3000, creditLimit: 20000 }).returning())[0].id : null;
+    const [bill] = await database.db.insert(schema.bills).values({ name: "Untracked cash bill", type: "fixed_subscription",
+      sourceAccountId: sourceId, amount: 500, dueDayOfMonth: 11 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-11",
+      dueDate: "2026-10-11", targetSettlementDate: "2026-10-11", amountDue: 500 }).returning();
+    const balances = await database.db.select({ id: schema.accounts.id, balance: schema.accounts.currentBalance }).from(schema.accounts);
+    const transactions = await database.db.select().from(schema.transactions);
+    const legs = await database.db.select().from(schema.transactionLegs);
+    const events = await database.db.select().from(schema.billPaymentEvents);
+    const now = new Date("2026-10-12T01:00:00Z");
+    const { postBillInstance } = await import("../src/lib/bills/posting");
+    const result = await postBillInstance(instance.id, { paymentMethod: "cash", now });
+    expect(result.instance.status).toBe("paid");
+    expect(result.instance.cashPaidAt).toEqual(now);
+    expect(result.instance.amountDue).toBe(500);
+    expect(result.instance.linkedTransactionId).toBeNull();
+    expect(result.transaction).toBeNull();
+    expect(await database.db.select({ id: schema.accounts.id, balance: schema.accounts.currentBalance }).from(schema.accounts)).toEqual(balances);
+    expect(await database.db.select().from(schema.transactions)).toEqual(transactions);
+    expect(await database.db.select().from(schema.transactionLegs)).toEqual(legs);
+    expect(await database.db.select().from(schema.billPaymentEvents)).toEqual(events);
+    expect((await database.db.select().from(schema.bills).where(eq(schema.bills.id, bill.id)))[0].sourceAccountId).toBe(sourceId);
+    const instances = await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id));
+    expect(instances).toHaveLength(2);
+    expect(instances.find(row => row.dueDate === "2026-11-11")?.cashPaidAt).toBeNull();
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash" })).rejects.toThrow("already been recorded");
+    expect(await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id))).toHaveLength(2);
+  });
+
+  it("requires an actual cash amount for variable bills and respects the recurrence limit", async () => {
+    const [bill] = await database.db.insert(schema.bills).values({ name: "Variable cash bill", type: "fixed_subscription",
+      amount: 500, isVariableAmount: true, dueDayOfMonth: 11, occurrenceLimit: 1 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-11",
+      dueDate: "2026-10-11", targetSettlementDate: "2026-10-11", amountDue: 500 }).returning();
+    const { postBillInstance } = await import("../src/lib/bills/posting");
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash" })).rejects.toThrow("Enter the amount");
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash", amount: 0 })).rejects.toThrow("greater than zero");
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash", amount: 1234, automatic: true })).rejects.toThrow();
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash", amount: 1234, sourceAccountId: accountId })).rejects.toThrow();
+    const result = await postBillInstance(instance.id, { paymentMethod: "cash", amount: 1234 });
+    expect(result.instance.amountDue).toBe(1234);
+    expect(await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id))).toHaveLength(1);
+  });
+
+  it("rolls back cash history when the next occurrence cannot be created", async () => {
+    const [bill] = await database.db.insert(schema.bills).values({ name: "Failed recurrence", type: "fixed_subscription",
+      amount: 500, dueDayOfMonth: 11 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-11",
+      dueDate: "2026-10-11", targetSettlementDate: "2026-10-11", amountDue: 500 }).returning();
+    const { postBillInstance } = await import("../src/lib/bills/posting");
+    const localDb = database.db as unknown as ReturnType<typeof drizzle>;
+    await localDb.run(sql.raw("CREATE TEMP TRIGGER reject_cash_recurrence BEFORE INSERT ON bill_instances BEGIN SELECT RAISE(ABORT, 'test recurrence failure'); END"));
+    try {
+      await expect(postBillInstance(instance.id, { paymentMethod: "cash" })).rejects.toThrow();
+    } finally { await localDb.run(sql.raw("DROP TRIGGER reject_cash_recurrence")); }
+    const [saved] = await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.id, instance.id));
+    expect(saved.status).toBe("upcoming");
+    expect(saved.cashPaidAt).toBeNull();
+  });
+
+  it("validates cash settlement through the authenticated API and exposes its history", async () => {
+    const { NextRequest } = await import("next/server");
+    const { createOwnerSession } = await import("../src/lib/auth/session");
+    const { POST } = await import("../src/app/api/bills/[id]/settle/route");
+    const { GET } = await import("../src/app/api/bills/route");
+    const [bill] = await database.db.insert(schema.bills).values({ name: "API cash bill", type: "fixed_subscription", amount: 500, dueDayOfMonth: 11 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-11",
+      dueDate: "2026-10-11", targetSettlementDate: "2026-10-11", amountDue: 500 }).returning();
+    const token = await createOwnerSession(1);
+    const request = (body: unknown, cookie = true, origin = "http://localhost") => new NextRequest(`http://localhost/api/bills/${instance.id}/settle`, {
+      method: "POST", headers: { "Content-Type": "application/json", Origin: origin,
+        ...(cookie ? { Cookie: `runway_owner_session=${token}` } : {}) }, body: JSON.stringify(body),
+    });
+    const context = { params: Promise.resolve({ id: instance.id }) };
+    expect((await POST(request({ payment_method: "cash" }, false), context)).status).toBe(401);
+    expect((await POST(request({ payment_method: "cash" }, true, "https://foreign.example"), context)).status).toBe(403);
+    expect((await POST(request({ payment_method: "unknown" }), context)).status).toBe(400);
+    expect((await POST(request({ payment_method: "cash", source_account_id: accountId }), context)).status).toBe(400);
+    expect((await POST(request({ payment_method: "cash" }), context)).status).toBe(200);
+    const rows = await (await GET(new Request("http://localhost/api/bills", { headers: { Cookie: `runway_owner_session=${token}` } }))).json();
+    expect(rows.find((row: { instanceId: string }) => row.instanceId === instance.id)).toMatchObject({ status: "paid", amountDue: 500, cashPaidAt: expect.any(String) });
+    expect((await POST(request({ payment_method: "cash" }), context)).status).toBe(409);
+  });
+
   it("reduces available credit on spending and restores it on edits, deletion and repayment", async () => {
     const { NextRequest } = await import("next/server");
     const { createOwnerSession } = await import("../src/lib/auth/session");
