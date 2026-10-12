@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../../db";
-import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../../db/schema";
+import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, plannedBudgetExpenses, transactionLegs, transactions } from "../../../../db/schema";
 import { CompoundTransactionSchema } from "../../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 import { accountBalanceAdjustments, isQuickLogEligible } from "../../../../lib/transaction-crud";
@@ -64,6 +64,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       net_inflow: Math.max(...accountLegs.map((leg) => leg.amount)), fee_amount: oldFee,
     };
     const parsed = CompoundTransactionSchema.parse({ ...derived, type: current.parent.type, description: current.parent.description, transacted_at: current.parent.transactedAt.toISOString(), ...patch });
+    const [budgetLink] = await tx.select().from(plannedBudgetExpenses).where(eq(plannedBudgetExpenses.transactionId, id)).limit(1);
+    if (budgetLink && parsed.type !== "expense") throw new Error("A budget-linked transaction must remain an expense.");
     if ((parsed.type === "expense" && !parsed.source_account_id) || (parsed.type === "income" && !parsed.destination_account_id) || (parsed.type === "transfer" && (!parsed.source_account_id || !parsed.destination_account_id || parsed.source_account_id === parsed.destination_account_id))) throw new Error("Select valid account references for this transaction type.");
     const gross = parsed.gross_outflow ?? 0, net = parsed.net_inflow ?? 0, fee = parsed.fee_amount ?? 0;
     if (parsed.type === "expense" && (gross <= 0 || fee >= gross)) throw new Error("Expense amount must be positive and greater than its fee.");

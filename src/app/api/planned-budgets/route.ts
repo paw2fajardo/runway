@@ -5,6 +5,8 @@ import { db } from "../../../db";
 import { plannedBudgets } from "../../../db/schema";
 import { DateOnlySchema } from "../../../lib/types";
 import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
+import { plannedBudgetDates, remainingBudgetReserve } from "../../../lib/planned-budgets";
+import { loadPlannedBudgetSpending } from "../../../lib/planned-budget-spending";
 
 const budgetSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -16,7 +18,18 @@ const budgetSchema = z.object({
 export async function GET(req: NextRequest) {
   const owner = await requireOwner(req);
   if (owner instanceof Response) return owner;
+  const around = req.nextUrl.searchParams.get("occurrencesAround");
+  if (around !== null && !DateOnlySchema.safeParse(around).success) return NextResponse.json({ error: "Choose a real occurrence date." }, { status: 400 });
   const rows = await db.select().from(plannedBudgets).where(eq(plannedBudgets.isActive, true)).orderBy(plannedBudgets.startDate);
+  if (around) {
+    const spending = await loadPlannedBudgetSpending();
+    const shift = (days: number) => new Date(Math.max(Date.parse("0001-01-01T00:00:00Z"), Math.min(Date.parse("9999-12-31T00:00:00Z"), Date.parse(`${around}T00:00:00Z`) + days * 86400000))).toISOString().slice(0, 10);
+    return NextResponse.json(rows.map(budget => ({ ...budget, occurrences: plannedBudgetDates({ ...budget, cadence: budget.cadence as "once" | "weekly" | "biweekly" | "monthly" }, shift(35), shift(-35)).map(date => ({
+      date, spentCents: spending.filter(item => item.budgetId === budget.id && item.occurrenceDate === date).reduce((sum, item) => sum + item.amountCents, 0),
+      remainingCents: remainingBudgetReserve(budget.amountCents, spending, budget.id, date),
+      isFinished: spending.some(item => item.budgetId === budget.id && item.occurrenceDate === date && item.isFinished),
+    })) })));
+  }
   return NextResponse.json(rows);
 }
 

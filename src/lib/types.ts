@@ -9,6 +9,10 @@ export const CompoundTransactionSchema = z.object({
   category_id: z.string().uuid().optional().nullable(),
   category_name: z.string().trim().min(1).max(100).optional(),
   bill_instance_id: z.string().uuid().optional(),
+  planned_budget_id: z.string().uuid().optional(),
+  planned_budget_occurrence_date: z.string().optional(),
+  finish_planned_budget_occurrence: z.boolean().optional().default(false),
+  idempotency_key: z.string().uuid().optional(),
   gross_outflow: z.number().int().nonnegative().optional().default(0), // in cents
   net_inflow: z.number().int().nonnegative().optional().default(0), // in cents
   fee_amount: z.number().int().nonnegative().optional().default(0), // in cents

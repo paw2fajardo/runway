@@ -7,7 +7,7 @@ import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
 
 type Cadence = "once" | "weekly" | "biweekly" | "monthly";
-interface Budget { id: string; name: string; amountCents: number; startDate: string; cadence: Cadence }
+interface Budget { id: string; name: string; amountCents: number; startDate: string; cadence: Cadence; occurrences: { date: string; spentCents: number; remainingCents: number; isFinished: boolean }[] }
 const cadenceLabel: Record<Cadence, string> = { once: "One time", weekly: "Weekly", biweekly: "Every 2 weeks", monthly: "Monthly" };
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
@@ -32,8 +32,11 @@ export default function BudgetsPage() {
   }, []);
   useEffect(() => { if (isQuickLogOpen) void loadAccounts(); }, [isQuickLogOpen, loadAccounts]);
   const load = useCallback(async () => {
-    const response = await fetch("/api/planned-budgets");
-    if (response.ok) setItems(await response.json());
+    try {
+      const response = await fetch(`/api/planned-budgets?occurrencesAround=${today()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load budget plans. Reload to try again.");
+      setItems(await response.json());
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load budget plans."); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -56,7 +59,7 @@ export default function BudgetsPage() {
   }
 
   return <div className="flex min-h-screen flex-col"><Header title="Budget plans" /><main className="app-bottom-clearance mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-margin pt-20 pb-space-xl">
-    <div><h1 className="text-headline-lg font-semibold">Budget plans</h1><p className="mt-1 text-body-md text-on-surface-variant">See how planned spending changes your cash runway. These are forecast assumptions, not recorded expenses.</p></div>
+    <div><h1 className="text-headline-lg font-semibold">Budget plans</h1><p className="mt-1 text-body-md text-on-surface-variant">Link an expense to a budget date in Quick log. Finish the shop to release its unused reserve; recurring dates stay active.</p></div>
     <form onSubmit={createBudget} className="forest-panel flex flex-col gap-4 rounded-2xl p-5 text-white">
       <h2 className="text-title-md font-semibold">Add a budget</h2>
       <label className="flex flex-col gap-1 text-body-sm" htmlFor="budget-name">Name<input required id="budget-name" maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Groceries or Trip" className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-on-surface" /></label>
@@ -66,8 +69,10 @@ export default function BudgetsPage() {
       {error && <p role="alert" className="text-body-sm text-rose-200">{error}</p>}
       <button disabled={saving} className="min-h-11 rounded-full bg-secondary-fixed px-4 font-semibold text-primary disabled:opacity-50">{saving ? "Saving…" : "Add to forecast"}</button>
     </form>
-    <section className="space-y-3" aria-label="Active budget plans"><h2 className="text-title-md font-semibold">Active plans</h2>{items.length ? items.map(item => <article key={item.id} className="flex items-center justify-between gap-3 border-b border-outline-variant/50 py-3"><div><h3 className="font-semibold">{item.name}</h3><p className="text-body-sm text-on-surface-variant">{formatPHP(item.amountCents)} · {cadenceLabel[item.cadence]} · from {item.startDate}</p></div><button type="button" onClick={() => void deactivate(item.id)} className="min-h-11 rounded-full px-3 text-label-md font-semibold text-error">Remove</button></article>) : <p className="text-body-md text-on-surface-variant">No budget plans yet.</p>}</section>
+    <section className="space-y-3" aria-label="Active budget plans"><h2 className="text-title-md font-semibold">Active plans</h2>{items.length ? items.map(item => <article key={item.id} className="border-b border-outline-variant/50 py-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="break-words font-semibold">{item.name}</h3><p className="text-body-sm text-on-surface-variant">{formatPHP(item.amountCents)} · {cadenceLabel[item.cadence]} · from {item.startDate}</p></div><button type="button" onClick={() => void deactivate(item.id)} className="min-h-11 shrink-0 rounded-full px-3 text-label-md font-semibold text-error">Remove plan</button></div>
+      {item.occurrences?.length > 0 && <details className="mt-2 text-body-sm"><summary className="min-h-11 cursor-pointer py-3 text-secondary">Budget dates and spending</summary><ul className="divide-y divide-outline-variant/40">{item.occurrences.map(occurrence => <li key={occurrence.date} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2"><span>{occurrence.date}</span><span className="text-on-surface-variant">{formatPHP(occurrence.spentCents)} spent · {occurrence.isFinished ? "Finished" : `${formatPHP(occurrence.remainingCents)} reserved`}</span></li>)}</ul></details>}
+    </article>) : <p className="text-body-md text-on-surface-variant">No budget plans yet.</p>}</section>
   </main><BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
-    <RapidExpenseDrawer isOpen={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} onSuccess={loadAccounts} accounts={accounts} />
+    <RapidExpenseDrawer isOpen={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} onSuccess={() => { void loadAccounts(); void load(); }} accounts={accounts} />
   </div>;
 }

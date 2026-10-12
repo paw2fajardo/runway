@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../../db";
-import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, transactionLegs, transactions } from "../../../db/schema";
+import { accounts, billInstances, billPaymentEvents, categories, paycheckOccurrences, plannedBudgetExpenses, transactionLegs, transactions } from "../../../db/schema";
 import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 import { isQuickLogEligible } from "../../../lib/transaction-crud";
 
@@ -121,11 +121,13 @@ export async function GET(req: NextRequest) {
 
   const offset = (pageValue - 1) * PAGE_SIZE;
   const pageRows = filtered.slice(offset, offset + PAGE_SIZE);
-  const transactionDetails = pageRows.map((transaction) => ({
-    ...transaction,
-    source: billSettlementIds.has(transaction.id) ? "bill_payment" : "quick_log",
-    legs: byId.get(transaction.id) ?? [],
-  }));
+  const budgetLinks = pageRows.length ? await db.select().from(plannedBudgetExpenses).where(inArray(plannedBudgetExpenses.transactionId, pageRows.map(row => row.id))) : [];
+  const transactionDetails = pageRows.map((transaction) => {
+    const link = budgetLinks.find(item => item.transactionId === transaction.id);
+    return { ...transaction, source: billSettlementIds.has(transaction.id) ? "bill_payment" : "quick_log",
+      plannedBudget: link ? { id: link.budgetId, occurrenceDate: link.occurrenceDate, isFinished: link.isFinished } : null,
+      legs: byId.get(transaction.id) ?? [] };
+  });
   return NextResponse.json({
     transactions: transactionDetails,
     page: pageValue,

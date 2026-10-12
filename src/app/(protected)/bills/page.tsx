@@ -79,6 +79,7 @@ export default function BillsPage() {
   const [newBillAmount, setNewBillAmount] = useState("");
   const [newBillDay, setNewBillDay] = useState("15");
   const [newBillDayOfWeek, setNewBillDayOfWeek] = useState("1");
+  const [newBillFirstDueDate, setNewBillFirstDueDate] = useState("");
   const [newBillFrequency, setNewBillFrequency] = useState("monthly");
   const [newBillOccurrenceLimit, setNewBillOccurrenceLimit] = useState("");
   const [newBillGrace, setNewBillGrace] = useState("3");
@@ -225,6 +226,7 @@ export default function BillsPage() {
     setNewBillAmount("");
     setNewBillDay("15");
     setNewBillDayOfWeek("1");
+    setNewBillFirstDueDate("");
     setNewBillFrequency("monthly");
     setNewBillOccurrenceLimit("");
     setNewBillGrace("3");
@@ -254,7 +256,9 @@ export default function BillsPage() {
         body: JSON.stringify({
           name: newBillName,
           amount: Math.round(parseFloat(newBillAmount) * 100),
-          ...(newBillFrequency === "weekly" || newBillFrequency === "biweekly"
+          ...(newBillFrequency === "biweekly"
+            ? (!editingBill || editingBill.frequency !== "biweekly" || newBillFirstDueDate !== editingBill.dueDate ? { first_due_date: newBillFirstDueDate } : {})
+            : newBillFrequency === "weekly"
             ? { due_day_of_week: parseInt(newBillDayOfWeek, 10) }
             : { due_day_of_month: parseInt(newBillDay, 10) }),
           frequency: newBillFrequency,
@@ -283,7 +287,10 @@ export default function BillsPage() {
   };
 
   const openBillEditor = (bill: BillItem) => {
-    setEditingBill(bill);
+    const nextUnpaid = bills.filter((item) => item.billId === bill.billId && item.status !== "paid" && item.status !== "auto_debited")
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    setEditingBill(bill.frequency === "biweekly" ? nextUnpaid ?? bill : bill);
+    setNewBillFirstDueDate((nextUnpaid ?? bill).dueDate);
     setNewBillName(bill.name);
     setNewBillAmount((bill.amount / 100).toFixed(2));
     setNewBillFrequency(bill.frequency);
@@ -330,7 +337,7 @@ export default function BillsPage() {
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const scheduledDayThisMonth = Math.min(Number(newBillDay), new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate());
   const asksAboutFirstPayment = newBillAutoPay && (!editingBill || !editingBill.autoPostFrom) &&
-    (newBillFrequency === "weekly" || newBillFrequency === "biweekly"
+    (newBillFrequency === "biweekly" ? Boolean(newBillFirstDueDate && newBillFirstDueDate < todayDate) : newBillFrequency === "weekly"
       ? Boolean(editingBill && editingBill.dueDate < todayDate)
       : scheduledDayThisMonth < today.getDate());
   const matchingLoggedExpenses = recentExpenses.filter((entry) => entry.source !== "bill_payment" &&
@@ -810,9 +817,17 @@ export default function BillsPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col space-y-1">
                 <label runway-id="bills.add.due-day.label" htmlFor="bill-day" className="font-label-sm text-label-sm text-on-surface-variant">
-                  {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? "Due day of week" : "Due day of month"}
+                  {newBillFrequency === "biweekly" ? editingBill ? "Next due date" : "First due date" : newBillFrequency === "weekly" ? "Due day of week" : "Due day of month"}
                 </label>
-                {newBillFrequency === "weekly" || newBillFrequency === "biweekly" ? (
+                {newBillFrequency === "biweekly" ? (
+                  <>
+                    <input id="bill-day" runway-id="bills.add.first-due-date.input" type="date" required
+                      value={newBillFirstDueDate} onChange={(event) => setNewBillFirstDueDate(event.target.value)}
+                      aria-describedby="bill-first-due-date-hint"
+                      className="h-11 min-w-0 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-body-md text-body-md" />
+                    <p id="bill-first-due-date-hint" className="text-body-sm text-on-surface-variant">Repeats every 14 days from this date.</p>
+                  </>
+                ) : newBillFrequency === "weekly" ? (
                   <div className="relative">
                     <select
                       runway-id="bills.add.due-day.input" id="bill-day"

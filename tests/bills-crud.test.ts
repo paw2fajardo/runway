@@ -9,6 +9,8 @@ vi.mock("../src/db", () => ({ db: { transaction: mocks.transaction, update: mock
 vi.mock("../src/lib/auth/guard", () => ({ requireOwner: mocks.requireOwner, assertSameOrigin: mocks.assertSameOrigin }));
 
 import { DELETE, PATCH } from "../src/app/api/bills/[id]/route";
+import { POST } from "../src/app/api/bills/route";
+import { nextBillDueDate } from "../src/lib/bill-schedule";
 
 const origin = "https://runway.example";
 const billId = "11111111-1111-4111-8111-111111111111";
@@ -37,7 +39,7 @@ function makeTx({ bill = currentBill, instances = [] }: { bill?: unknown; instan
   mocks.select.mockImplementation(() => {
     selected += 1;
     if (selected === 1) {
-      return { from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(bill ? [currentBill] : []) }) }) };
+      return { from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue(bill ? [{ ...currentBill, ...bill as object }] : []) }) }) };
     }
     return { from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(instances) }) };
   });
@@ -51,6 +53,58 @@ function makeTx({ bill = currentBill, instances = [] }: { bill?: unknown; instan
 }
 
 describe("bill CRUD", () => {
+  it("creates a biweekly bill on the chosen Friday with no earlier occurrence", async () => {
+    const values = vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: billId }]) });
+    mocks.transaction.mockImplementation((callback) => callback({ insert: vi.fn().mockReturnValue({ values }) }));
+    const response = await POST(new NextRequest(`${origin}/api/bills`, { method: "POST", headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify({ name: "Groceries", type: "variable_utility", amount: 250000, frequency: "biweekly", first_due_date: "2026-10-23" }),
+    }));
+    expect(response.status).toBe(201);
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ dueDate: "2026-10-23", periodIdentifier: "2026-10-23" }));
+    expect(values).toHaveBeenCalledTimes(2);
+    expect(nextBillDueDate("2026-10-23", "biweekly", 23)).toBe("2026-11-06");
+    expect(nextBillDueDate("2026-11-06", "biweekly", 23)).toBe("2026-11-20");
+    expect(nextBillDueDate("2026-12-25", "biweekly", 25)).toBe("2027-01-08");
+  });
+  it("anchors biweekly unpaid dates to an explicit first date", async () => {
+    mocks.requireOwner.mockResolvedValue(owner);
+    mocks.assertSameOrigin.mockReturnValue(null);
+    const { updateSet } = makeTx({ instances: [
+      { id: "a", dueDate: "2026-10-16", status: "upcoming" },
+      { id: "b", dueDate: "2026-10-30", status: "upcoming" },
+      { id: "paid", dueDate: "2026-10-02", status: "paid" },
+    ] });
+    const response = await PATCH(request("PATCH", { frequency: "biweekly", first_due_date: "2026-10-23" }), context());
+    expect(response.status).toBe(200);
+    const dates = updateSet.mock.calls.map(([values]) => (values as Record<string, unknown>).dueDate).filter(Boolean);
+    expect(dates).toEqual(["2026-10-23", "2026-11-06"]);
+    const periodMoves = updateSet.mock.calls.map(([values]) => values as Record<string, unknown>).filter((values) => String(values.periodIdentifier).startsWith("move"));
+    expect(periodMoves).toHaveLength(2);
+    expect(new Set(periodMoves.map((values) => values.periodIdentifier)).size).toBe(2);
+  });
+
+  it.each(["2026-02-30", "2026-13-01", "23/10/2026"])("rejects invalid first due date %s", async (date) => {
+    const response = await PATCH(request("PATCH", { frequency: "biweekly", first_due_date: date }), context());
+    expect(response.status).toBe(400);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy biweekly anchor when editing its amount", async () => {
+    const legacyBill = { ...currentBill, frequency: "biweekly", dueDayOfWeek: 5 };
+    const { updateSet } = makeTx({ bill: legacyBill, instances: [{ id: "a", dueDate: "2026-10-23", status: "upcoming" }] });
+    const response = await PATCH(request("PATCH", { amount: 3000 }), context());
+    expect(response.status).toBe(200);
+    const instanceUpdate = updateSet.mock.calls.map(([values]) => values as Record<string, unknown>).find((values) => "amountDue" in values);
+    expect(instanceUpdate).toMatchObject({ amountDue: 3000 });
+    expect(instanceUpdate).not.toHaveProperty("dueDate");
+  });
+
+  it("rejects a first date on monthly bills", async () => {
+    makeTx();
+    const response = await PATCH(request("PATCH", { first_due_date: "2026-10-23" }), context());
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("only supported for biweekly");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();

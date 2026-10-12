@@ -5,6 +5,7 @@ import { calculateRunwayForecast } from "../../../../lib/runway";
 import { eq, and } from "drizzle-orm";
 import { DateOnlySchema } from "../../../../lib/types";
 import { requireOwner } from "../../../../lib/auth/guard";
+import { loadPlannedBudgetSpending } from "../../../../lib/planned-budget-spending";
 
 export async function GET(req: NextRequest) {
   const owner = await requireOwner(req);
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
       dailyDiscretionaryBurn,
       bills: billList,
       plannedBudgets: budgetList as import("../../../../lib/runway").PlannedBudget[],
+      plannedBudgetSpending: await loadPlannedBudgetSpending(),
       referenceDate,
       horizonDays,
     });

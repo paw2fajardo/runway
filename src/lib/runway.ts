@@ -1,4 +1,5 @@
 import { DateOnlySchema, PayScheduleKindSchema, type PayScheduleKind, type IncomeStreamResponse, RunwayForecastResponse, TimelineDay } from "./types";
+import { plannedBudgetDates, remainingBudgetReserve, type PlannedBudgetSpending } from "./planned-budgets";
 
 const msPerDay = 86400000;
 
@@ -162,6 +163,7 @@ interface RunwayCalculationParams {
   dailyDiscretionaryBurn: number;
   bills: BillItem[];
   plannedBudgets?: PlannedBudget[];
+  plannedBudgetSpending?: PlannedBudgetSpending[];
   referenceDate?: Date;
   horizonDays?: number;
 }
@@ -191,6 +193,7 @@ export function calculateRunwayForecast({
   dailyDiscretionaryBurn,
   bills,
   plannedBudgets = [],
+  plannedBudgetSpending = [],
   referenceDate = new Date(),
   horizonDays = 14,
 }: RunwayCalculationParams): RunwayForecastResponse {
@@ -232,33 +235,15 @@ export function calculateRunwayForecast({
     0
   );
 
-  const budgetDates = (budget: PlannedBudget, throughDate: string) => {
-    if (budget.startDate > throughDate) return [];
-    if (budget.cadence === "once") return [budget.startDate];
-    if (budget.cadence === "monthly") {
-      const dates: string[] = [];
-      const [year, month, day] = budget.startDate.split("-").map(Number);
-      for (let index = 0; ; index++) {
-        const date = new Date(Date.UTC(year, month - 1 + index, 1));
-        const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
-        date.setUTCDate(Math.min(day, lastDay));
-        const value = date.toISOString().slice(0, 10);
-        if (value > throughDate) break;
-        dates.push(value);
-      }
-      return dates;
-    }
-    const interval = budget.cadence === "weekly" ? 7 : 14;
-    const first = calendarDay(budget.startDate);
-    const end = calendarDay(throughDate);
-    const dates: string[] = [];
-    for (let day = first; day <= end; day += interval) dates.push(new Date(day * msPerDay).toISOString().slice(0, 10));
-    return dates;
-  };
-  const budgetOccurrences = plannedBudgets.flatMap(budget => budgetDates(budget,
-    calendarDay(nextPaydayStr) > calendarDay(refDateStr) + horizonDays - 1 ? nextPaydayStr : new Date((calendarDay(refDateStr) + horizonDays - 1) * msPerDay).toISOString().slice(0, 10))
-    .map(date => ({ ...budget, date })));
-  const planned_spending_total = safeCents(budgetOccurrences.filter(item => item.date >= refDateStr && item.date <= nextPaydayStr)
+  const budgetOccurrences = plannedBudgets.flatMap(budget => {
+    const through = calendarDay(nextPaydayStr) > calendarDay(refDateStr) + horizonDays - 1 ? nextPaydayStr : new Date((calendarDay(refDateStr) + horizonDays - 1) * msPerDay).toISOString().slice(0, 10);
+    const from = new Date((calendarDay(refDateStr) - 35) * msPerDay).toISOString().slice(0, 10);
+    const dates = plannedBudgetDates(budget, through, budget.cadence === "once" ? budget.startDate : from);
+    const current = dates.includes(refDateStr) ? refDateStr : dates.filter(date => date < refDateStr).at(-1);
+    return dates.filter(date => date >= refDateStr || date === current).map(date => ({ ...budget, date,
+      amountCents: remainingBudgetReserve(budget.amountCents, plannedBudgetSpending, budget.id, date) }));
+  });
+  const planned_spending_total = safeCents(budgetOccurrences.filter(item => item.date <= nextPaydayStr)
     .reduce((sum, item) => safeCents(sum + safeCents(item.amountCents)), 0));
 
   // 3. Discretionary Burn & Net Buffer

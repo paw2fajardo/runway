@@ -7,6 +7,7 @@ import { assertSameOrigin, requireOwner } from "../../../../lib/auth/guard";
 import { nextBillDueDate as nextScheduledBillDate, type BillFrequency } from "../../../../lib/bill-schedule";
 import { linkExistingBillPaymentInTransaction, postBillInstanceInTransaction } from "../../../../lib/bills/posting";
 import { manilaDate } from "../../../../lib/payday/occurrences";
+import { DateOnlySchema } from "../../../../lib/types";
 
 const idSchema = z.string().uuid();
 const frequencySchema = z.enum(["weekly", "biweekly", "monthly", "every_2_months", "every_3_months", "every_6_months", "annually"]);
@@ -24,6 +25,7 @@ const updateSchema = z.object({
   first_occurrence_transaction_id: z.string().uuid().optional(),
   due_day_of_month: z.number().int().min(1).max(31).optional(),
   due_day_of_week: z.number().int().min(0).max(6).nullable().optional(),
+  first_due_date: DateOnlySchema.optional(),
   frequency: frequencySchema.optional(),
   occurrence_limit: z.number().int().min(1).max(600).nullable().optional(),
   grace_period_days: z.number().int().min(0).optional(),
@@ -102,13 +104,14 @@ export async function PATCH(req: NextRequest, context: Context) {
         ...current,
         frequency: parsed.frequency ?? current.frequency,
         dueDayOfMonth: parsed.due_day_of_month ?? current.dueDayOfMonth,
-        dueDayOfWeek: parsed.due_day_of_week !== undefined ? parsed.due_day_of_week : current.dueDayOfWeek,
+        dueDayOfWeek: parsed.first_due_date ? new Date(`${parsed.first_due_date}T00:00:00Z`).getUTCDay() : parsed.due_day_of_week !== undefined ? parsed.due_day_of_week : current.dueDayOfWeek,
       };
+      if (parsed.first_due_date && updated.frequency !== "biweekly") throw new Error("A first due date is only supported for biweekly bills.");
       const weekly = weeklyFrequencies.has(updated.frequency);
       if ((weekly && updated.dueDayOfWeek == null) || (!weekly && updated.dueDayOfMonth == null)) {
         throw new Error(weekly ? "A due day of week is required for weekly bills." : "A due day of month is required for this frequency.");
       }
-      const changedSchedule = parsed.frequency !== undefined || parsed.due_day_of_week !== undefined || parsed.due_day_of_month !== undefined;
+      const changedSchedule = parsed.first_due_date !== undefined || (parsed.frequency !== undefined && parsed.frequency !== current.frequency) || (parsed.due_day_of_week !== undefined && parsed.due_day_of_week !== current.dueDayOfWeek) || (parsed.due_day_of_month !== undefined && parsed.due_day_of_month !== current.dueDayOfMonth);
       const now = new Date();
       const autoPayEnabled = parsed.is_auto_pay ?? current.isAutoPay;
       const sourceAccountId = parsed.source_account_id !== undefined ? parsed.source_account_id : current.sourceAccountId;
@@ -128,7 +131,7 @@ export async function PATCH(req: NextRequest, context: Context) {
         ...(parsed.is_auto_pay !== undefined && { isAutoPay: parsed.is_auto_pay }),
         ...(parsed.is_variable_amount !== undefined && { isVariableAmount: parsed.is_variable_amount }),
         ...(parsed.due_day_of_month !== undefined && { dueDayOfMonth: parsed.due_day_of_month }),
-        ...(parsed.due_day_of_week !== undefined && { dueDayOfWeek: parsed.due_day_of_week }),
+        ...((parsed.first_due_date !== undefined || parsed.due_day_of_week !== undefined) && { dueDayOfWeek: updated.dueDayOfWeek }),
         ...(parsed.frequency !== undefined && { frequency: parsed.frequency }),
         ...(parsed.occurrence_limit !== undefined && { occurrenceLimit: parsed.occurrence_limit }),
         ...(parsed.grace_period_days !== undefined && { gracePeriodDays: parsed.grace_period_days }),
@@ -138,10 +141,17 @@ export async function PATCH(req: NextRequest, context: Context) {
       const allInstances = await tx.select().from(billInstances).where(eq(billInstances.billId, id));
       const instances = allInstances.filter((instance) => unpaidStatuses.has(instance.status));
       const occupiedPeriods = new Set(allInstances.filter((instance) => !unpaidStatuses.has(instance.status)).map((instance) => instance.periodIdentifier));
-      let due = firstDueDate(updated.frequency, updated.dueDayOfMonth, updated.dueDayOfWeek, now);
+      let due = parsed.first_due_date ? new Date(`${parsed.first_due_date}T00:00:00`) : firstDueDate(updated.frequency, updated.dueDayOfMonth, updated.dueDayOfWeek, now);
       const ordered = [...instances].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      if (parsed.first_due_date && ordered.length > 1) {
+        // Free unpaid period keys inside this transaction before moving overlapping dates.
+        for (const [index, instance] of ordered.entries()) {
+          await tx.update(billInstances).set({ periodIdentifier: `move${String(index).padStart(6, "0")}` })
+            .where(eq(billInstances.id, instance.id));
+        }
+      }
       for (const [index, instance] of ordered.entries()) {
-        const moveToNewSchedule = changedSchedule && index === 0;
+        const moveToNewSchedule = changedSchedule && (index === 0 || parsed.first_due_date !== undefined);
         let dueDate = instance.dueDate;
         if (moveToNewSchedule) {
           dueDate = dateString(due);
@@ -150,6 +160,7 @@ export async function PATCH(req: NextRequest, context: Context) {
             dueDate = dateString(due);
           }
           occupiedPeriods.add(dueDate);
+          if (parsed.first_due_date) due = nextDueDate(due, updated.frequency, updated.dueDayOfMonth, updated.dueDayOfWeek);
         }
         await tx.update(billInstances).set({
           ...(moveToNewSchedule && { dueDate, targetSettlementDate: dueDate, periodIdentifier: dueDate }),
