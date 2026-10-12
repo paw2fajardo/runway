@@ -58,6 +58,7 @@ export async function GET(request: Request) {
         dueDate: billInstances.dueDate,
         targetSettlementDate: billInstances.targetSettlementDate,
         status: billInstances.status,
+        cashPaidAt: billInstances.cashPaidAt,
         isEstimate: bills.isEstimate,
         isAutoPay: bills.isAutoPay,
         autoPostFrom: bills.autoPostFrom,

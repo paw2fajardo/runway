@@ -17,6 +17,7 @@ export class BillPostingError extends Error {
 export interface PostBillOptions {
   amount?: number;
   sourceAccountId?: string;
+  paymentMethod?: "account" | "cash";
   automatic?: boolean;
   now?: Date;
 }
@@ -54,7 +55,7 @@ async function createNextOccurrence(
   }).onConflictDoNothing();
 }
 
-/** The account debit, expense, paid state, and next occurrence are one write. */
+/** Record payment and the next occurrence atomically; cash leaves tracked balances alone. */
 export async function postBillInstanceInTransaction(
   tx: DbTransaction,
   instanceId: string,
@@ -69,7 +70,25 @@ export async function postBillInstanceInTransaction(
 
   const [bill] = await tx.select().from(bills).where(eq(bills.id, instance.billId)).limit(1);
   if (!bill || !bill.isActive) throw new BillPostingError("This bill is unavailable.", 404);
+  if (options.paymentMethod === "cash" && (options.automatic || options.sourceAccountId)) {
+    throw new BillPostingError("Cash payments cannot use an account or auto-pay.");
+  }
   if (options.automatic && !bill.isAutoPay) throw new BillPostingError("Auto-pay is off for this bill.");
+
+  if (bill.isVariableAmount && !options.automatic && options.amount === undefined) {
+    throw new BillPostingError("Enter the amount that was paid.");
+  }
+  const amount = options.amount ?? instance.amountDue;
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new BillPostingError("Enter a payment amount greater than zero.");
+  }
+  const now = options.now ?? new Date();
+  if (options.paymentMethod === "cash") {
+    const [posted] = await tx.update(billInstances).set({ amountDue: amount, status: "paid",
+      cashPaidAt: now, updatedAt: now }).where(eq(billInstances.id, instanceId)).returning();
+    await createNextOccurrence(tx, bill, instance);
+    return { instance: posted, transaction: null };
+  }
 
   const accountId = options.sourceAccountId ?? bill.sourceAccountId;
   if (!accountId) throw new BillPostingError("Choose the account that paid this bill.");
@@ -79,15 +98,6 @@ export async function postBillInstanceInTransaction(
     throw new BillPostingError("Choose an active cash or credit account for this bill.");
   }
 
-  if (bill.isVariableAmount && !options.automatic && options.amount === undefined) {
-    throw new BillPostingError("Enter the amount that was paid.");
-  }
-  const amount = options.amount ?? instance.amountDue;
-  if (!Number.isSafeInteger(amount) || amount <= 0) {
-    throw new BillPostingError("Enter a payment amount greater than zero.");
-  }
-
-  const now = options.now ?? new Date();
   const [transaction] = await tx.insert(transactions).values({
     type: "expense",
     description: bill.name,
