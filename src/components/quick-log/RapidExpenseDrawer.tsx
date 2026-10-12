@@ -32,6 +32,14 @@ interface BillSuggestion {
   autoPostFrom: string | null;
 }
 
+interface BudgetOption {
+  id: string;
+  name: string;
+  occurrences: { date: string; spentCents: number; remainingCents: number; isFinished: boolean }[];
+}
+
+const localToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
 const DEFAULT_CATEGORIES = [
   "ATM / Pocket Cash",
   "Food & Groceries",
@@ -65,7 +73,7 @@ interface RapidExpenseDrawerProps {
   daysToPayday?: number;
   editTransaction?: {
     id: string; type: "income" | "expense" | "transfer"; description: string;
-    transactedAt: string; legs: { leg: { accountId: string | null; categoryId: string | null; amount: number }; account: { id: string; name: string } | null; category: { id: string; name: string; isSystemFee: boolean } | null }[];
+    transactedAt: string; plannedBudget?: { id: string; occurrenceDate: string; isFinished: boolean } | null; legs: { leg: { accountId: string | null; categoryId: string | null; amount: number }; account: { id: string; name: string } | null; category: { id: string; name: string; isSystemFee: boolean } | null }[];
   };
   onEditSuccess?: () => void;
 }
@@ -103,6 +111,14 @@ export function RapidExpenseDrawer({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [billSuggestions, setBillSuggestions] = useState<BillSuggestion[]>([]);
   const [selectedBillInstanceId, setSelectedBillInstanceId] = useState("");
+  const [budgets, setBudgets] = useState<BudgetOption[]>([]);
+  const [budgetDate, setBudgetDate] = useState(localToday);
+  const [selectedBudgetOccurrence, setSelectedBudgetOccurrence] = useState("");
+  const [finishBudgetOccurrence, setFinishBudgetOccurrence] = useState(false);
+  const [budgetError, setBudgetError] = useState("");
+  const [budgetsLoading, setBudgetsLoading] = useState(false);
+  const [budgetRetry, setBudgetRetry] = useState(0);
+  const budgetSubmission = useRef<{ fingerprint: string; key: string; transactedAt: string } | null>(null);
   const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = useState(false);
   const categorySearchRef = useRef<HTMLInputElement>(null);
   const categoryTriggerRef = useRef<HTMLButtonElement>(null);
@@ -141,6 +157,22 @@ export function RapidExpenseDrawer({
   };
 
   useEffect(() => { if (isOpen) void loadCategories(); }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || editTransaction || mode !== "expense" || !budgetDate) return;
+    let active = true;
+    setBudgetsLoading(true);
+    setBudgetError("");
+    fetch(`/api/planned-budgets?occurrencesAround=${budgetDate}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Budget plans are unavailable. Retry before linking this expense.");
+        return response.json() as Promise<BudgetOption[]>;
+      })
+      .then((items) => { if (active) setBudgets(items); })
+      .catch(() => { if (active) { setBudgets([]); setBudgetError("Budget plans are unavailable. Retry before linking this expense."); } })
+      .finally(() => { if (active) setBudgetsLoading(false); });
+    return () => { active = false; };
+  }, [isOpen, editTransaction, mode, budgetDate, budgetRetry]);
 
   useEffect(() => {
     if (!isOpen || editTransaction) return;
@@ -191,6 +223,10 @@ export function RapidExpenseDrawer({
       setRawCustomFee("");
       setMode("expense");
       setSelectedBillInstanceId("");
+      setSelectedBudgetOccurrence("");
+      setFinishBudgetOccurrence(false);
+      setBudgetDate(localToday());
+      budgetSubmission.current = null;
     }
   }, [isOpen]);
 
@@ -297,6 +333,9 @@ export function RapidExpenseDrawer({
       (!bill.sourceAccountId || bill.sourceAccountId === selectedSourceId)).slice(0, 3)
     : [];
   const selectedBill = billSuggestions.find((bill) => bill.instanceId === selectedBillInstanceId);
+  const [selectedBudgetId, selectedOccurrenceDate] = selectedBudgetOccurrence.split("|");
+  const selectedBudget = budgets.find((budget) => budget.id === selectedBudgetId);
+  const selectedOccurrence = selectedBudget?.occurrences.find((occurrence) => occurrence.date === selectedOccurrenceDate);
 
   // Runway impact calculation
   const impactPerDay = daysToPayday !== undefined && daysToPayday > 0
@@ -322,7 +361,7 @@ export function RapidExpenseDrawer({
   };
 
   const handleConfirm = async () => {
-    if (isSubmitting || successMessage || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError)) ||
+    if (isSubmitting || successMessage || baseCents <= 0 || (editTransaction && !descriptionInput.trim()) || (mode === "expense" && (isCategoriesLoading || !!categoryError || (!!selectedBudgetOccurrence && (budgetsLoading || !!budgetError || !selectedOccurrence)))) ||
       (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")) return;
     setSubmitError(null);
     setIsSubmitting(true);
@@ -359,7 +398,7 @@ export function RapidExpenseDrawer({
         return;
       }
 
-      const transactionPayload = {
+      const transactionDetails = {
         type: transactionType,
         description,
         source_account_id: transactionType !== "income" ? selectedSourceId : undefined,
@@ -375,17 +414,32 @@ export function RapidExpenseDrawer({
         category_id: transactionType === "expense" ? selectedCategoryId || undefined : undefined,
         category_name: transactionType === "expense" && !selectedCategoryId ? selectedCategory : undefined,
         bill_instance_id: transactionType === "expense" && selectedBillInstanceId ? selectedBillInstanceId : undefined,
-        transacted_at: new Date().toISOString(),
+        planned_budget_id: transactionType === "expense" && selectedOccurrence ? selectedBudgetId : undefined,
+        planned_budget_occurrence_date: transactionType === "expense" && selectedOccurrence ? selectedOccurrenceDate : undefined,
+        finish_planned_budget_occurrence: transactionType === "expense" && !!selectedOccurrence && finishBudgetOccurrence,
+      };
+      if (transactionType === "expense" && selectedOccurrence) {
+        const fingerprint = JSON.stringify(transactionDetails);
+        if (budgetSubmission.current?.fingerprint !== fingerprint) {
+          budgetSubmission.current = { fingerprint, key: crypto.randomUUID(), transactedAt: new Date().toISOString() };
+        }
+      }
+      const linkedSubmission = transactionType === "expense" && selectedOccurrence ? budgetSubmission.current : null;
+      const transactionPayload = {
+        ...transactionDetails,
+        idempotency_key: linkedSubmission?.key,
+        transacted_at: linkedSubmission?.transactedAt ?? new Date().toISOString(),
       };
       const billPaymentOnline = Boolean(selectedBillInstanceId && navigator.onLine);
-      if (billPaymentOnline) {
+      const budgetExpenseOnline = Boolean(transactionType === "expense" && selectedOccurrence && navigator.onLine);
+      if (billPaymentOnline || budgetExpenseOnline) {
         const response = await fetch("/api/transactions/compound", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(transactionPayload),
         });
         if (!response.ok) {
           const body = await response.json().catch(() => null);
-          throw new Error(body?.error || "Bill payment could not be recorded. Try again.");
+          throw new Error(body?.error || "Expense could not be recorded. Your details are still here. Try again.");
         }
       } else {
         await queueOfflineTransaction(transactionPayload);
@@ -405,7 +459,7 @@ export function RapidExpenseDrawer({
       }
 
       if (onSuccess) onSuccess();
-      closeAfterSuccess(billPaymentOnline ? "Bill payment logged." : navigator.onLine ? "Transaction saved. Syncing now." : "Saved offline. Syncs when connected.");
+      closeAfterSuccess(billPaymentOnline ? "Bill payment logged." : budgetExpenseOnline ? finishBudgetOccurrence ? "Expense saved. This shop is finished." : "Expense saved. Budget reserve updated." : navigator.onLine ? "Transaction saved. Syncing now." : "Saved offline. Syncs when connected.");
     } catch (err) {
       console.error("Failed to queue transaction:", err);
       setSubmitError(err instanceof Error ? err.message : "Couldn’t save this entry. Your details are still here. Try again.");
@@ -578,12 +632,39 @@ export function RapidExpenseDrawer({
             </div> : <>
               <span className="text-body-sm text-on-surface-variant">Does this pay a bill?</span>
               {matchingBills.map((bill) => <button key={bill.instanceId} type="button"
-                onClick={() => { setSelectedBillInstanceId(bill.instanceId); setSelectedFee(0); if (bill.sourceAccountId) setSelectedSourceId(bill.sourceAccountId); }}
+                onClick={() => { setSelectedBillInstanceId(bill.instanceId); setSelectedBudgetOccurrence(""); setFinishBudgetOccurrence(false); setSelectedFee(0); if (bill.sourceAccountId) setSelectedSourceId(bill.sourceAccountId); }}
                 className="flex min-h-11 w-full items-center justify-between rounded-xl border border-outline-variant/60 bg-white px-4 text-left text-body-sm">
                 <span>{bill.name} · due {bill.dueDate}</span><span className="font-semibold">Use bill</span>
               </button>)}
             </>}
           </section>}
+
+          {mode === "expense" && !editTransaction && !selectedBillInstanceId && <section className="flex flex-col gap-space-xs" aria-label="Budget plan">
+            <label htmlFor="quick-log-budget" className="text-sm font-semibold text-on-surface">Budget occurrence (optional)</label>
+            <select id="quick-log-budget" value={selectedBudgetOccurrence} disabled={budgetsLoading || !!budgetError || isSubmitting}
+              onChange={(event) => { setSelectedBudgetOccurrence(event.target.value); setFinishBudgetOccurrence(false); }}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-outline-variant bg-white px-3 text-body-sm text-on-surface">
+              <option value="">{budgetsLoading ? "Loading budget plans…" : "No budget linked"}</option>
+              {budgets.map((budget) => <optgroup key={budget.id} label={budget.name}>{budget.occurrences.map((occurrence) =>
+                <option key={occurrence.date} value={`${budget.id}|${occurrence.date}`} disabled={occurrence.isFinished}>
+                  {budget.name} · {occurrence.date} · {occurrence.isFinished ? "Finished" : `${formatPHP(occurrence.remainingCents)} left`}
+                </option>)}</optgroup>)}
+            </select>
+            {budgetError && <div className="flex flex-wrap items-center gap-2"><p role="alert" className="text-body-sm text-error">{budgetError}</p><button type="button" onClick={() => setBudgetRetry((retry) => retry + 1)} className="min-h-11 px-2 text-label-md font-semibold text-secondary">Retry budgets</button></div>}
+            <details className="text-body-sm text-on-surface-variant"><summary className="min-h-11 cursor-pointer py-3">Find another occurrence date</summary>
+              <label htmlFor="quick-log-budget-date" className="flex flex-col gap-space-xs">Show occurrences around<input id="quick-log-budget-date" type="date" value={budgetDate} disabled={isSubmitting}
+                onChange={(event) => { setBudgetDate(event.target.value); setSelectedBudgetOccurrence(""); setFinishBudgetOccurrence(false); }}
+                className="min-h-11 rounded-xl border border-outline-variant bg-white px-3 text-on-surface" /></label>
+            </details>
+            {selectedOccurrence && <>
+              <p className="text-body-sm text-on-surface-variant">{formatPHP(selectedOccurrence.spentCents)} spent. After this expense, {formatPHP(Math.max(0, selectedOccurrence.remainingCents - totalCents))} stays reserved unless you finish the shop.</p>
+              <label htmlFor="quick-log-budget-finish" className="flex min-h-11 cursor-pointer items-center gap-3 text-body-sm font-semibold text-on-surface">
+                <input id="quick-log-budget-finish" type="checkbox" checked={finishBudgetOccurrence} disabled={isSubmitting} onChange={(event) => setFinishBudgetOccurrence(event.target.checked)} className="h-5 w-5 accent-primary" />Finish this shop
+              </label>
+              <p className="text-body-sm text-on-surface-variant">Finishing releases the unused reserve for {selectedOccurrence.date}. Later budget dates stay active.</p>
+            </>}
+          </section>}
+          {editTransaction?.plannedBudget && <p className="text-body-sm text-on-surface-variant">This expense stays linked to the budget occurrence on {editTransaction.plannedBudget.occurrenceDate}. Changes to its amount update that occurrence’s spending.</p>}
 
           {/* Category Allocation (if Expense) */}
           <div className={`quick-log-core-fields${mode === "inflow" ? " quick-log-core-fields-single" : ""}`}>
@@ -901,7 +982,7 @@ export function RapidExpenseDrawer({
               runway-id="quick-log.confirm"
               type="button"
               onClick={handleConfirm}
-              disabled={isSubmitting || !!successMessage || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError)) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
+              disabled={isSubmitting || !!successMessage || baseCents <= 0 || (mode === "expense" && (isCategoriesLoading || !!categoryError || (!!selectedBudgetOccurrence && (budgetsLoading || !!budgetError || !selectedOccurrence)))) || (mode !== "inflow" && isCustomFee && rawCustomFee.trim() === "")}
               className="w-full min-h-11 py-space-sm rounded-full bg-primary text-white font-label-md text-label-md font-semibold shadow-md active:scale-[0.98] transition-all flex flex-wrap gap-3 items-center justify-between px-4 disabled:opacity-50"
             >
               <div className="flex items-center gap-space-xs">
@@ -925,7 +1006,7 @@ export function RapidExpenseDrawer({
             <div className="flex items-center justify-center gap-1.5 text-center">
               <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
               <span runway-id="quick-log.offline-note" className="font-label-sm text-label-sm text-on-surface-variant">
-                Entries are saved offline, then synced when online.
+                {selectedOccurrence ? "Budget reserves update after the expense syncs." : "Entries are saved offline, then synced when online."}
               </span>
             </div>
           </div>

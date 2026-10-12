@@ -17,7 +17,7 @@ type Leg = {
   account: { id: string; name: string } | null;
   category: { id: string; name: string; isSystemFee: boolean } | null;
 };
-type Transaction = { id: string; type: TransactionType; description: string; transactedAt: string; source?: "bill_payment" | "quick_log"; legs: Leg[] };
+type Transaction = { id: string; type: TransactionType; description: string; transactedAt: string; source?: "bill_payment" | "quick_log"; plannedBudget?: { id: string; occurrenceDate: string; isFinished: boolean } | null; legs: Leg[] };
 type Account = { id: string; name: string; type: string; currentBalance: number };
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
 type Totals = { inflow: number; outflow: number; net: number };
@@ -415,6 +415,7 @@ export default function TransactionsPage() {
     <Dialog open={deleteTarget !== null} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(""); } }} title="Delete this entry?">
       {deleteTarget && <div>
         <p className="text-body-sm text-on-surface-variant">“{deleteTarget.description}” will be removed and its account balances reversed.</p>
+        {deleteTarget.plannedBudget && <p className="mt-2 text-body-sm text-on-surface-variant">Its budget spending will be reversed.{deleteTarget.plannedBudget.isFinished ? " Deleting the expense that finished the shop reopens its reserve." : ""}</p>}
         {deleteError && <p role="alert" className="mt-3 text-body-sm text-error">{deleteError}</p>}
         <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isDeleting} onClick={() => { setDeleteTarget(null); setDeleteError(""); }} className="min-h-11 rounded-full px-4 text-label-md disabled:opacity-50">Cancel</button><button type="button" disabled={isDeleting} onClick={() => void remove()} className="min-h-11 rounded-full bg-error px-4 text-label-md text-white disabled:opacity-50">{isDeleting ? "Deleting…" : "Delete entry"}</button></div>
       </div>}

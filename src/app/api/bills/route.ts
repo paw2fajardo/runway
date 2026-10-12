@@ -7,6 +7,7 @@ import { assertSameOrigin, requireOwner } from "../../../lib/auth/guard";
 import { nextBillDueDate, type BillFrequency } from "../../../lib/bill-schedule";
 import { linkExistingBillPaymentInTransaction, postBillInstanceInTransaction } from "../../../lib/bills/posting";
 import { manilaDate } from "../../../lib/payday/occurrences";
+import { DateOnlySchema } from "../../../lib/types";
 
 const BillCreateBaseSchema = z.object({
   name: z.string().min(1),
@@ -27,6 +28,7 @@ const BillCreateBaseSchema = z.object({
   first_occurrence_transaction_id: z.string().uuid().optional(),
   due_day_of_month: z.number().int().min(1).max(31).optional(),
   due_day_of_week: z.number().int().min(0).max(6).optional(),
+  first_due_date: DateOnlySchema.optional(),
   frequency: z.enum(["weekly", "biweekly", "monthly", "every_2_months", "every_3_months", "every_6_months", "annually"]).default("monthly"),
   occurrence_limit: z.number().int().min(1).max(600).nullable().optional(),
   grace_period_days: z.number().int().min(0).default(0),
@@ -34,7 +36,10 @@ const BillCreateBaseSchema = z.object({
 
 const BillCreateSchema = BillCreateBaseSchema.superRefine((bill, ctx) => {
   const weekly = bill.frequency === "weekly" || bill.frequency === "biweekly";
-  if (weekly && bill.due_day_of_week === undefined) {
+  if (bill.first_due_date && bill.frequency !== "biweekly") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["first_due_date"], message: "A first due date is only supported for biweekly bills." });
+  }
+  if (weekly && bill.due_day_of_week === undefined && !(bill.frequency === "biweekly" && bill.first_due_date)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["due_day_of_week"], message: "A due day of week is required for weekly bills." });
   }
   if (!weekly && bill.due_day_of_month === undefined) {
@@ -115,7 +120,9 @@ export async function POST(req: NextRequest) {
     const year = todayDate.getUTCFullYear();
     const month = String(todayDate.getUTCMonth() + 1).padStart(2, "0");
     let dueDate: string;
-    if (parsed.frequency === "weekly" || parsed.frequency === "biweekly") {
+    if (parsed.frequency === "biweekly" && parsed.first_due_date) {
+      dueDate = parsed.first_due_date;
+    } else if (parsed.frequency === "weekly" || parsed.frequency === "biweekly") {
       const daysUntilDue = (parsed.due_day_of_week! - todayDate.getUTCDay() + 7) % 7;
       const initialDue = new Date(Date.UTC(year, todayDate.getUTCMonth(), todayDate.getUTCDate() + daysUntilDue));
       dueDate = initialDue.toISOString().slice(0, 10);
@@ -162,7 +169,7 @@ export async function POST(req: NextRequest) {
           autoPostFrom,
           isVariableAmount: parsed.is_variable_amount,
           dueDayOfMonth: parsed.due_day_of_month ?? todayDate.getUTCDate(),
-          dueDayOfWeek: parsed.due_day_of_week ?? null,
+          dueDayOfWeek: parsed.first_due_date ? new Date(`${dueDate}T00:00:00Z`).getUTCDay() : parsed.due_day_of_week ?? null,
           frequency: parsed.frequency,
           occurrenceLimit: parsed.occurrence_limit ?? null,
           gracePeriodDays: parsed.grace_period_days,

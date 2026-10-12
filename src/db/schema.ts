@@ -286,6 +286,14 @@ export const plannedBudgets = pgTable("planned_budgets", {
   check("planned_budgets_name_check", sql`length(trim(${table.name})) > 0`),
 ]);
 
+export const plannedBudgetExpenses = pgTable("planned_budget_expenses", {
+  transactionId: uuid("transaction_id").primaryKey().references(() => transactions.id, { onDelete: "cascade" }),
+  budgetId: uuid("budget_id").notNull().references(() => plannedBudgets.id, { onDelete: "restrict" }),
+  occurrenceDate: date("occurrence_date", { mode: "string" }).notNull(),
+  isFinished: boolean("is_finished").notNull().default(false),
+  requestDigest: varchar("request_digest", { length: 64 }).notNull(),
+}, table => [index("idx_planned_budget_expenses_occurrence").on(table.budgetId, table.occurrenceDate)]);
+
 // 7. Balance Checkpoints
 export const balanceCheckpoints = pgTable("balance_checkpoints", {
   id: uuid("id").primaryKey().defaultRandom(),
