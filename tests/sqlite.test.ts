@@ -43,6 +43,25 @@ describe("local SQLite persistence", () => {
     vi.resetModules();
   });
 
+  it("skips a zero-due occurrence without moving money and keeps the next bill", async () => {
+    const [bill] = await database.db.insert(schema.bills).values({ name: "Lazada Pay", type: "variable_utility",
+      amount: 50000, isVariableAmount: true, dueDayOfMonth: 17 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10-17",
+      dueDate: "2026-10-17", targetSettlementDate: "2026-10-17", amountDue: 50000 }).returning();
+    const balances = await database.db.select().from(schema.accounts);
+    const { skipBillInstance, postBillInstance } = await import("../src/lib/bills/posting");
+    const skipped = await skipBillInstance(instance.id);
+    expect(skipped).toMatchObject({ status: "skipped", amountDue: 0, linkedTransactionId: null, cashPaidAt: null });
+    expect(await database.db.select().from(schema.accounts)).toEqual(balances);
+    expect(await database.db.select().from(schema.transactions)).toEqual([]);
+    const instances = await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id));
+    expect(instances).toHaveLength(2);
+    expect(instances.find(row => row.dueDate === "2026-11-17")).toMatchObject({ status: "upcoming", amountDue: 50000 });
+    expect(await skipBillInstance(instance.id)).toMatchObject({ status: "skipped" });
+    await expect(postBillInstance(instance.id, { paymentMethod: "cash", amount: 500 })).rejects.toThrow();
+    expect(await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id))).toHaveLength(2);
+  });
+
   it("round-trips UUIDs, dates, booleans, money and JSON", async () => {
     const [account] = await database.db.select().from(schema.accounts).where(eq(schema.accounts.id, accountId));
     expect(account.id).toMatch(/^[0-9a-f-]{36}$/);

@@ -64,7 +64,7 @@ export async function postBillInstanceInTransaction(
   const [instance] = await lockForUpdate(tx.select().from(billInstances)
     .where(eq(billInstances.id, instanceId))).limit(1);
   if (!instance) throw new BillPostingError("Bill occurrence not found.", 404);
-  if (instance.status === "paid" || instance.status === "auto_debited" || instance.linkedTransactionId) {
+  if (instance.status === "paid" || instance.status === "auto_debited" || instance.status === "skipped" || instance.linkedTransactionId) {
     throw new BillPostingError("This bill has already been recorded.", 409);
   }
 
@@ -138,7 +138,7 @@ export async function linkExistingBillPaymentInTransaction(
 ) {
   const [instance] = await lockForUpdate(tx.select().from(billInstances)
     .where(eq(billInstances.id, instanceId))).limit(1);
-  if (!instance || instance.status === "paid" || instance.status === "auto_debited" || instance.linkedTransactionId) {
+  if (!instance || instance.status === "paid" || instance.status === "auto_debited" || instance.status === "skipped" || instance.linkedTransactionId) {
     throw new BillPostingError("This bill is already recorded or unavailable.", 409);
   }
   const [bill] = await tx.select().from(bills).where(eq(bills.id, instance.billId)).limit(1);
@@ -176,6 +176,24 @@ export async function linkExistingBillPaymentInTransaction(
 
 export function postBillInstance(instanceId: string, options: PostBillOptions = {}) {
   return db.transaction(tx => postBillInstanceInTransaction(tx, instanceId, options));
+}
+
+export function skipBillInstance(instanceId: string) {
+  return db.transaction(async tx => {
+    const [instance] = await lockForUpdate(tx.select().from(billInstances)
+      .where(eq(billInstances.id, instanceId))).limit(1);
+    if (!instance) throw new BillPostingError("Bill occurrence not found.", 404);
+    if (instance.status === "skipped") return instance;
+    if (instance.status === "paid" || instance.status === "auto_debited" || instance.linkedTransactionId || instance.cashPaidAt) {
+      throw new BillPostingError("A recorded payment cannot be skipped.", 409);
+    }
+    const [bill] = await tx.select().from(bills).where(eq(bills.id, instance.billId)).limit(1);
+    if (!bill || !bill.isActive) throw new BillPostingError("This bill is unavailable.", 404);
+    const [skipped] = await tx.update(billInstances).set({ status: "skipped", amountDue: 0, updatedAt: new Date() })
+      .where(eq(billInstances.id, instanceId)).returning();
+    await createNextOccurrence(tx, bill, instance);
+    return skipped;
+  });
 }
 
 /** Existing auto-pay bills remain opt-in until an account and start date are saved. */

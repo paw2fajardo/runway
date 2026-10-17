@@ -226,7 +226,7 @@ export function calculateRunwayForecast({
   const refDateStr = formatLocalDate(ref);
 
   const prePaydayBills = bills.filter((b) => {
-    if (b.status === "paid" || b.status === "auto_debited") return false;
+    if (b.status === "paid" || b.status === "auto_debited" || b.status === "skipped") return false;
     return b.dueDate <= nextPaydayStr;
   });
 
@@ -280,7 +280,7 @@ export function calculateRunwayForecast({
       (b) =>
         (b.dueDate === dateStr || (i === 0 && b.dueDate < refDateStr)) &&
         b.status !== "paid" &&
-        b.status !== "auto_debited"
+        b.status !== "auto_debited" && b.status !== "skipped"
     );
 
     const billsSum = dayBills.reduce((acc, b) => acc + b.amountDue, 0);

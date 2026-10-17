@@ -180,7 +180,7 @@ export function RapidExpenseDrawer({
     fetch("/api/bills").then(async (response) => response.ok ? response.json() : [])
       .then((items: BillSuggestion[]) => {
         if (active) setBillSuggestions(items.filter((bill) =>
-          bill.status !== "paid" && bill.status !== "auto_debited" &&
+          bill.status !== "paid" && bill.status !== "auto_debited" && bill.status !== "skipped" &&
           (!bill.isAutoPay || !bill.autoPostFrom),
         ));
       }).catch(() => { if (active) setBillSuggestions([]); });

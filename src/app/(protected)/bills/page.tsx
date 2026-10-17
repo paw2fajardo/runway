@@ -64,6 +64,7 @@ export default function BillsPage() {
   const [billFormError, setBillFormError] = useState<string | null>(null);
   const [isBillSaving, setIsBillSaving] = useState(false);
   const [billActionError, setBillActionError] = useState<string | null>(null);
+  const [isSkipping, setIsSkipping] = useState(false);
   const [paymentBill, setPaymentBill] = useState<BillItem | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentSourceAccountId, setPaymentSourceAccountId] = useState("");
@@ -287,7 +288,7 @@ export default function BillsPage() {
   };
 
   const openBillEditor = (bill: BillItem) => {
-    const nextUnpaid = bills.filter((item) => item.billId === bill.billId && item.status !== "paid" && item.status !== "auto_debited")
+    const nextUnpaid = bills.filter((item) => item.billId === bill.billId && item.status !== "paid" && item.status !== "auto_debited" && item.status !== "skipped")
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
     setEditingBill(bill.frequency === "biweekly" ? nextUnpaid ?? bill : bill);
     setNewBillFirstDueDate((nextUnpaid ?? bill).dueDate);
@@ -325,8 +326,27 @@ export default function BillsPage() {
     }
   };
 
-  const activeBills = bills.filter((b) => b.status !== "paid" && b.status !== "auto_debited");
-  const recentPaidBills = bills.filter((b) => b.status === "auto_debited" || (b.status === "paid" && b.cashPaidAt)).slice(-5).reverse();
+  const skipBill = async (bill: BillItem) => {
+    if (isSkipping) return;
+    setBillActionError(null);
+    setIsSkipping(true);
+    try {
+      const response = await fetch(`/api/bills/${bill.instanceId}/skip`, { method: "POST" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Unable to skip this bill.");
+      }
+      setDetailBill(null);
+      await fetchBills();
+    } catch (error) {
+      setBillActionError(error instanceof Error ? error.message : "Unable to skip this bill.");
+    } finally {
+      setIsSkipping(false);
+    }
+  };
+
+  const activeBills = bills.filter((b) => b.status !== "paid" && b.status !== "auto_debited" && b.status !== "skipped");
+  const recentPaidBills = bills.filter((b) => b.status === "skipped" || b.status === "auto_debited" || (b.status === "paid" && b.cashPaidAt)).slice(-5).reverse();
   const committedTotal = activeBills.reduce((acc, b) => acc + b.amountDue, 0);
   const utilitiesTotal = activeBills
     .filter((b) => b.type === "variable_utility")
@@ -350,7 +370,7 @@ export default function BillsPage() {
     : activeBills.filter((b) => b.dueDate <= todayDate || (nextPaydayDate !== null && b.dueDate <= nextPaydayDate)))
     .filter((b) => !searchTerm || b.name.toLocaleLowerCase().includes(searchTerm));
   const matchingPaidBills = searchTerm
-    ? bills.filter((b) => (b.status === "paid" || b.status === "auto_debited") && b.name.toLocaleLowerCase().includes(searchTerm))
+    ? bills.filter((b) => (b.status === "paid" || b.status === "auto_debited" || b.status === "skipped") && b.name.toLocaleLowerCase().includes(searchTerm))
       .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
     : recentPaidBills;
   const searchResultCount = visibleBills.length + (searchTerm ? matchingPaidBills.length : 0);
@@ -677,11 +697,12 @@ export default function BillsPage() {
             )}
           </div>}
 
-          {matchingPaidBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label={searchTerm ? "Paid bills" : "Recent payments"}>
-            <h2 className="font-label-md text-label-md font-semibold text-on-surface">{searchTerm ? "Paid bills" : "Recent payments"}</h2>
+          {matchingPaidBills.length > 0 && <section className="space-y-2 border-t border-outline-variant/50 pt-4" aria-label={searchTerm ? "Bill history" : "Recent bill history"}>
+            <h2 className="font-label-md text-label-md font-semibold text-on-surface">{searchTerm ? "Bill history" : "Recent bill history"}</h2>
             {matchingPaidBills.map((bill) => <div key={bill.instanceId} className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/40 py-2 text-body-sm last:border-b-0">
               <span><span className="font-semibold text-on-surface">{bill.name}</span> · {bill.dueDate} · {formatPHP(bill.amountDue)}{bill.isVariableAmount && bill.status === "auto_debited" && !bill.hasCorrection ? " estimated" : ""}
                 {bill.cashPaidAt && <span className="block text-on-surface-variant">Paid in cash · {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(bill.cashPaidAt))}</span>}
+                {bill.status === "skipped" && <span className="block text-on-surface-variant">Skipped · Nothing due</span>}
               </span>
               <div className="flex items-center gap-2">
                 {searchTerm && <button type="button" onClick={() => setDetailBill(bill)} className="min-h-11 px-2 font-semibold text-primary lg:min-h-10">Details</button>}
@@ -1005,7 +1026,7 @@ export default function BillsPage() {
             }} className="min-h-11 rounded-full bg-primary px-4 font-semibold text-on-primary disabled:opacity-50">{isAdjusting ? "Saving…" : "Save correction"}</button></div>
         </div>}
       </Dialog>
-      <Dialog open={detailBill !== null} onClose={() => setDetailBill(null)} title={detailBill?.name || "Bill details"}>
+      <Dialog open={detailBill !== null} onClose={() => { if (!isSkipping) setDetailBill(null); }} title={detailBill?.name || "Bill details"}>
         {detailBill && <div className="space-y-4">
         {billActionError && <p className="text-body-sm text-red-800" role="alert">{billActionError}</p>}
         <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
@@ -1018,9 +1039,13 @@ export default function BillsPage() {
           <div><dt runway-id={`bills.details.autopay.label.${detailBill.instanceId}`}>Auto-pay</dt><dd runway-id={`bills.details.autopay.value.${detailBill.instanceId}`}>{detailBill.isAutoPay ? "Enabled" : "Manual payment"}</dd></div>
           <div><dt runway-id={`bills.details.variable-amount.label.${detailBill.instanceId}`}>Amount</dt><dd runway-id={`bills.details.variable-amount.value.${detailBill.instanceId}`}>{detailBill.isVariableAmount ? "Confirm when recording payment" : "Fixed"}</dd></div>
         </dl>
+        {!["paid", "auto_debited", "skipped"].includes(detailBill.status) && <div className="space-y-2 border-t border-outline-variant/50 pt-4">
+          <p className="text-body-sm text-on-surface-variant">Nothing due on {detailBill.dueDate}? Skip this occurrence for ₱0. Balances stay unchanged. Future bills keep their schedule and usual amount.</p>
+          <button type="button" disabled={isSkipping} onClick={() => void skipBill(detailBill)} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">{isSkipping ? "Skipping…" : "Skip this occurrence"}</button>
+        </div>}
         <div className="grid grid-cols-2 gap-2 pt-2">
-          <button type="button" onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold">Edit bill</button>
-          <button type="button" onClick={() => handleDeactivateBill(detailBill)} className="min-h-11 rounded-full border border-red-300 bg-white text-red-800 font-label-md font-semibold">Deactivate</button>
+          <button type="button" disabled={isSkipping} onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold disabled:opacity-50">Edit bill</button>
+          <button type="button" disabled={isSkipping} onClick={() => handleDeactivateBill(detailBill)} className="min-h-11 rounded-full border border-red-300 bg-white text-red-800 font-label-md font-semibold disabled:opacity-50">Deactivate</button>
         </div>
         </div>}
       </Dialog>
