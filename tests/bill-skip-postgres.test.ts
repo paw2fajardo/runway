@@ -23,6 +23,7 @@ import { POST as adjust } from "../src/app/api/bills/[id]/adjust/route";
 import { POST as createBill } from "../src/app/api/bills/route";
 import { PATCH as editBill } from "../src/app/api/bills/[id]/route";
 import { POST as createCategory } from "../src/app/api/categories/route";
+import { GET as getForecast } from "../src/app/api/runway/forecast/route";
 
 const url = process.env.RUNWAY_POSTGRES_TEST_URL;
 describe.skipIf(!url)("PostgreSQL skipped bills", () => {
@@ -272,5 +273,27 @@ describe.skipIf(!url)("PostgreSQL skipped bills", () => {
     expect(response.status).toBe(200);
     expect((await database.select().from(schema.bills).where(eq(schema.bills.id, bill.id)))[0].autoPostFrom).toBe("2026-11-17");
     expect((await database.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)))[0].currentBalance).toBe(100000);
+  });
+  it("forecasts December recurrence from PostgreSQL without creating bill instances or payments", async () => {
+    const [settings] = await database.insert(schema.projectionSettings).values({ expectedSalaryAmount: 100000 }).returning();
+    await database.insert(schema.incomeStreams).values({ projectionSettingsId: settings.id, name: "Forecast salary",
+      netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-30" });
+    const { bill, instance } = await fixture({ name: "Forecast monthly bill", dueDayOfMonth: 22 });
+    await database.update(schema.billInstances).set({ dueDate: "2026-10-22", periodIdentifier: "2026-10-22" })
+      .where(eq(schema.billInstances.id, instance.id));
+    const beforeInstances = await database.select().from(schema.billInstances);
+    const beforeAccounts = await database.select().from(schema.accounts);
+    const beforeTransactions = await database.select().from(schema.transactions);
+    const response = await getForecast(new NextRequest("http://localhost/api/runway/forecast?reference_date=2026-10-18&horizon_days=75", {
+      headers: { Cookie: `runway_owner_session=${token}` },
+    }));
+    expect(response.status).toBe(200);
+    const forecast = await response.json();
+    for (const date of ["2026-10-22", "2026-11-22", "2026-12-22"]) {
+      expect(forecast.timeline.find((day: { date: string }) => day.date === date).duesDescription).toContain(bill.name);
+    }
+    expect(await database.select().from(schema.billInstances)).toEqual(beforeInstances);
+    expect(await database.select().from(schema.accounts)).toEqual(beforeAccounts);
+    expect(await database.select().from(schema.transactions)).toEqual(beforeTransactions);
   });
 });

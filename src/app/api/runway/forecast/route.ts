@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { DateOnlySchema } from "../../../../lib/types";
 import { requireOwner } from "../../../../lib/auth/guard";
 import { loadPlannedBudgetSpending } from "../../../../lib/planned-budget-spending";
+import { projectBillOccurrences } from "../../../../lib/bills/forecast";
 
 export async function GET(req: NextRequest) {
   const owner = await requireOwner(req);
@@ -64,15 +65,25 @@ export async function GET(req: NextRequest) {
     const billList = await db
       .select({
         id: billInstances.id,
+        billId: bills.id,
         name: bills.name,
         dueDate: billInstances.dueDate,
+        originalDueDate: billInstances.originalDueDate,
         amountDue: billInstances.amountDue,
+        amount: bills.amount,
         status: billInstances.status,
         gracePeriodDays: bills.gracePeriodDays,
+        frequency: bills.frequency,
+        dueDayOfMonth: bills.dueDayOfMonth,
+        occurrenceLimit: bills.occurrenceLimit,
       })
       .from(billInstances)
       .innerJoin(bills, eq(billInstances.billId, bills.id))
       .where(eq(bills.isActive, true));
+
+    const through = new Date(referenceDate);
+    through.setDate(through.getDate() + horizonDays - 1);
+    const throughDate = `${through.getFullYear()}-${String(through.getMonth() + 1).padStart(2, "0")}-${String(through.getDate()).padStart(2, "0")}`;
 
     // 4. Calculate forward runway forecast
     const forecast = calculateRunwayForecast({
@@ -85,7 +96,7 @@ export async function GET(req: NextRequest) {
       incomeStreams: streams,
       paycheckOccurrences: forecastOccurrences,
       dailyDiscretionaryBurn,
-      bills: billList,
+      bills: projectBillOccurrences(billList, throughDate),
       plannedBudgets: budgetList as import("../../../../lib/runway").PlannedBudget[],
       plannedBudgetSpending: await loadPlannedBudgetSpending(),
       referenceDate,
