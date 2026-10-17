@@ -2,6 +2,15 @@ import { describe, it, expect } from "vitest";
 import { calculateRunwayForecast, getNextPaydayDate, getScheduledPayDatesThrough } from "../src/lib/runway";
 
 describe("Predictive Cash Runway & Forward Solvency Engine", () => {
+  it("excludes skipped occurrences from reserves and daily outflows", () => {
+    const forecast = calculateRunwayForecast({ currentLiquidCash: 100000, salaryCycleDays: "15,30",
+      expectedSalaryAmount: 100000, dailyDiscretionaryBurn: 0, referenceDate: new Date("2026-10-03"),
+      bills: [{ id: "skipped", name: "Lazada Pay", dueDate: "2026-10-03", amountDue: 50000, status: "skipped" }] });
+    expect(forecast.scheduled_bills_total).toBe(0);
+    expect(forecast.net_projected_buffer).toBe(100000);
+    expect(forecast.timeline[0].outflow).toBe(0);
+  });
+
   const mockBills = [
     {
       id: "1",

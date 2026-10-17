@@ -48,6 +48,7 @@ export const billStatusEnum = pgEnum("bill_status", [
   "past_due",
   "paid",
   "auto_debited",
+  "skipped",
 ]);
 
 export const inboxItemStatusEnum = pgEnum("inbox_item_status", [

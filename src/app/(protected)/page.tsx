@@ -320,7 +320,7 @@ export default function RunwayDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(amount !== undefined && { amount }),
-          ...(sourceAccountId && { source_account_id: sourceAccountId }),
+          ...(sourceAccountId === "cash" ? { payment_method: "cash" } : sourceAccountId && { source_account_id: sourceAccountId }),
         }),
       });
       if (!res.ok) {
@@ -353,7 +353,7 @@ export default function RunwayDashboard() {
       setPaymentError("Enter a payment amount greater than zero.");
       return;
     }
-    if (!accounts.some(account => account.id === paymentSourceAccountId && ["liquid", "revolving_credit"].includes(account.type))) { setPaymentError("Choose an active cash or credit account that paid this bill."); return; }
+    if (paymentSourceAccountId !== "cash" && !accounts.some(account => account.id === paymentSourceAccountId && ["liquid", "revolving_credit"].includes(account.type))) { setPaymentError("Choose cash or an active account that paid this bill."); return; }
     void settleBill(paymentDue, amount, paymentSourceAccountId);
   };
 
@@ -398,7 +398,7 @@ export default function RunwayDashboard() {
     }
   };
 
-  const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited");
+  const unpaidDues = dues.filter((due) => due.status !== "paid" && due.status !== "auto_debited" && due.status !== "skipped");
   const todayDate = todayInManila();
   const nextPaydayDate = forecast?.next_payday_date.slice(0, 10);
   const warningDues = unpaidDues.filter((due) =>
@@ -652,8 +652,9 @@ export default function RunwayDashboard() {
       <Dialog open={paymentDue !== null} onClose={() => { if (!isPaymentSaving) { setPaymentDue(null); setPaymentError(null); } }} title="Record bill payment" className="app-dialog-top" initialFocus={paymentDue?.isVariableAmount ? "#dashboard-variable-payment-amount" : "#dashboard-payment-source"}>
         {paymentDue && <div className="space-y-4">
           <p className="text-body-md text-on-surface">This records <span className="font-semibold">{paymentDue.name}</span> as paid in Runway. It updates your ledger but does not send money.</p>
-          {!paymentDue.isVariableAmount && <p className="text-body-sm text-on-surface-variant">Amount: {formatPHP(paymentDue.amountDue)}{paymentSourceAccountId ? ` · Paid from ${accounts.find(account => account.id === paymentSourceAccountId)?.name ?? "selected account"}` : ""}</p>}
-          <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose account</option>{accounts.filter((account) => account.type === "liquid" || account.type === "revolving_credit").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+          {!paymentDue.isVariableAmount && <p className="text-body-sm text-on-surface-variant">Amount: {formatPHP(paymentDue.amountDue)}{paymentSourceAccountId ? ` · Paid from ${paymentSourceAccountId === "cash" ? "cash" : accounts.find(account => account.id === paymentSourceAccountId)?.name ?? "selected account"}` : ""}</p>}
+          <label className="flex flex-col gap-1" htmlFor="dashboard-payment-source"><span className="text-body-sm font-semibold">Paid from</span><select id="dashboard-payment-source" value={paymentSourceAccountId} onChange={(event) => setPaymentSourceAccountId(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md"><option value="">Choose account or cash</option><option value="cash">Cash (untracked)</option>{accounts.filter((account) => account.type === "liquid" || account.type === "revolving_credit").map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+          {paymentSourceAccountId === "cash" && <p role="status" className="text-body-sm text-on-surface-variant">Marks this bill paid. No account balance or transaction will change.</p>}
           {paymentDue.isVariableAmount && <label className="flex flex-col gap-1" htmlFor="dashboard-variable-payment-amount"><span className="text-body-sm font-semibold text-on-surface">Amount paid (₱)</span><input id="dashboard-variable-payment-amount" type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="min-h-11 rounded-xl border border-outline-variant/60 bg-white px-3 text-body-md text-on-surface" /></label>}
           {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
           <div className="flex justify-end gap-2"><button type="button" disabled={isPaymentSaving} onClick={() => { setPaymentDue(null); setPaymentError(null); }} className="min-h-11 rounded-full px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">Cancel</button><button type="button" disabled={isPaymentSaving} onClick={confirmPayment} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">{isPaymentSaving ? "Recording…" : paymentDue.isVariableAmount ? "Record payment" : "Record paid"}</button></div>
