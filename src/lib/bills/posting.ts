@@ -43,7 +43,7 @@ async function createNextOccurrence(
     .from(billInstances).where(eq(billInstances.billId, bill.id));
   if (bill.occurrenceLimit !== null && count >= bill.occurrenceLimit) return;
   const nextDueDate = nextBillDueDate(
-    instance.dueDate, bill.frequency as BillFrequency, bill.dueDayOfMonth,
+    instance.originalDueDate ?? instance.dueDate, bill.frequency as BillFrequency, bill.dueDayOfMonth,
   );
   await tx.insert(billInstances).values({
     billId: bill.id,

@@ -15,6 +15,14 @@ import { POST } from "../src/app/api/bills/[id]/skip/route";
 import { POST as settle } from "../src/app/api/bills/[id]/settle/route";
 import { GET } from "../src/app/api/bills/route";
 import { createOwnerSession } from "../src/lib/auth/session";
+import { POST as reschedule } from "../src/app/api/bills/[id]/reschedule/route";
+import { rescheduleBillInstance } from "../src/lib/bills/reschedule";
+import { calculateRunwayForecast } from "../src/lib/runway";
+import { billDueState } from "../src/lib/bills/due-date";
+import { POST as adjust } from "../src/app/api/bills/[id]/adjust/route";
+import { POST as createBill } from "../src/app/api/bills/route";
+import { PATCH as editBill } from "../src/app/api/bills/[id]/route";
+import { POST as createCategory } from "../src/app/api/categories/route";
 
 const url = process.env.RUNWAY_POSTGRES_TEST_URL;
 describe.skipIf(!url)("PostgreSQL skipped bills", () => {
@@ -32,9 +40,10 @@ describe.skipIf(!url)("PostgreSQL skipped bills", () => {
     const statements = await generateMigration(generateDrizzleJson({}), generateDrizzleJson(schema));
     for (const statement of statements) {
       // Start with the old enum so the real migration must enable skipping.
-      await client.unsafe(statement.replaceAll('"public".', `"${namespace}".`).replace(", 'skipped'", ""));
+      await client.unsafe(statement.replaceAll('"public".', `"${namespace}".`).replace(", 'skipped'", "").replace('"original_due_date" date,', ""));
     }
     await client.unsafe(readFileSync("src/db/migrations/0019_skipped_bill_occurrences.sql", "utf8"));
+    await client.unsafe(readFileSync("src/db/migrations/0020_bill_occurrence_rescheduling.sql", "utf8"));
     database = drizzle(client, { schema });
     state.database = database;
     await database.insert(schema.ownerAuth).values({ username: "test-owner", passwordHash: "unused" });
@@ -132,5 +141,136 @@ describe.skipIf(!url)("PostgreSQL skipped bills", () => {
     expect((await POST(request("bad"), context("bad"))).status).toBe(400);
     const missing = randomUUID();
     expect((await POST(request(missing), context(missing))).status).toBe(404);
+  });
+
+  const moveRequest = (id: string, body: unknown, authenticated = true, origin = "http://localhost") => new NextRequest(`http://localhost/api/bills/${id}/reschedule`, {
+    method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...(authenticated ? { Cookie: `runway_owner_session=${token}` } : {}) }, body: JSON.stringify(body),
+  });
+
+  it("moves one unpaid occurrence repeatedly, updates its forecast, and preserves siblings and money", async () => {
+    const { bill, instance } = await fixture();
+    await database.update(schema.billInstances).set({ status: "past_due" }).where(eq(schema.billInstances.id, instance.id));
+    const siblings = await database.insert(schema.billInstances).values([
+      { billId: bill.id, periodIdentifier: "2026-09-17", dueDate: "2026-09-17", targetSettlementDate: "2026-09-17", amountDue: 40000, status: "paid" },
+      { billId: bill.id, periodIdentifier: "2026-11-17", dueDate: "2026-11-17", targetSettlementDate: "2026-11-17", amountDue: 50000 },
+    ]).returning();
+    const accounts = await database.select().from(schema.accounts);
+    for (const due_date of ["2026-10-20", "2026-10-25"]) {
+      const response = await reschedule(moveRequest(instance.id, { due_date }), context(instance.id));
+      expect(response.status).toBe(200);
+      expect((await response.json()).instance).toMatchObject({ dueDate: due_date, originalDueDate: instance.dueDate,
+        periodIdentifier: instance.periodIdentifier, status: "upcoming", amountDue: 50000 });
+    }
+    const rows = await (await GET(new Request("http://localhost/api/bills", { headers: { Cookie: `runway_owner_session=${token}` } }))).json();
+    const moved = rows.find((row: { instanceId: string }) => row.instanceId === instance.id);
+    expect(moved).toMatchObject({ dueDate: "2026-10-25", targetSettlementDate: "2026-10-25", status: "upcoming" });
+    expect(billDueState(moved, "2026-10-20")).toBe("upcoming");
+    const forecast = calculateRunwayForecast({ currentLiquidCash: 100000, expectedSalaryAmount: 100000,
+      dailyDiscretionaryBurn: 0, salaryCycleDays: "21", referenceDate: new Date("2026-10-18T12:00:00"), horizonDays: 14,
+      bills: [{ ...moved, id: moved.instanceId }] });
+    expect(forecast.scheduled_bills_total).toBe(0);
+    expect(forecast.timeline.find(day => day.date === "2026-10-25")?.outflow).toBe(50000);
+    for (const sibling of siblings) expect((await database.select().from(schema.billInstances).where(eq(schema.billInstances.id, sibling.id)))[0]).toEqual(sibling);
+    expect((await database.select().from(schema.bills).where(eq(schema.bills.id, bill.id)))[0]).toEqual(bill);
+    expect(await database.select().from(schema.accounts)).toEqual(accounts);
+    expect(await database.select().from(schema.transactions)).toEqual([]);
+  });
+
+  it.each([
+    ["monthly", "2026-11-17"], ["weekly", "2026-10-24"], ["biweekly", "2026-10-31"],
+  ] as const)("preserves the %s anchor after moving across months and skipping", async (frequency, nextDate) => {
+    const { bill, instance } = await fixture({ frequency });
+    await rescheduleBillInstance(instance.id, "2027-01-25");
+    await rescheduleBillInstance(instance.id, "2027-02-25");
+    await skipBillInstance(instance.id);
+    const rows = await database.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id));
+    expect(rows).toHaveLength(2);
+    expect(rows.find(row => row.id !== instance.id)).toMatchObject({ dueDate: nextDate, amountDue: 50000, originalDueDate: null });
+  });
+
+  it.each(["2026-02-30", "0000-01-01", "2026-13-01", "20/10/2026", "", null])("rejects invalid date %s without changing the occurrence", async due_date => {
+    const { instance } = await fixture();
+    expect((await reschedule(moveRequest(instance.id, { due_date }), context(instance.id))).status).toBe(400);
+    expect((await database.select().from(schema.billInstances).where(eq(schema.billInstances.id, instance.id)))[0]).toEqual(instance);
+  });
+
+  it.each(["paid", "auto_debited", "skipped"] as const)("rejects moving %s history", async status => {
+    const { instance } = await fixture({}, status);
+    expect((await reschedule(moveRequest(instance.id, { due_date: "2026-10-25" }), context(instance.id))).status).toBe(409);
+  });
+
+  it("guards rescheduling and accepts real dates without a postponement limit", async () => {
+    const { instance } = await fixture();
+    const body = { due_date: "2030-02-28" };
+    expect((await reschedule(moveRequest(instance.id, body, false), context(instance.id))).status).toBe(401);
+    expect((await reschedule(moveRequest(instance.id, body, true, "https://foreign.example"), context(instance.id))).status).toBe(403);
+    expect((await reschedule(moveRequest("bad", body), context("bad"))).status).toBe(400);
+    expect((await reschedule(moveRequest(instance.id, { ...body, amount: 1 }), context(instance.id))).status).toBe(400);
+    const missing = randomUUID();
+    expect((await reschedule(moveRequest(missing, body), context(missing))).status).toBe(404);
+    const inactive = await fixture({ isActive: false });
+    expect((await reschedule(moveRequest(inactive.instance.id, body), context(inactive.instance.id))).status).toBe(404);
+    expect((await reschedule(moveRequest(instance.id, body), context(instance.id))).status).toBe(200);
+    const moved = await rescheduleBillInstance(instance.id, body.due_date);
+    expect(await rescheduleBillInstance(instance.id, body.due_date)).toEqual(moved);
+  });
+
+  it("expires reminders queued for the old date and rolls back if that update fails", async () => {
+    const { instance } = await fixture();
+    const [delivery] = await database.insert(schema.billPushDeliveries).values({ billInstanceId: instance.id,
+      endpointHashSnapshot: "d".repeat(64), reminderDate: "2026-10-17", status: "retryable" }).returning();
+    await client`ALTER TABLE bill_push_deliveries ADD CONSTRAINT reject_expired CHECK (status <> 'expired')`;
+    try {
+      await expect(rescheduleBillInstance(instance.id, "2026-10-25")).rejects.toThrow();
+      expect((await database.select().from(schema.billInstances).where(eq(schema.billInstances.id, instance.id)))[0]).toEqual(instance);
+    } finally { await client`ALTER TABLE bill_push_deliveries DROP CONSTRAINT reject_expired`; }
+    await rescheduleBillInstance(instance.id, "2026-10-25");
+    expect((await database.select().from(schema.billPushDeliveries).where(eq(schema.billPushDeliveries.id, delivery.id)))[0]).toMatchObject({ status: "expired", nextAttemptAt: null });
+  });
+
+  it.each(["income", "system fee", "archived"])("rejects an unavailable %s bill category on create and edit", async kind => {
+    const [category] = await database.insert(schema.categories).values({ name: `Invalid bill ${kind}`,
+      isIncome: kind === "income", isSystemFee: kind === "system fee", isArchived: kind === "archived" }).returning();
+    const { instance, bill } = await fixture();
+    const body = { name: "School service", type: "variable_utility", amount: 50000, due_day_of_month: 15, category_id: category.id };
+    expect((await createBill(moveRequest(instance.id, body))).status).toBe(400);
+    expect((await editBill(moveRequest(bill.id, { category_id: category.id }), context(bill.id))).status).toBe(400);
+    expect((await database.select().from(schema.bills).where(eq(schema.bills.id, bill.id)))[0].categoryId).toBeNull();
+  });
+
+  it("creates a bill category, assigns it, changes it, and removes it without changing money", async () => {
+    const response = await createCategory(moveRequest(randomUUID(), { name: "Education" }));
+    expect(response.status).toBe(201);
+    const category = await response.json();
+    const created = await createBill(moveRequest(randomUUID(), { name: "School service", type: "variable_utility",
+      amount: 50000, due_day_of_month: 15, category_id: category.id }));
+    expect(created.status).toBe(201);
+    const { bill } = await created.json();
+    const readBill = async () => (await (await GET(new Request("http://localhost/api/bills", {
+      headers: { Cookie: `runway_owner_session=${token}` },
+    }))).json()).find((row: { billId: string }) => row.billId === bill.id);
+    expect(await readBill()).toMatchObject({ categoryId: category.id, categoryName: "Education" });
+    const [other] = await database.insert(schema.categories).values({ name: "Family" }).returning();
+    expect((await editBill(moveRequest(bill.id, { category_id: other.id }), context(bill.id))).status).toBe(200);
+    expect(await readBill()).toMatchObject({ categoryId: other.id, categoryName: "Family" });
+    expect((await editBill(moveRequest(bill.id, { category_id: null }), context(bill.id))).status).toBe(200);
+    expect(await readBill()).toMatchObject({ categoryId: null, categoryName: null });
+    expect(await database.select().from(schema.transactions)).toEqual([]);
+  });
+
+  it("auto-pays on the moved date and preserves the original series when payment is reversed", async () => {
+    const [account] = await database.insert(schema.accounts).values({ name: "Auto-pay cash", type: "liquid", currentBalance: 100000 }).returning();
+    const { bill, instance } = await fixture({ isAutoPay: true, autoPostFrom: "2026-10-01", sourceAccountId: account.id });
+    await rescheduleBillInstance(instance.id, "2026-12-25");
+    expect(await processDueAutoPayBills(new Date("2026-10-20T01:00:00Z"))).toBe(0);
+    await postBillInstance(instance.id, { automatic: true, now: new Date("2026-12-25T01:00:00Z") });
+    const rows = await database.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id));
+    expect(rows.find(row => row.id !== instance.id)).toMatchObject({ dueDate: "2026-11-17", status: "upcoming" });
+    const response = await adjust(new NextRequest(`http://localhost/api/bills/${instance.id}/adjust`, {
+      method: "POST", headers: { Origin: "http://localhost", Cookie: `runway_owner_session=${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ kind: "undo" }),
+    }), context(instance.id));
+    expect(response.status).toBe(200);
+    expect((await database.select().from(schema.bills).where(eq(schema.bills.id, bill.id)))[0].autoPostFrom).toBe("2026-11-17");
+    expect((await database.select().from(schema.accounts).where(eq(schema.accounts.id, account.id)))[0].currentBalance).toBe(100000);
   });
 });

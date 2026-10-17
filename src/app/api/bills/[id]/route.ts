@@ -91,7 +91,7 @@ export async function PATCH(req: NextRequest, context: Context) {
 
       if (parsed.category_id) {
         const [category] = await tx.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
-        if (!category || category.isArchived) throw new Error("Selected category is unavailable.");
+        if (!category || category.isArchived || category.isIncome || category.isSystemFee) throw new Error("Choose an active expense category.");
       }
       for (const accountId of [parsed.source_account_id, parsed.target_account_id]) {
         if (accountId) {
@@ -163,7 +163,7 @@ export async function PATCH(req: NextRequest, context: Context) {
           if (parsed.first_due_date) due = nextDueDate(due, updated.frequency, updated.dueDayOfMonth, updated.dueDayOfWeek);
         }
         await tx.update(billInstances).set({
-          ...(moveToNewSchedule && { dueDate, targetSettlementDate: dueDate, periodIdentifier: dueDate }),
+          ...(moveToNewSchedule && { dueDate, targetSettlementDate: dueDate, periodIdentifier: dueDate, originalDueDate: null }),
           ...(parsed.amount !== undefined && { amountDue: parsed.amount }),
           updatedAt: now,
         }).where(eq(billInstances.id, instance.id));

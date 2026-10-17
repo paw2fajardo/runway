@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         updatedAt: now,
       }).where(eq(accounts.id, account.id));
       if (parsed.data.kind === "undo") {
-        const nextDueDate = nextBillDueDate(instance.dueDate, bill.frequency as BillFrequency, bill.dueDayOfMonth);
+        const nextDueDate = nextBillDueDate(instance.originalDueDate ?? instance.dueDate, bill.frequency as BillFrequency, bill.dueDayOfMonth);
         await tx.update(bills).set({ autoPostFrom: nextDueDate, updatedAt: now }).where(eq(bills.id, bill.id));
         await tx.update(billInstances).set({
           status: instance.dueDate < manilaDate(now) ? "past_due" : "upcoming",

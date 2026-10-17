@@ -243,6 +243,7 @@ export const billInstances = pgTable(
       .references(() => bills.id, { onDelete: "cascade" }),
     periodIdentifier: varchar("period_identifier", { length: 10 }).notNull(), // YYYY-MM-DD for each occurrence
     dueDate: date("due_date", { mode: "string" }).notNull(),
+    originalDueDate: date("original_due_date", { mode: "string" }),
     targetSettlementDate: date("target_settlement_date", {
       mode: "string",
     }).notNull(),
