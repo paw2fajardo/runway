@@ -62,6 +62,23 @@ describe("local SQLite persistence", () => {
     expect(await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id))).toHaveLength(2);
   });
 
+  it("moves one occurrence repeatedly while preserving the recurring date after payment", async () => {
+    const [bill] = await database.db.insert(schema.bills).values({ name: "School service", type: "variable_utility",
+      amount: 50000, dueDayOfMonth: 15 }).returning();
+    const [instance] = await database.db.insert(schema.billInstances).values({ billId: bill.id, periodIdentifier: "2026-10",
+      dueDate: "2026-10-15", targetSettlementDate: "2026-10-15", amountDue: 50000, status: "past_due" }).returning();
+    const { rescheduleBillInstance } = await import("../src/lib/bills/reschedule");
+    await rescheduleBillInstance(instance.id, "2026-10-20");
+    const moved = await rescheduleBillInstance(instance.id, "2026-12-25");
+    expect(moved).toMatchObject({ originalDueDate: "2026-10-15", dueDate: "2026-12-25",
+      targetSettlementDate: "2026-12-25", periodIdentifier: "2026-10", status: "upcoming", amountDue: 50000 });
+    const { postBillInstance } = await import("../src/lib/bills/posting");
+    await postBillInstance(instance.id, { paymentMethod: "cash" });
+    const instances = await database.db.select().from(schema.billInstances).where(eq(schema.billInstances.billId, bill.id));
+    expect(instances).toHaveLength(2);
+    expect(instances.find(row => row.id !== instance.id)).toMatchObject({ dueDate: "2026-11-15", originalDueDate: null });
+  });
+
   it("round-trips UUIDs, dates, booleans, money and JSON", async () => {
     const [account] = await database.db.select().from(schema.accounts).where(eq(schema.accounts.id, accountId));
     expect(account.id).toMatch(/^[0-9a-f-]{36}$/);

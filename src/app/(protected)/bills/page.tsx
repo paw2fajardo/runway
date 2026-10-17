@@ -65,6 +65,8 @@ export default function BillsPage() {
   const [isBillSaving, setIsBillSaving] = useState(false);
   const [billActionError, setBillActionError] = useState<string | null>(null);
   const [isSkipping, setIsSkipping] = useState(false);
+  const [isMovingDate, setIsMovingDate] = useState(false);
+  const isBillActionSaving = isSkipping || isMovingDate;
   const [paymentBill, setPaymentBill] = useState<BillItem | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentSourceAccountId, setPaymentSourceAccountId] = useState("");
@@ -86,6 +88,11 @@ export default function BillsPage() {
   const [newBillGrace, setNewBillGrace] = useState("3");
   const [newBillAutoPay, setNewBillAutoPay] = useState(false);
   const [newBillSourceAccountId, setNewBillSourceAccountId] = useState("");
+  const [billCategories, setBillCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [newBillCategoryId, setNewBillCategoryId] = useState("");
+  const [newBillCategoryName, setNewBillCategoryName] = useState("");
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [firstOccurrencePaid, setFirstOccurrencePaid] = useState<boolean | null>(null);
   const [existingPaymentId, setExistingPaymentId] = useState("");
   const [recentExpenses, setRecentExpenses] = useState<Array<{ id: string; description: string; transactedAt: string; source: string; legs: Array<{ leg: { accountId: string | null; amount: number } }> }>>([]);
@@ -115,6 +122,25 @@ export default function BillsPage() {
   useEffect(() => {
     fetchBills();
   }, [fetchBills]);
+
+  const loadBillCategories = useCallback(async () => {
+    setIsCategoriesLoading(true);
+    setCategoriesError(null);
+    try {
+      const response = await fetch("/api/categories");
+      if (!response.ok) throw new Error("Categories could not be loaded.");
+      const items: Array<{ id: string; name: string; isIncome: boolean }> = await response.json();
+      setBillCategories(items.filter(category => !category.isIncome));
+    } catch {
+      setCategoriesError("Categories could not be loaded. Retry to choose a category.");
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAddBillOpen) void loadBillCategories();
+  }, [isAddBillOpen, loadBillCategories]);
 
   useEffect(() => {
     fetch("/api/accounts").then(async (response) => {
@@ -233,6 +259,8 @@ export default function BillsPage() {
     setNewBillGrace("3");
     setNewBillAutoPay(false);
     setNewBillSourceAccountId("");
+    setNewBillCategoryId("");
+    setNewBillCategoryName("");
     setFirstOccurrencePaid(null);
     setExistingPaymentId("");
     setNewBillVariableAmount(false);
@@ -251,6 +279,19 @@ export default function BillsPage() {
     setBillFormError(null);
     setIsBillSaving(true);
     try {
+      let categoryId = newBillCategoryId;
+      if (categoryId === "new") {
+        const response = await fetch("/api/categories", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newBillCategoryName.trim() }),
+        });
+        const category = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(category?.error || "Unable to create category.");
+        categoryId = category.id;
+        setBillCategories(items => [...items, { id: category.id, name: category.name }].sort((a, b) => a.name.localeCompare(b.name)));
+        setNewBillCategoryId(category.id);
+        setNewBillCategoryName("");
+      }
       const res = await fetch(editingBill ? `/api/bills/${editingBill.billId}` : "/api/bills", {
         method: editingBill ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -267,6 +308,7 @@ export default function BillsPage() {
           grace_period_days: parseInt(newBillGrace, 10),
           is_auto_pay: newBillAutoPay,
           source_account_id: newBillSourceAccountId || null,
+          ...((!editingBill || categoryId !== (editingBill.categoryId ?? "")) && { category_id: categoryId || null }),
           is_variable_amount: newBillVariableAmount,
           ...(firstOccurrencePaid !== null && { first_occurrence_paid: firstOccurrencePaid }),
           ...(existingPaymentId && { first_occurrence_transaction_id: existingPaymentId }),
@@ -299,6 +341,8 @@ export default function BillsPage() {
     setNewBillGrace(String(bill.gracePeriodDays));
     setNewBillAutoPay(bill.isAutoPay);
     setNewBillSourceAccountId(bill.sourceAccountId ?? "");
+    setNewBillCategoryId(bill.categoryId ?? "");
+    setNewBillCategoryName("");
     setFirstOccurrencePaid(null);
     setExistingPaymentId("");
     setNewBillVariableAmount(bill.isVariableAmount);
@@ -345,13 +389,34 @@ export default function BillsPage() {
     }
   };
 
+  const moveBillDate = async (bill: BillItem, dueDate: string) => {
+    if (isBillActionSaving) return;
+    setBillActionError(null);
+    setIsMovingDate(true);
+    try {
+      const response = await fetch(`/api/bills/${bill.instanceId}/reschedule`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ due_date: dueDate }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Unable to move this bill.");
+      setDetailBill({ ...bill, dueDate: data.instance.dueDate, status: data.instance.status });
+      await fetchBills();
+    } catch (error) {
+      setBillActionError(error instanceof Error ? error.message : "Unable to move this bill.");
+    } finally {
+      setIsMovingDate(false);
+    }
+  };
+
   const activeBills = bills.filter((b) => b.status !== "paid" && b.status !== "auto_debited" && b.status !== "skipped");
   const recentPaidBills = bills.filter((b) => b.status === "skipped" || b.status === "auto_debited" || (b.status === "paid" && b.cashPaidAt)).slice(-5).reverse();
   const committedTotal = activeBills.reduce((acc, b) => acc + b.amountDue, 0);
-  const utilitiesTotal = activeBills
-    .filter((b) => b.type === "variable_utility")
-    .reduce((acc, b) => acc + b.amountDue, 0);
-  const subsTotal = committedTotal - utilitiesTotal;
+  const categoryTotals = Object.values(activeBills.reduce<Record<string, { id: string; name: string; total: number }>>((totals, bill) => {
+    const id = bill.categoryId ?? "uncategorized";
+    totals[id] ??= { id, name: bill.categoryName ?? "Uncategorized", total: 0 };
+    totals[id].total += bill.amountDue;
+    return totals;
+  }, {})).sort((a, b) => a.name.localeCompare(b.name));
 
   const today = new Date();
   const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -477,22 +542,12 @@ export default function BillsPage() {
 
             {/* Allocation Stream */}
             <div className="grid grid-cols-2 gap-6 border-t border-white/15 pt-4 lg:gap-4 lg:pt-3">
-              <div className="flex min-w-0 flex-col">
-                <span runway-id="bills.summary.utilities.label" className="font-label-sm text-label-sm text-secondary-fixed">
-                  Utilities
-                </span>
-                <span runway-id="bills.summary.utilities.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all min-h-5">
-                  {isBillsLoading ? <Skeleton className="h-5 w-24 bg-white/15" /> : billsAvailable ? formatPHP(utilitiesTotal) : "—"}
-                </span>
-              </div>
-              <div className="flex min-w-0 flex-col">
-                <span runway-id="bills.summary.subscriptions.label" className="font-label-sm text-label-sm text-secondary-fixed">
-                  Other bills
-                </span>
-                <span runway-id="bills.summary.subscriptions.value" className="font-currency-sm text-currency-sm font-semibold text-white mt-1 break-all min-h-5">
-                  {isBillsLoading ? <Skeleton className="h-5 w-24 bg-white/15" /> : billsAvailable ? formatPHP(subsTotal) : "—"}
-                </span>
-              </div>
+              {isBillsLoading ? <Skeleton className="h-9 w-24 bg-white/15" /> : !billsAvailable ? <p className="text-body-sm text-secondary-fixed">Category totals unavailable.</p>
+                : categoryTotals.length === 0 ? <p className="text-body-sm text-secondary-fixed">No unpaid bills.</p>
+                : categoryTotals.map(category => <div key={category.id} className="flex min-w-0 flex-col">
+                  <span runway-id={`bills.summary.category.label.${category.id}`} className="break-words font-label-sm text-label-sm text-secondary-fixed">{category.name}</span>
+                  <span runway-id={`bills.summary.category.value.${category.id}`} className="mt-1 min-h-5 break-all font-currency-sm text-currency-sm font-semibold text-white">{formatPHP(category.total)}</span>
+                </div>)}
             </div>
 
             {/* Runway Diagnostic Line */}
@@ -547,7 +602,7 @@ export default function BillsPage() {
                             {b.name}
                           </span>
                           <span runway-id={`bills.grace.details.${b.instanceId}`} className="font-body-sm text-body-sm text-on-surface-variant">
-                            {b.sourceAccountName || "Source account not specified"} · Due {b.dueDate}
+                            {b.sourceAccountName || "Source account not specified"} · Due {b.dueDate} · {b.categoryName || "Uncategorized"}
                           </span>
                         </div>
                       </div>
@@ -617,7 +672,7 @@ export default function BillsPage() {
                             </span>
                           </div>
                           <span runway-id={`bills.due.details.${b.instanceId}`} className="font-body-sm text-body-sm text-on-surface-variant">
-                            Due {b.dueDate} · {b.sourceAccountName || "Source not specified"}
+                            Due {b.dueDate} · {b.sourceAccountName || "Source not specified"} · {b.categoryName || "Uncategorized"}
                           </span>
                         </div>
                       </div>
@@ -675,7 +730,7 @@ export default function BillsPage() {
                             {b.name}
                           </span>
                           <span runway-id={`bills.autopay.details.${b.instanceId}`} className="font-body-sm text-body-sm text-on-surface-variant">
-                            {b.sourceAccountName || "Source not specified"} · {b.dueDate}
+                            {b.sourceAccountName || "Source not specified"} · {b.dueDate} · {b.categoryName || "Uncategorized"}
                           </span>
                         </div>
                       </div>
@@ -792,6 +847,24 @@ export default function BillsPage() {
                 className="h-11 px-4 rounded-full border border-outline-variant/50 bg-white/70 font-currency-md text-currency-md"
               />
             </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="bill-category" className="block font-label-sm text-label-sm text-on-surface-variant">Bill category (optional)</label>
+              <div className="relative">
+                <select id="bill-category" value={newBillCategoryId} onChange={event => setNewBillCategoryId(event.target.value)} disabled={isCategoriesLoading || !!categoriesError || isBillSaving} className="min-h-11 w-full appearance-none rounded-full border border-outline-variant/50 bg-white/70 px-4 pr-11 text-body-md disabled:opacity-50">
+                  <option value="">{isCategoriesLoading ? "Loading categories…" : "Uncategorized"}</option>
+                  {newBillCategoryId && newBillCategoryId !== "new" && !billCategories.some(category => category.id === newBillCategoryId) && <option value={newBillCategoryId} disabled>{editingBill?.categoryName ?? "Current category"} (unavailable)</option>}
+                  {billCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  <option value="new">Create category…</option>
+                </select>
+                <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              </div>
+              {newBillCategoryId === "new" && <div className="space-y-1">
+                <label htmlFor="bill-category-name" className="block font-label-sm text-label-sm text-on-surface-variant">New category name</label>
+                <input id="bill-category-name" type="text" required maxLength={100} value={newBillCategoryName} onChange={event => setNewBillCategoryName(event.target.value)} disabled={isBillSaving} placeholder="e.g. Education" className="min-h-11 w-full rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md disabled:opacity-50" />
+              </div>}
+              {categoriesError && <div><p role="alert" className="text-body-sm text-error">{categoriesError}</p><button type="button" onClick={() => void loadBillCategories()} className="min-h-11 text-body-sm font-semibold text-secondary underline">Retry categories</button></div>}
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1026,26 +1099,38 @@ export default function BillsPage() {
             }} className="min-h-11 rounded-full bg-primary px-4 font-semibold text-on-primary disabled:opacity-50">{isAdjusting ? "Saving…" : "Save correction"}</button></div>
         </div>}
       </Dialog>
-      <Dialog open={detailBill !== null} onClose={() => { if (!isSkipping) setDetailBill(null); }} title={detailBill?.name || "Bill details"}>
+      <Dialog open={detailBill !== null} onClose={() => { if (!isBillActionSaving) { setDetailBill(null); setBillActionError(null); } }} title={detailBill?.name || "Bill details"}>
         {detailBill && <div className="space-y-4">
         {billActionError && <p className="text-body-sm text-red-800" role="alert">{billActionError}</p>}
         <dl runway-id={`bills.details.content.${detailBill.instanceId}`} className="space-y-4 text-body-md">
-          <div><dt runway-id={`bills.details.due-date.label.${detailBill.instanceId}`}>Due date</dt><dd runway-id={`bills.details.due-date.value.${detailBill.instanceId}`}>{detailBill.dueDate}</dd></div>
+          <div><dt runway-id={`bills.details.due-date.label.${detailBill.instanceId}`}>Due date</dt><dd aria-live="polite" runway-id={`bills.details.due-date.value.${detailBill.instanceId}`}>{detailBill.dueDate}</dd></div>
           <div><dt runway-id={`bills.details.grace.label.${detailBill.instanceId}`}>Grace period after due date</dt><dd runway-id={`bills.details.grace.value.${detailBill.instanceId}`}>{detailBill.gracePeriodDays} days</dd></div>
           <div><dt runway-id={`bills.details.frequency.label.${detailBill.instanceId}`}>Frequency</dt><dd runway-id={`bills.details.frequency.value.${detailBill.instanceId}`}>{billFrequencyLabels[detailBill.frequency]}</dd></div>
+          <div><dt>Category</dt><dd>{detailBill.categoryName || "Uncategorized"}</dd></div>
           {detailBill.occurrenceLimit !== null && <div><dt runway-id={`bills.details.occurrence-limit.label.${detailBill.instanceId}`}>Total payments</dt><dd runway-id={`bills.details.occurrence-limit.value.${detailBill.instanceId}`}>{detailBill.occurrenceLimit}</dd></div>}
           <div><dt runway-id={`bills.details.source.label.${detailBill.instanceId}`}>Source account</dt><dd runway-id={`bills.details.source.value.${detailBill.instanceId}`}>{detailBill.sourceAccountName || "Not specified"}</dd></div>
           <div><dt runway-id={`bills.details.balance.label.${detailBill.instanceId}`}>Wallet balance</dt><dd runway-id={`bills.details.balance.value.${detailBill.instanceId}`}>{detailBill.sourceAccountBalance == null ? "Not available" : formatPHP(detailBill.sourceAccountBalance)}</dd></div>
           <div><dt runway-id={`bills.details.autopay.label.${detailBill.instanceId}`}>Auto-pay</dt><dd runway-id={`bills.details.autopay.value.${detailBill.instanceId}`}>{detailBill.isAutoPay ? "Enabled" : "Manual payment"}</dd></div>
           <div><dt runway-id={`bills.details.variable-amount.label.${detailBill.instanceId}`}>Amount</dt><dd runway-id={`bills.details.variable-amount.value.${detailBill.instanceId}`}>{detailBill.isVariableAmount ? "Confirm when recording payment" : "Fixed"}</dd></div>
         </dl>
+        {!["paid", "auto_debited", "skipped"].includes(detailBill.status) && <form key={`${detailBill.instanceId}:${detailBill.dueDate}`} className="space-y-2 border-t border-outline-variant/50 pt-4" onSubmit={(event) => {
+          event.preventDefault();
+          void moveBillDate(detailBill, String(new FormData(event.currentTarget).get("due_date")));
+        }}>
+          <label htmlFor="bill-occurrence-due-date" className="block text-body-sm font-semibold text-on-surface">New due date</label>
+          <p id="bill-occurrence-date-hint" className="text-body-sm text-on-surface-variant">Move only this occurrence. You can move it again later. Future bills keep their usual schedule.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input id="bill-occurrence-due-date" name="due_date" type="date" required defaultValue={detailBill.dueDate} disabled={isBillActionSaving} aria-describedby="bill-occurrence-date-hint" className="min-h-11 min-w-0 max-w-full rounded-xl border border-outline-variant bg-surface px-3 text-body-md text-on-surface disabled:opacity-50" />
+            <button type="submit" disabled={isBillActionSaving} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md font-semibold text-on-surface hover:bg-surface-container focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50">{isMovingDate ? "Moving…" : "Move date"}</button>
+          </div>
+        </form>}
         {!["paid", "auto_debited", "skipped"].includes(detailBill.status) && <div className="space-y-2 border-t border-outline-variant/50 pt-4">
           <p className="text-body-sm text-on-surface-variant">Nothing due on {detailBill.dueDate}? Skip this occurrence for ₱0. Balances stay unchanged. Future bills keep their schedule and usual amount.</p>
-          <button type="button" disabled={isSkipping} onClick={() => void skipBill(detailBill)} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">{isSkipping ? "Skipping…" : "Skip this occurrence"}</button>
+          <button type="button" disabled={isBillActionSaving} onClick={() => void skipBill(detailBill)} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md font-semibold text-on-surface disabled:opacity-50">{isSkipping ? "Skipping…" : "Skip this occurrence"}</button>
         </div>}
         <div className="grid grid-cols-2 gap-2 pt-2">
-          <button type="button" disabled={isSkipping} onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold disabled:opacity-50">Edit bill</button>
-          <button type="button" disabled={isSkipping} onClick={() => handleDeactivateBill(detailBill)} className="min-h-11 rounded-full border border-red-300 bg-white text-red-800 font-label-md font-semibold disabled:opacity-50">Deactivate</button>
+          <button type="button" disabled={isBillActionSaving} onClick={() => openBillEditor(detailBill)} className="min-h-11 rounded-full bg-primary text-on-primary font-label-md font-semibold disabled:opacity-50">Edit bill</button>
+          <button type="button" disabled={isBillActionSaving} onClick={() => handleDeactivateBill(detailBill)} className="min-h-11 rounded-full border border-red-300 bg-white text-red-800 font-label-md font-semibold disabled:opacity-50">Deactivate</button>
         </div>
         </div>}
       </Dialog>

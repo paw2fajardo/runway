@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (parsed.category_id) {
       const [category] = await db.select().from(categories).where(eq(categories.id, parsed.category_id)).limit(1);
-      if (!category || category.isArchived) return NextResponse.json({ error: "Selected category is unavailable." }, { status: 400 });
+      if (!category || category.isArchived || category.isIncome || category.isSystemFee) return NextResponse.json({ error: "Choose an active expense category." }, { status: 400 });
     }
 
     const now = new Date();
