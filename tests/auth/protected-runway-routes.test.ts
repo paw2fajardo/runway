@@ -114,4 +114,28 @@ describe("owner-protected runway routes", () => {
     expect(mocks.requireOwner).toHaveBeenCalledOnce();
     expect(mocks.select).toHaveBeenCalledTimes(2);
   });
+
+  it("includes recurring bills through December without saving projected occurrences", async () => {
+    mocks.select
+      .mockReturnValueOnce(query([{ currentBalance: 100000 }]))
+      .mockReturnValueOnce(query([{ id: "profile-1", expectedSalaryAmount: 100000, salaryCycleDays: "15,30", dailyDiscretionaryBurn: 0 }]))
+      .mockReturnValueOnce(query([{ id: "stream-1", name: "Salary", netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-30", isEnabled: true }]))
+      .mockReturnValueOnce(query([]))
+      .mockReturnValueOnce(query([]))
+      .mockReturnValueOnce(query([{ id: "instance-1", billId: "bill-1", name: "Monthly bill", dueDate: "2026-10-22",
+        originalDueDate: null, amountDue: 5000, amount: 5000, status: "upcoming", gracePeriodDays: 0,
+        frequency: "monthly", dueDayOfMonth: 22, occurrenceLimit: null }]));
+
+    const response = await getForecast(request("GET", "/api/runway/forecast?reference_date=2026-10-18&horizon_days=75"));
+    expect(response.status).toBe(200);
+    const forecast = await response.json();
+    for (const date of ["2026-10-22", "2026-11-22", "2026-12-22"]) {
+      expect(forecast.timeline.find((day: { date: string }) => day.date === date)).toMatchObject({
+        outflow: 5000, duesDescription: ["Monthly bill"],
+      });
+    }
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
 });
