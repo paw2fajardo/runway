@@ -13,6 +13,7 @@ interface SolvencyHeroProps {
   plannedBudgets: number;
   daysToPayday: number;
   paydayDateStr?: string;
+  forecastCalculatedAt?: string;
   isSolvent?: boolean;
   revolvingCreditAccounts?: Array<{
     id: string;
@@ -31,6 +32,7 @@ export function SolvencyHero({
   plannedBudgets,
   daysToPayday,
   paydayDateStr = "Unavailable",
+  forecastCalculatedAt,
   isSolvent = true,
   revolvingCreditAccounts = [],
 }: SolvencyHeroProps) {
@@ -45,7 +47,7 @@ export function SolvencyHero({
             }`}
           />
           <span runway-id="runway.solvency-status" className={`font-label-sm text-label-sm font-medium ${isSolvent ? "text-secondary-fixed" : "text-rose-200"}`}>
-            {isSolvent ? "Cash after bills" : "Shortfall warning"}
+            {isSolvent ? "Projected cash after bills" : "Shortfall warning"}
           </span>
         </div>
         <span runway-id="runway.next-income" className="font-label-sm text-label-sm font-medium text-secondary-fixed px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
@@ -65,23 +67,23 @@ export function SolvencyHero({
           </span>
         </div>
         <p runway-id="runway.safe-to-spend-description" className="text-body-sm text-white/80">
-          Cash after bills and planned spending by payday. Daily burn is deducted too.
+          Estimated cash left from your current balance after bills and budget plans due by payday. Planned daily spending until payday is already deducted.
         </p>
         <div className="flex items-center space-x-1.5">
           {isSolvent ? <CircleCheck size={17} className="shrink-0 text-secondary-fixed" aria-hidden="true" /> : <TriangleAlert size={17} className="shrink-0 text-rose-200" aria-hidden="true" />}
           <span runway-id="runway.daily-allowance-label" className="font-body-sm text-body-sm text-secondary-fixed font-medium">
-            {isSolvent ? "No shortfall forecast" : "Shortfall forecast"}
+            {isSolvent ? "No shortfall in this forecast" : "Shortfall in this forecast"}
           </span>
         </div>
         <p runway-id="runway.daily-allowance-description" className="text-body-sm text-white/80">
-          Daily guide until payday, if spread evenly: <span runway-id="runway.daily-allowance" className="font-currency-sm text-currency-sm font-semibold text-white">{formatPHP(dailyAllowance)}/day</span>.
+          Average cash left per day until payday: <span runway-id="runway.daily-allowance" className="font-currency-sm text-currency-sm font-semibold text-white">{formatPHP(dailyAllowance)}/day</span>. This guide is included above, not extra cash.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 lg:grid-cols-4">
         <div className="min-w-0">
           <span runway-id="runway.breakdown-liquid-cash-label" className="font-label-sm text-label-sm text-white/70">
-            Liquid Cash
+            Current liquid cash
           </span>
           <div runway-id="runway.breakdown-liquid-cash" className="mt-0.5 font-currency-md text-currency-md font-semibold text-white whitespace-nowrap">
             {formatPHP(liquidCash)}
@@ -90,7 +92,7 @@ export function SolvencyHero({
 
         <div className="min-w-0">
           <span runway-id="runway.breakdown-upcoming-dues-label" className="font-label-sm text-label-sm text-white/70">
-            Bills due by payday
+            Bills due through payday
           </span>
           <div runway-id="runway.breakdown-upcoming-dues" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
             {formatPHP(upcomingDues)}
@@ -99,17 +101,21 @@ export function SolvencyHero({
 
         <div className="min-w-0">
           <span runway-id="runway.breakdown-planned-spending-label" className="font-label-sm text-label-sm text-white/70">
-            Daily spending
+            Planned daily spending until payday
           </span>
           <div runway-id="runway.breakdown-planned-spending" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">
             {formatPHP(plannedSpending)}
           </div>
         </div>
         <div className="min-w-0">
-          <span runway-id="runway.breakdown-planned-budgets-label" className="font-label-sm text-label-sm text-white/70">Budget plans by payday</span>
+          <span runway-id="runway.breakdown-planned-budgets-label" className="font-label-sm text-label-sm text-white/70">Budget plans through payday</span>
           <div runway-id="runway.breakdown-planned-budgets" className="mt-0.5 font-currency-md text-currency-md font-semibold text-rose-200 whitespace-nowrap">{formatPHP(plannedBudgets)}</div>
         </div>
       </div>
+
+      {forecastCalculatedAt && <p runway-id="runway.forecast-calculated-at" className="text-label-sm text-white/70">
+        Forecast calculated <time dateTime={forecastCalculatedAt}>{new Date(forecastCalculatedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}</time> from saved balances, income, bills, and budget plans.
+      </p>}
 
       {revolvingCreditAccounts.length > 0 && (
         <details runway-id="runway.solvency-credit-breakdown" className="border-t border-white/15 pt-3">

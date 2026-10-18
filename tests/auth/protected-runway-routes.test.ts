@@ -126,9 +126,12 @@ describe("owner-protected runway routes", () => {
         originalDueDate: null, amountDue: 5000, amount: 5000, status: "upcoming", gracePeriodDays: 0,
         frequency: "monthly", dueDayOfMonth: 22, occurrenceLimit: null }]));
 
+    const requestStartedAt = Date.now();
     const response = await getForecast(request("GET", "/api/runway/forecast?reference_date=2026-10-18&horizon_days=75"));
     expect(response.status).toBe(200);
     const forecast = await response.json();
+    expect(Date.parse(forecast.forecast_calculated_at)).toBeGreaterThanOrEqual(requestStartedAt);
+    expect(Date.parse(forecast.forecast_calculated_at)).toBeLessThanOrEqual(Date.now());
     for (const date of ["2026-10-22", "2026-11-22", "2026-12-22"]) {
       expect(forecast.timeline.find((day: { date: string }) => day.date === date)).toMatchObject({
         outflow: 5000, duesDescription: ["Monthly bill"],
