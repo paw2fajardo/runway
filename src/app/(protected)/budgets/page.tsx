@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ComponentProps } from "react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
@@ -58,7 +57,7 @@ export default function BudgetsPage() {
     if (response.ok) await load();
   }
 
-  return <div className="flex min-h-screen flex-col"><Header title="Budget plans" /><main className="app-bottom-clearance mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-margin pt-20 pb-space-xl">
+  return <div className="flex min-h-screen flex-col"><main className="app-bottom-clearance mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-margin pt-20 pb-space-xl">
     <div><h1 className="text-headline-lg font-semibold">Budget plans</h1><p className="mt-1 text-body-md text-on-surface-variant">Link an expense to a budget date in Quick log. Finish the shop to release its unused reserve; recurring dates stay active.</p></div>
     <form onSubmit={createBudget} className="forest-panel flex flex-col gap-4 rounded-2xl p-5 text-white">
       <h2 className="text-title-md font-semibold">Add a budget</h2>
@@ -72,7 +71,7 @@ export default function BudgetsPage() {
     <section className="space-y-3" aria-label="Active budget plans"><h2 className="text-title-md font-semibold">Active plans</h2>{items.length ? items.map(item => <article key={item.id} className="border-b border-outline-variant/50 py-3"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="break-words font-semibold">{item.name}</h3><p className="text-body-sm text-on-surface-variant">{formatPHP(item.amountCents)} · {cadenceLabel[item.cadence]} · from {item.startDate}</p></div><button type="button" onClick={() => void deactivate(item.id)} className="min-h-11 shrink-0 rounded-full px-3 text-label-md font-semibold text-error">Remove plan</button></div>
       {item.occurrences?.length > 0 && <details className="mt-2 text-body-sm"><summary className="min-h-11 cursor-pointer py-3 text-secondary">Budget dates and spending</summary><ul className="divide-y divide-outline-variant/40">{item.occurrences.map(occurrence => <li key={occurrence.date} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2"><span>{occurrence.date}</span><span className="text-on-surface-variant">{formatPHP(occurrence.spentCents)} spent · {occurrence.isFinished ? "Finished" : `${formatPHP(occurrence.remainingCents)} reserved`}</span></li>)}</ul></details>}
     </article>) : <p className="text-body-md text-on-surface-variant">No budget plans yet.</p>}</section>
-  </main><BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+  </main><BottomNav showNavigation={false} onOpenQuickLog={() => setIsQuickLogOpen(true)} />
     <RapidExpenseDrawer isOpen={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} onSuccess={() => { void loadAccounts(); void load(); }} accounts={accounts} />
   </div>;
 }

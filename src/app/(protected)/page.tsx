@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronDown } from "lucide-react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SolvencyHero } from "@/components/runway/SolvencyHero";
 import { RunwayTimeline } from "@/components/runway/RunwayTimeline";
@@ -446,8 +445,6 @@ export default function RunwayDashboard() {
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
-      <Header />
-
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin gap-space-lg pb-space-xl">
           <div className="space-y-2 pt-2">
@@ -713,7 +710,7 @@ export default function RunwayDashboard() {
       </Dialog>
 
       {/* Bottom Tab Navigation */}
-      <BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+      <BottomNav showNavigation={false} onOpenQuickLog={() => setIsQuickLogOpen(true)} />
 
       {/* Rapid Expense Keypad Drawer */}
       {forecast ? <RapidExpenseDrawer

@@ -4,6 +4,8 @@ import { db } from "../../db";
 import { ownerAuth } from "../../db/schema";
 import { getOwnerFromRequest } from "../../lib/auth/session";
 import { PrimaryPageSwipeNavigation } from "../../components/layout/PrimaryPageSwipeNavigation";
+import { Header } from "../../components/layout/Header";
+import { BottomNav } from "../../components/layout/BottomNav";
 
 export default async function ProtectedLayout({
   children,
@@ -22,5 +24,9 @@ export default async function ProtectedLayout({
     redirect(configuredOwner ? "/login" : "/setup");
   }
 
-  return <PrimaryPageSwipeNavigation>{children}</PrimaryPageSwipeNavigation>;
+  return <>
+    <Header />
+    <PrimaryPageSwipeNavigation>{children}</PrimaryPageSwipeNavigation>
+    <BottomNav showQuickLog={false} />
+  </>;
 }

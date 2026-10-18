@@ -3,7 +3,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { Dialog } from "@/components/ui/Dialog";
@@ -282,7 +281,6 @@ export default function TransactionsPage() {
   let previousMobileDay = "";
 
   return <main className="app-bottom-clearance min-h-screen bg-surface pt-20">
-    <Header title="Transactions" />
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -410,7 +408,7 @@ export default function TransactionsPage() {
       </nav>}
     </div>
 
-    <BottomNav onOpenQuickLog={() => { window.location.assign("/"); }} />
+    <BottomNav showNavigation={false} onOpenQuickLog={() => { window.location.assign("/"); }} />
     {editing && <RapidExpenseDrawer isOpen onClose={() => setEditing(null)} onSuccess={reload} accounts={accounts} editTransaction={editing} onEditSuccess={reload} />}
     <Dialog open={deleteTarget !== null} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(""); } }} title="Delete this entry?">
       {deleteTarget && <div>

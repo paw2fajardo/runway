@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
@@ -64,8 +63,6 @@ export default function InboxPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
-      <Header title="Inbox" />
-
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-md select-none">
           <div className="flex items-center justify-end gap-3 py-2">
@@ -233,7 +230,7 @@ export default function InboxPage() {
         </div>
       </main>
 
-      <BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+      <BottomNav showNavigation={false} onOpenQuickLog={() => setIsQuickLogOpen(true)} />
 
       <RapidExpenseDrawer
         isOpen={isQuickLogOpen}

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
@@ -448,8 +447,6 @@ export default function BillsPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent" runway-id="bills.page">
-      <Header title="Bills" />
-
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-4xl mx-auto min-h-screen" runway-id="bills.main">
         <div className="flex flex-col w-full px-margin pb-6 gap-6 lg:gap-5">
           {/* View Switcher & Title Block */}
@@ -798,7 +795,7 @@ export default function BillsPage() {
         </div>
       </main>
 
-      <BottomNav onOpenQuickLog={() => setIsQuickLogOpen(true)} />
+      <BottomNav showNavigation={false} onOpenQuickLog={() => setIsQuickLogOpen(true)} />
 
       <RapidExpenseDrawer
         isOpen={isQuickLogOpen}

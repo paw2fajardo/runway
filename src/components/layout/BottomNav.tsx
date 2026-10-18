@@ -7,9 +7,11 @@ import { CalendarDays, Lightbulb, Plus, ReceiptText, TrendingUp, Wallet, PiggyBa
 
 interface BottomNavProps {
   onOpenQuickLog?: () => void;
+  showNavigation?: boolean;
+  showQuickLog?: boolean;
 }
 
-export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
+export function BottomNav({ onOpenQuickLog, showNavigation = true, showQuickLog = true }: BottomNavProps) {
   const pathname = usePathname();
 
   const isRunway = pathname === "/";
@@ -21,7 +23,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
 
   return (
     <>
-    <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-full max-w-lg px-space-xs">
+    {showNavigation && <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-full max-w-lg px-space-xs">
       <div className="grid grid-cols-6 rounded-full border border-white/15 bg-primary-container/95 p-space-xs shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
         {/* Tab 1: Runway */}
         <Link
@@ -99,8 +101,8 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <span className="text-label-sm">History</span>
         </Link>
       </div>
-    </nav>
-    {pathname !== "/settings" && <button
+    </nav>}
+    {showQuickLog && pathname !== "/settings" && <button
       onClick={onOpenQuickLog}
       runway-id="runway.nav.quick-log"
       aria-label="Open Rapid Expense Log"
