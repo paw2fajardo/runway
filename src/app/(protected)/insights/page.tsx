@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -9,6 +9,7 @@ import { formatPHP } from "@/lib/currency";
 import type { InsightsResponse, compareForecasts } from "@/lib/insights";
 import type { RunwayForecastResponse } from "@/lib/types";
 import { todayInManila } from "@/lib/bills/due-date";
+import { PaymentPlanner } from "@/components/runway/PaymentPlanner";
 
 interface Baseline { saved_at: string | null; comparison: ReturnType<typeof compareForecasts> | null }
 const metricNames: Record<string, string> = { current_liquid_cash: "Liquid cash", scheduled_bills_total: "Bills through next payday",
@@ -39,6 +40,14 @@ export default function InsightsPage() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [answerError, setAnswerError] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [paymentText, setPaymentText] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentStaged, setPaymentStaged] = useState(false);
+  const [stagingPayment, setStagingPayment] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,14 +100,59 @@ export default function InsightsPage() {
     finally { setExplaining(false); }
   }
 
+  async function stagePayment(event: FormEvent) {
+    event.preventDefault();
+    setStagingPayment(true); setPaymentError(null); setPaymentStaged(false);
+    try {
+      await jsonResponse("/api/inbox/parse", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw_payload: paymentText.trim(), source_channel: "quick_text" }) });
+      setPaymentText(""); setPaymentStaged(true);
+    } catch (cause) { setPaymentError(cause instanceof Error ? cause.message : "Entry could not be staged. Retry."); }
+    finally { setStagingPayment(false); }
+  }
+
+  async function askRunway(event: FormEvent) {
+    event.preventDefault();
+    setAsking(true); setAiError(null); setAiAnswer(null);
+    try {
+      const data = await jsonResponse<{ answer?: string }>("/api/runway/assistant", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: question.trim() }) });
+      if (typeof data.answer !== "string") throw new Error("The Runway AI response was invalid. Retry.");
+      setAiAnswer(data.answer);
+    } catch (cause) { setAiError(cause instanceof Error ? cause.message : "Unable to answer this Runway question."); }
+    finally { setAsking(false); }
+  }
+
   const selectedPurchase = purchase?.[purchaseChoice];
   return <div className="min-h-screen">
     <Header title="Insights" showBack />
     <main className="app-bottom-clearance mx-auto w-full max-w-[480px] space-y-space-lg px-margin pt-20 md:max-w-5xl">
-      <div className="space-y-2"><h1 className="text-headline-lg font-semibold">Spending insights</h1>
-        <p className="text-body-md text-on-surface-variant">Recorded spending, upcoming choices, and changes to your forecast.</p>
-        <Link href="/inbox" className="inline-flex min-h-11 items-center text-body-md text-secondary underline">Describe a payment</Link>
+      <div className="space-y-2"><h1 className="text-headline-lg font-semibold">Insights</h1>
+        <p className="text-body-md text-on-surface-variant">Spending patterns, payment options, and AI tools for your cash flow.</p>
       </div>
+      <section className={panel} aria-labelledby="ai-tools-title">
+        <div><h2 id="ai-tools-title" className="text-headline-sm font-semibold">Runway AI</h2>
+          <p className="text-body-sm text-on-surface-variant">Ask about your forecast or prepare a payment entry. AI requests may include your forecast, spending data, or the text you submit. AI never changes your ledger.</p></div>
+        <form onSubmit={askRunway} className="space-y-2">
+          <label htmlFor="runway-ai-question" className="block text-body-sm font-medium">Ask a question</label>
+          <input id="runway-ai-question" value={question} onChange={event => { setQuestion(event.target.value); setAiError(null); setAiAnswer(null); }} maxLength={1000} required
+            placeholder="Can I afford a ₱12,000 monitor this weekend?" className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 text-body-md" />
+          <button type="submit" disabled={asking || !question.trim()} className={button}>{asking ? "Thinking…" : "Ask Runway"}</button>
+          {aiError && <p role="alert" className="text-body-sm text-error">{aiError}</p>}
+          {aiAnswer && <p role="status" className="whitespace-pre-wrap text-body-md">{aiAnswer}</p>}
+        </form>
+        <form onSubmit={stagePayment} className="space-y-2 border-t border-outline-variant/50 pt-space-md">
+          <label htmlFor="insights-payment-text" className="block text-body-sm font-medium">Describe a payment</label>
+          <textarea id="insights-payment-text" rows={3} maxLength={4000} required value={paymentText}
+            onChange={event => { setPaymentText(event.target.value); setPaymentStaged(false); setPaymentError(null); }}
+            placeholder="Spent ₱420 on groceries using GCash" className="w-full resize-y rounded-xl border border-outline-variant bg-surface-container-low p-3 text-body-md" />
+          <p className="text-body-sm text-on-surface-variant">We prepare a draft. Review every field in Inbox before logging. Text may go to the configured AI provider if the local parser cannot read it.</p>
+          <button type="submit" disabled={stagingPayment || !paymentText.trim()} className={button}>{stagingPayment ? "Preparing…" : "Prepare payment entry"}</button>
+          {paymentError && <p role="alert" className="text-body-sm text-error">{paymentError}</p>}
+          {paymentStaged && <p role="status" className="text-body-sm">Draft ready. <Link href="/inbox" className="text-secondary underline">Review it in Inbox</Link>.</p>}
+        </form>
+      </section>
+      <PaymentPlanner />
       {error ? <div role="alert" className={panel}><p className="text-error">{error}</p><button className={button} onClick={() => setRevision(value => value + 1)}>Retry insights</button></div>
         : !insights ? <p role="status">Loading spending history…</p> : <>
           <section className={panel} aria-labelledby="weekly-title">

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Plus, ReceiptText, TrendingUp, Wallet, PiggyBank } from "lucide-react";
+import { CalendarDays, Lightbulb, Plus, ReceiptText, TrendingUp, Wallet, PiggyBank } from "lucide-react";
 
 interface BottomNavProps {
   onOpenQuickLog?: () => void;
@@ -17,11 +17,12 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
   const isAccounts = pathname.startsWith("/accounts");
   const isTransactions = pathname.startsWith("/transactions");
   const isBudgets = pathname.startsWith("/budgets");
+  const isInsights = pathname.startsWith("/insights");
 
   return (
     <>
     <nav runway-id="runway.nav" aria-label="Main navigation" className="fixed z-40 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-full max-w-lg px-space-xs">
-      <div className="grid grid-cols-5 rounded-full border border-white/15 bg-primary-container/95 p-space-xs shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
+      <div className="grid grid-cols-6 rounded-full border border-white/15 bg-primary-container/95 p-space-xs shadow-[0_16px_36px_rgba(7,40,33,0.28)] backdrop-blur-xl">
         {/* Tab 1: Runway */}
         <Link
           href="/"
@@ -38,7 +39,13 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <span className="text-label-sm">Runway</span>
         </Link>
 
-        {/* Tab 2: Bills */}
+        {/* Tab 2: Insights */}
+        <Link href="/insights" runway-id="runway.nav.insights" aria-label="Insights" aria-current={isInsights ? "page" : undefined}
+          className={`min-w-0 min-h-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors ${isInsights ? "bg-white text-primary shadow-sm font-semibold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>
+          <Lightbulb size={20} strokeWidth={1.8} aria-hidden="true" /><span className="text-label-sm">Insights</span>
+        </Link>
+
+        {/* Tab 3: Bills */}
         <Link
           href="/bills"
           runway-id="runway.nav.bills"
@@ -54,12 +61,13 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <span className="text-label-sm">Bills</span>
         </Link>
 
+        {/* Tab 4: Budgets */}
         <Link href="/budgets" aria-label="Budgets" aria-current={isBudgets ? "page" : undefined}
           className={`min-w-0 min-h-14 rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors ${isBudgets ? "bg-white text-primary shadow-sm font-semibold" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>
           <PiggyBank size={20} aria-hidden="true" /><span className="text-label-sm">Budgets</span>
         </Link>
 
-        {/* Tab 4: Accounts */}
+        {/* Tab 5: Accounts */}
         <Link
           href="/accounts"
           runway-id="runway.nav.accounts"
@@ -75,7 +83,7 @@ export function BottomNav({ onOpenQuickLog }: BottomNavProps) {
           <span className="text-label-sm">Accounts</span>
         </Link>
 
-        {/* Tab 5: Transactions */}
+        {/* Tab 6: Transactions */}
         <Link
           href="/transactions"
           runway-id="runway.nav.transactions"

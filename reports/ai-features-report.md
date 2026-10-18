@@ -1,13 +1,13 @@
 # Runway AI features report
 
-Date: October 18, 2026. Status: implemented and verified locally. This report records verification before PR delivery. Production remains undeployed.
+Date: October 18, 2026. Status: implemented and verified locally. This report records verification before PR delivery. This Insights page update has not been deployed.
 
 ## Features delivered
 
 | Feature | Where | Behavior |
 | --- | --- | --- |
-| Bill payment planner | Dashboard | Compares 45 days of current payments, spending cuts, eligible grace periods, and combined options. Shows payment dates, lowest daily balances, and shortfalls. Grace periods require opt-in. Autopay dates stay fixed. Optional AI explains server-calculated results. |
-| Plain-language logging | Inbox, **Describe a payment** | Simple expense sentences work locally. Other text uses the existing AI parser when configured. Entries stay in the inbox until reviewed. Review supports amount, additional fee, account, category, description, payment time, and an optional bill link. Unknown categories stay unclassified. |
+| Bill payment planner | Insights | Compares 45 days of current payments, spending cuts, eligible grace periods, and combined options. Shows payment dates, lowest daily balances, and shortfalls. Grace periods require opt-in. Autopay dates stay fixed. Optional AI explains server-calculated results. |
+| Plain-language logging | Insights, **Describe a payment** | Simple expense sentences work locally. Other text uses the existing AI parser when configured. Entries stay in the inbox until reviewed. Review supports amount, additional fee, account, category, description, payment time, and an optional bill link. Unknown categories stay unclassified. |
 | Weekly spending review | Insights | Compares the last seven calendar days, including today, with the preceding seven days. Shows category changes, unclassified purchases, and unexplained balance decreases separately. Optional AI suggests up to three improvements using recorded evidence. |
 | Forecast changes | Insights | Saves one server-generated baseline and compares cash, bills, budgets, planned spending, buffer, payday, overlapping daily balances, and named bill amounts, dates, and statuses. Replacing the baseline is explicit. |
 | Purchase timing | Insights | Recalculates the full daily forecast for buying today versus on the next scheduled payday. Includes bills, budgets, spending, and income. Hypothetical purchases never enter the ledger. |
@@ -15,7 +15,7 @@ Date: October 18, 2026. Status: implemented and verified locally. This report re
 | Variable bill estimates | Insights | Uses up to six paid occurrences to show a median estimate and historical range. Requires at least three payments. Leaves saved bill amounts and forecasts unchanged. |
 | Reconciliation evidence | Insights | Compares the latest unexplained checkpoint difference with dated pending inbox evidence from the same account, matching direction and exact amount. Never invents or posts missing purchases. |
 
-The dashboard links to Insights. Insights links to payment capture and recorded activity.
+Insights is the home for AI questions, payment entry, spending explanations, and payment planning. The dashboard and bottom navigation link to Insights. Staged payment entries link to Inbox for review.
 
 ## Ledger and security behavior
 
@@ -49,11 +49,12 @@ Browser checks passed against the disposable PostgreSQL database at desktop 1280
 - Purchase scenario selection without changing account balances.
 - Plain-language staging, editing, confirmation, one debit, and approved state after reload.
 - Missing-AI-key error and insights retry behavior.
+- AI questions, payment capture, and bill planning on Insights; staged payment remained available in Inbox after navigation. Six navigation links fit at 375 px without horizontal overflow.
 - No horizontal overflow or browser exceptions.
 
 The earlier planner browser pass also checked grace opt-in, scenario selection, retry, unchanged saved bills and balances, guest rejection, and escaped simulated AI output. The Impeccable detector reported no findings on the new interfaces. Diff checks passed with CRLF-aware whitespace handling.
 
-Type checking still reports the same six pre-existing errors in `tests/auth/protected-money-routes.test.ts` and `tests/ntfy.test.ts`. They were reproduced against the original HEAD. Lint requires the repository's initial ESLint configuration and was not completed. A production build was not run; local Next.js compilation and browser execution were verified.
+Type checking still reports the same six pre-existing errors in `tests/auth/protected-money-routes.test.ts` and `tests/ntfy.test.ts`. They were reproduced against the original HEAD. Lint requires the repository's initial ESLint configuration and was not completed. `npm run build` passed; browser checks used a disposable SQLite database and local Next.js server.
 
 ## Migration and deployment
 
