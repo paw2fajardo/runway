@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { db } from "../../db";
 import { ownerAuth } from "../../db/schema";
 import { getOwnerFromRequest } from "../../lib/auth/session";
-import { Header } from "../../components/layout/Header";
 import { PrimaryPageSwipeNavigation } from "../../components/layout/PrimaryPageSwipeNavigation";
+import { Header } from "../../components/layout/Header";
+import { BottomNav } from "../../components/layout/BottomNav";
 
 export default async function ProtectedLayout({
   children,
@@ -26,5 +27,6 @@ export default async function ProtectedLayout({
   return <>
     <Header />
     <PrimaryPageSwipeNavigation>{children}</PrimaryPageSwipeNavigation>
+    <BottomNav showQuickLog={false} />
   </>;
 }

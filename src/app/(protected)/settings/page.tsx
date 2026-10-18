@@ -177,6 +177,6 @@ export default function SettingsPage() {
         <div className="border-t border-outline-variant/40 pt-space-sm"><button type="button" disabled={signingOut} onClick={() => void signOut()} className="min-h-11 rounded-full border border-outline-variant px-space-md text-label-md font-medium text-on-surface disabled:opacity-50">{signingOut ? "Signing out…" : "Sign out"}</button>{accountError && <p role="alert" className="mt-2 text-body-sm text-error">{accountError}</p>}</div>
       </section>
     </main>
-    <BottomNav />
+    <BottomNav showNavigation={false} />
   </div>;
 }

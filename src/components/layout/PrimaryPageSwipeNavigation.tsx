@@ -110,7 +110,6 @@ export function PrimaryPageSwipeNavigation({ children }: { children: ReactNode }
 
   return (
     <div
-      key={pathname}
       className={pageTransition ? "primary-page-transition" : undefined}
       data-transition-direction={pageTransition?.direction}
       data-transition-phase={pageTransition?.phase}

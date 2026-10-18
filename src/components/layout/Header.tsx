@@ -3,20 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ArrowLeft, Inbox, UserRound } from "lucide-react";
 import { getPendingQueueCount, flushOfflineQueue } from "@/lib/offline-db";
-
-const pageTitles: Record<string, string> = {
-  "/": "Runway",
-  "/accounts": "Accounts",
-  "/bills": "Bills",
-  "/budgets": "Budget plans",
-  "/inbox": "Inbox",
-  "/insights": "Insights",
-  "/settings": "Settings",
-  "/transactions": "Transactions",
-};
+import { usePathname } from "next/navigation";
 
 interface HeaderProps {
   title?: string;
@@ -25,7 +14,15 @@ interface HeaderProps {
 
 export function Header({ title, showBack = false }: HeaderProps) {
   const pathname = usePathname();
-  const pageTitle = title ?? pageTitles[pathname] ?? "Runway";
+  const routeTitle = title ?? (pathname === "/accounts" ? "Accounts"
+    : pathname.startsWith("/bills") ? "Bills"
+    : pathname === "/budgets" ? "Budget plans"
+    : pathname.startsWith("/inbox") ? "Inbox"
+    : pathname === "/insights" ? "Insights"
+    : pathname === "/settings" ? "Settings"
+    : pathname.startsWith("/transactions") ? "Transactions"
+    : pathname.startsWith("/payday/occurrences/") ? "Paycheck confirmation"
+    : "Runway");
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
@@ -87,7 +84,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
             </div>
             <div className="flex min-w-0 flex-col">
               <span runway-id="runway.header.title" className="font-headline-sm text-headline-sm truncate font-semibold text-on-surface leading-tight tracking-tight">
-                {pageTitle}
+                {routeTitle}
               </span>
               {!isOnline || pendingCount > 0 ? (
                 <div className="flex items-center gap-1">

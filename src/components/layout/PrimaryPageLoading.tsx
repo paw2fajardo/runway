@@ -22,7 +22,6 @@ export function PrimaryPageLoading({ page }: { page: Page }) {
           {pageCards[page].map((height, index) => <Skeleton key={`${height}-${index}`} className={`${height} w-full rounded-[28px]`} />)}
         </div>}
       </main>
-      <div aria-hidden="true" className="fixed inset-x-0 bottom-0 z-40 h-[76px] border-t border-white/60 bg-white/70 backdrop-blur-xl" />
     </div>
   );
 }

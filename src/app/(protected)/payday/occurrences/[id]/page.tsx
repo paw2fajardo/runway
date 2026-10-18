@@ -13,6 +13,6 @@ export default function PaycheckOccurrencePage({ params }: { params: Promise<{ i
         <PendingPaychecks focusId={id} />
       </div>
     </main>
-    <BottomNav onOpenQuickLog={() => { window.location.assign("/"); }} />
+    <BottomNav showNavigation={false} onOpenQuickLog={() => { window.location.assign("/"); }} />
   </div>;
 }

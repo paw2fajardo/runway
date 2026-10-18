@@ -185,6 +185,7 @@
     margin: 0;
     padding: 0;
   }
+  html { scrollbar-gutter: stable; }
   body {
     @apply text-body-md;
     overscroll-behavior-y: none;

@@ -124,6 +124,7 @@ export default function InsightsPage() {
 
   const selectedPurchase = purchase?.[purchaseChoice];
   return <div className="min-h-screen">
+
     <main className="app-bottom-clearance mx-auto w-full max-w-[480px] space-y-space-lg px-margin pt-20 md:max-w-5xl">
       <div className="space-y-2"><h1 className="text-headline-lg font-semibold">Insights</h1>
         <p className="text-body-md text-on-surface-variant">Spending patterns, payment options, and AI tools for your cash flow.</p>
@@ -201,6 +202,6 @@ export default function InsightsPage() {
         {purchase && <><fieldset className="space-y-2"><legend className="text-body-md font-semibold">Recalculated for {formatPHP(purchase.amount_cents)}</legend>{(["now", "after_payday"] as const).map(choice => <label key={choice} className="flex min-h-11 items-start gap-3 text-body-sm"><input type="radio" name="purchase-timing" checked={purchaseChoice === choice} disabled={!purchase[choice]} onChange={() => setPurchaseChoice(choice)} className="mt-1 h-5 w-5 accent-secondary" /><span>{choice === "now" ? "Buy today" : "Buy on the next scheduled payday"}: {purchase[choice] ? `${purchase[choice]!.shortfall_date ? `shortfall on ${purchase[choice]!.shortfall_date}` : "no projected shortfall"}; lowest closing balance ${formatPHP(Math.min(...purchase[choice]!.timeline.map(day => day.balance)))}` : "Payday falls outside this 45-day forecast."}</span></label>)}</fieldset>{selectedPurchase && <ForecastBalanceChart key={purchaseChoice} timeline={selectedPurchase.timeline} />}</>}
         <p className="text-body-sm text-on-surface-variant">Preview only. Recalculates daily balances with existing bills, budgets, spending, and income. Same-day income may arrive after a payment; check the paying account before buying.</p>
       </section>
-    </main><BottomNav />
+    </main><BottomNav showNavigation={false} />
   </div>;
 }

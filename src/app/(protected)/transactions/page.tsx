@@ -408,7 +408,7 @@ export default function TransactionsPage() {
       </nav>}
     </div>
 
-    <BottomNav onOpenQuickLog={() => { window.location.assign("/"); }} />
+    <BottomNav showNavigation={false} onOpenQuickLog={() => { window.location.assign("/"); }} />
     {editing && <RapidExpenseDrawer isOpen onClose={() => setEditing(null)} onSuccess={reload} accounts={accounts} editTransaction={editing} onEditSuccess={reload} />}
     <Dialog open={deleteTarget !== null} onClose={() => { if (!isDeleting) { setDeleteTarget(null); setDeleteError(""); } }} title="Delete this entry?">
       {deleteTarget && <div>
