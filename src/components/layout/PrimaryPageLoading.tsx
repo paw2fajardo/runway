@@ -13,6 +13,9 @@ export function PrimaryPageLoading({ page }: { page: Page }) {
   return (
     <div className="min-h-screen" role="status" aria-label={`Loading ${page}`}>
       <span className="sr-only">Loading {page}…</span>
+      <header aria-hidden="true" className="fixed inset-x-0 top-0 z-40 h-16 border-b border-white/60 bg-white/55 px-margin backdrop-blur-xl">
+        <div className="mx-auto flex h-full max-w-5xl items-center"><Skeleton className="h-7 w-36" /></div>
+      </header>
       <main className="app-bottom-clearance mx-auto flex min-h-screen w-full max-w-[480px] flex-col gap-6 px-margin pt-20 md:max-w-5xl">
         <div className="space-y-2"><Skeleton className="h-8 w-3/5" /><Skeleton className="h-4 w-4/5" /></div>
         {page === "accounts" ? <>
