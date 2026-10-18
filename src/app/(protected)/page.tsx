@@ -62,6 +62,7 @@ export default function RunwayDashboard() {
   const [accounts, setAccounts] = useState<AccountData[]>([]);
   const [dues, setDues] = useState<DueItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [forecastFailureMessage, setForecastFailureMessage] = useState<string | null>(null);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [reconcileAccount, setReconcileAccount] = useState<AccountData | null>(null);
   const [isForecastOpen, setIsForecastOpen] = useState(false);
@@ -143,6 +144,8 @@ export default function RunwayDashboard() {
 
   const fetchData = useCallback(async () => {
     // Settings failures are isolated from the existing account/bill/forecast data.
+    setIsLoading(true);
+    setForecastFailureMessage(null);
     const settingsRequest = fetchPaySettings();
     const plannedSpendingRequest = fetchPlannedSpending();
     try {
@@ -159,7 +162,13 @@ export default function RunwayDashboard() {
       if (forecastRes.ok) {
         const fData = await forecastRes.json();
         setForecast(fData);
-      } else setForecast(null);
+      } else {
+        const errorData = await forecastRes.json().catch(() => null) as { error?: unknown } | null;
+        setForecast(null);
+        setForecastFailureMessage(typeof errorData?.error === "string"
+          ? errorData.error
+          : `Cash-after-bills forecast failed (HTTP ${forecastRes.status}).`);
+      }
       if (accountsRes.ok) {
         const aData = await accountsRes.json();
         setAccounts(aData);
@@ -196,13 +205,14 @@ export default function RunwayDashboard() {
     } catch (err) {
       console.error("Dashboard data fetch failed:", err);
       setForecast(null);
+      setForecastFailureMessage("Could not refresh dashboard data. Check your connection and try again.");
       setBalanceForecast(null);
       setAccountsAvailable(false);
       setDuesAvailable(false);
     } finally {
-      setIsLoading(false);
       await settingsRequest;
       await plannedSpendingRequest;
+      setIsLoading(false);
     }
   }, [fetchPaySettings, fetchPlannedSpending]);
 
@@ -414,6 +424,18 @@ export default function RunwayDashboard() {
     .filter((due) => billDueState(due, todayDate) === "upcoming" && due.dueDate <= nextPaydayDate)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name)) : [];
   const negativeDay = forecast?.timeline.find((day) => day.balance < 0);
+  const availableDashboardSections = [
+    forecast && "cash-after-bills forecast",
+    balanceForecast && "daily balance chart",
+    accountsAvailable && "account balances",
+    duesAvailable && "unpaid bills",
+  ].filter(Boolean);
+  const unavailableDashboardSections = [
+    !forecast && "cash-after-bills forecast",
+    !balanceForecast && "daily balance chart",
+    !accountsAvailable && "account balances",
+    !duesAvailable && "unpaid bills",
+  ].filter(Boolean);
   const enabledIncomeStreams = incomeStreams?.filter(stream => stream.is_enabled) ?? [];
   const activeLiquidAccounts = accounts.filter(account => account.type === "liquid");
   const destinationAccountName = (id: string | null) => activeLiquidAccounts.find(account => account.id === id)?.name ?? (id ? "Unavailable account" : "No account selected");
@@ -433,6 +455,15 @@ export default function RunwayDashboard() {
             <p runway-id="runway.dashboard.description" className="text-body-md text-on-surface-variant">Current cash, bills due, and your next payday at a glance.</p>
             <a href="/insights" className="inline-flex min-h-11 items-center text-body-md text-secondary underline">Spending insights and planning</a>
           </div>
+          {!isLoading && unavailableDashboardSections.length > 0 && <section runway-id="runway.dashboard.partial-failure" className="rounded-xl bg-error-container p-4 text-on-error-container" role="status">
+            <p className="text-body-md">Unavailable: {unavailableDashboardSections.join(", ")}.</p>
+            <p className="mt-1 text-body-sm">{availableDashboardSections.length > 0
+              ? `Still available: ${availableDashboardSections.join(", ")}.`
+              : "No dashboard data loaded."} Reloading refreshes the forecast, daily balances, accounts, bills, and spending settings.</p>
+            <button runway-id="runway.dashboard.reload" type="button" onClick={() => void fetchData()} className="mt-3 min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary">
+              Reload dashboard data
+            </button>
+          </section>}
           {/* Solvency Hero Card */}
           {forecast ? <SolvencyHero
             safeToSpend={forecast.net_projected_buffer}
@@ -443,6 +474,7 @@ export default function RunwayDashboard() {
             plannedBudgets={forecast.planned_spending_total}
             daysToPayday={forecast.days_to_payday}
             paydayDateStr={paydayDateStr}
+            forecastCalculatedAt={forecast.forecast_calculated_at}
             isSolvent={forecast.is_solvent}
             revolvingCreditAccounts={accounts.filter((account) => account.type === "revolving_credit")}
           /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
@@ -453,25 +485,26 @@ export default function RunwayDashboard() {
               {[0, 1, 2, 3].map((item) => <div key={item} className="space-y-2"><Skeleton className="h-4 w-20 bg-white/15" /><Skeleton className="h-6 w-28 bg-white/15" /></div>)}
             </div>
           </section> : <div runway-id="runway.dashboard.forecast-status" className="forest-panel p-6 text-body-md" role="status">
-            Runway forecast unavailable.
-            <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
+            <p>Cash-after-bills forecast unavailable.</p>
+            {forecastFailureMessage && <p className="mt-2 text-body-sm text-white/80">{forecastFailureMessage}</p>}
           </div>}
 
           <div className="glass-panel p-4 sm:p-6">
+            <h2 className="text-headline-sm font-semibold">Daily balance forecast</h2>
+            <p className="mb-3 mt-1 text-body-sm text-on-surface-variant">Daily closing balances for the next three months. Open the detailed forecast below to inspect bills and income or choose another date range.</p>
             {isLoading ? <p className="text-body-md text-on-surface-variant" role="status">Loading daily balances…</p>
               : balanceForecast ? <ForecastBalanceChart timeline={balanceForecast.timeline} />
                 : <div className="space-y-2" role="status">
-                  <p className="text-body-md text-on-surface-variant">Daily balances unavailable.</p>
-                  <button type="button" onClick={() => void fetchData()} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md text-secondary focus-visible:outline-offset-2">Retry daily balances</button>
+                  <p className="text-body-md text-on-surface-variant">Daily balance chart unavailable. {forecast ? "The cash-after-bills summary is still available." : "The cash-after-bills summary is also unavailable."}</p>
                 </div>}
           </div>
 
           {negativeDay ? <div runway-id="runway.dashboard.forecast-warning" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-error-container p-4 text-on-error-container" role="status">
             <p className="text-body-md">Your forecast shows a shortfall on {new Date(`${negativeDay.date}T12:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}.</p>
-            <button runway-id="runway.dashboard.forecast-warning-action" type="button" onClick={openForecast} disabled={!forecast} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">Review forecast</button>
+            <button runway-id="runway.dashboard.forecast-warning-action" type="button" onClick={openForecast} disabled={!forecast} className="min-h-11 rounded-full bg-primary px-4 text-label-md font-semibold text-on-primary disabled:opacity-50">Review detailed forecast</button>
           </div> : <button runway-id="runway.dashboard.open-forecast" type="button" onClick={openForecast} disabled={!forecast || isLoading}
             className="flex min-h-14 w-full items-center justify-between gap-3 border-y border-outline-variant/40 py-3 text-left text-body-md disabled:opacity-50">
-            <span runway-id="runway.dashboard.open-forecast-label" className="font-medium">View full runway forecast</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
+            <span runway-id="runway.dashboard.open-forecast-label" className="font-medium">View income, bills, and daily balances</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
           </button>}
 
           <PendingPaychecks />
@@ -690,8 +723,8 @@ export default function RunwayDashboard() {
         accounts={accounts}
         daysToPayday={Math.max(1, forecast.days_to_payday)}
       /> : <Dialog open={isQuickLogOpen} onClose={() => setIsQuickLogOpen(false)} title="Quick log">
-        <p runway-id="runway.quick-log.unavailable" className="text-body-md" role="status">{isLoading ? "Loading your forecast…" : "Your forecast and daily allowance are unavailable. Retry to load them before logging an entry."}</p>
-        <button runway-id="runway.quick-log.retry" type="button" onClick={fetchData} className="min-h-11 mt-4 text-secondary font-semibold">Retry</button>
+        <p runway-id="runway.quick-log.unavailable" className="text-body-md" role="status">{isLoading ? "Loading your forecast…" : "Your forecast and daily allowance are unavailable. Reload dashboard data before logging an entry."}</p>
+        <button runway-id="runway.quick-log.retry" type="button" onClick={() => void fetchData()} disabled={isLoading} className="min-h-11 mt-4 text-secondary font-semibold disabled:opacity-60">{isLoading ? "Refreshing dashboard…" : "Reload dashboard data"}</button>
       </Dialog>}
 
       {/* Reconcile Modal */}

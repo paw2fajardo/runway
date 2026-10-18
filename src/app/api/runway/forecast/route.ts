@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
         name: bill.name, due_date: bill.dueDate, amount_cents: bill.amountDue, status: bill.status }));
     }
 
-    return NextResponse.json(forecast, { status: 200 });
+    return NextResponse.json({ ...forecast, forecast_calculated_at: new Date().toISOString() }, { status: 200 });
   } catch (error: unknown) {
     const cause = error && typeof error === "object" && "cause" in error ? error.cause : error;
     if (cause && typeof cause === "object" && "code" in cause && (cause.code === "42703" || cause.code === "42P01")) {

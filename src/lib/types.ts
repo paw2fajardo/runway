@@ -141,6 +141,7 @@ export interface TimelineDay {
 }
 
 export interface RunwayForecastResponse {
+  forecast_calculated_at?: string;
   current_liquid_cash: number;
   confirmed_inflows: number;
   scheduled_bills_total: number;
