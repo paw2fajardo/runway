@@ -6,6 +6,8 @@ import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SolvencyHero } from "@/components/runway/SolvencyHero";
 import { RunwayTimeline } from "@/components/runway/RunwayTimeline";
+import { ForecastBalanceChart } from "@/components/runway/ForecastBalanceChart";
+import { threeMonthForecastDays } from "@/lib/forecast-chart";
 import { LiquidAccountsStrip } from "@/components/runway/LiquidAccountsStrip";
 import { UpcomingDuesList, DueItem } from "@/components/runway/UpcomingDuesList";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
@@ -56,6 +58,7 @@ interface AccountData {
 
 export default function RunwayDashboard() {
   const [forecast, setForecast] = useState<RunwayForecastResponse | null>(null);
+  const [balanceForecast, setBalanceForecast] = useState<RunwayForecastResponse | null>(null);
   const [accounts, setAccounts] = useState<AccountData[]>([]);
   const [dues, setDues] = useState<DueItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -144,12 +147,15 @@ export default function RunwayDashboard() {
     const plannedSpendingRequest = fetchPlannedSpending();
     try {
       await fetch("/api/bills/auto-post", { method: "POST" });
-      const [forecastRes, accountsRes, billsRes] = await Promise.all([
+      const [forecastRes, accountsRes, billsRes, balanceForecastData] = await Promise.all([
         fetch("/api/runway/forecast"),
         fetch("/api/accounts"),
         fetch("/api/bills"),
+        fetch(`/api/runway/forecast?horizon_days=${threeMonthForecastDays()}&reference_date=${localDateInputValue(new Date())}`)
+          .then(response => response.ok ? response.json() : null).catch(() => null),
       ]);
 
+      setBalanceForecast(balanceForecastData);
       if (forecastRes.ok) {
         const fData = await forecastRes.json();
         setForecast(fData);
@@ -190,6 +196,7 @@ export default function RunwayDashboard() {
     } catch (err) {
       console.error("Dashboard data fetch failed:", err);
       setForecast(null);
+      setBalanceForecast(null);
       setAccountsAvailable(false);
       setDuesAvailable(false);
     } finally {
@@ -366,26 +373,24 @@ export default function RunwayDashboard() {
   };
 
   const openForecast = () => {
-    setForecastEndDate(minimumForecastEndDate());
-    setModalForecast(forecast);
-    setModalForecastError(null);
-    setIsModalForecastLoading(false);
     setIsForecastOpen(true);
+    void changeForecastEndDate(minimumForecastEndDate());
   };
 
   const changeForecastEndDate = async (endDate: string) => {
     setForecastEndDate(endDate);
+    const requestId = ++forecastRequestId.current;
     const horizonDays = forecastDaysThrough(endDate);
     if (!Number.isInteger(horizonDays) || horizonDays < MINIMUM_FORECAST_DAYS || horizonDays > 366) {
+      setIsModalForecastLoading(false);
       setModalForecastError(`Choose an end date for a forecast of at least ${MINIMUM_FORECAST_DAYS} days, up to one year.`);
       return;
     }
 
-    const requestId = ++forecastRequestId.current;
     setIsModalForecastLoading(true);
     setModalForecastError(null);
     try {
-      const response = await fetch(`/api/runway/forecast?horizon_days=${horizonDays}`);
+      const response = await fetch(`/api/runway/forecast?horizon_days=${horizonDays}&reference_date=${localDateInputValue(new Date())}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Forecast unavailable.");
       if (requestId === forecastRequestId.current) setModalForecast(data as RunwayForecastResponse);
@@ -450,6 +455,15 @@ export default function RunwayDashboard() {
             Runway forecast unavailable.
             <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
+
+          <div className="glass-panel p-4 sm:p-6">
+            {isLoading ? <p className="text-body-md text-on-surface-variant" role="status">Loading daily balances…</p>
+              : balanceForecast ? <ForecastBalanceChart timeline={balanceForecast.timeline} />
+                : <div className="space-y-2" role="status">
+                  <p className="text-body-md text-on-surface-variant">Daily balances unavailable.</p>
+                  <button type="button" onClick={() => void fetchData()} className="min-h-11 rounded-full border border-outline-variant px-4 text-label-md text-secondary focus-visible:outline-offset-2">Retry daily balances</button>
+                </div>}
+          </div>
 
           {negativeDay ? <div runway-id="runway.dashboard.forecast-warning" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-error-container p-4 text-on-error-container" role="status">
             <p className="text-body-md">Your forecast shows a shortfall on {new Date(`${negativeDay.date}T12:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}.</p>
@@ -635,7 +649,10 @@ export default function RunwayDashboard() {
           </div>
           {isModalForecastLoading ? <p runway-id="runway.forecast.loading" className="text-body-md text-on-surface-variant" role="status">Updating forecast…</p>
             : modalForecastError ? <p runway-id="runway.forecast.error" className="text-body-md text-error" role="alert">{modalForecastError}</p>
-              : modalForecast?.timeline.length ? <RunwayTimeline timeline={modalForecast.timeline} nextCycleDateStr={modalForecast.next_payday_date ? new Date(`${modalForecast.next_payday_date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Unavailable"} nextPaydayDate={modalForecast.next_payday_date.slice(0, 10)} />
+              : modalForecast?.timeline.length ? <>
+                  <ForecastBalanceChart key={forecastEndDate} timeline={modalForecast.timeline} />
+                  <RunwayTimeline timeline={modalForecast.timeline} nextCycleDateStr={modalForecast.next_payday_date ? new Date(`${modalForecast.next_payday_date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Unavailable"} nextPaydayDate={modalForecast.next_payday_date.slice(0, 10)} />
+                </>
                 : <p runway-id="runway.forecast-unavailable" className="text-body-md">{modalForecast ? "No forecast days available." : "Forecast unavailable."}</p>}
         </div>
       </Dialog>
