@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ForecastBalanceChart } from "@/components/runway/ForecastBalanceChart";
 import { formatPHP } from "@/lib/currency";
@@ -125,7 +124,6 @@ export default function InsightsPage() {
 
   const selectedPurchase = purchase?.[purchaseChoice];
   return <div className="min-h-screen">
-    <Header title="Insights" />
     <main className="app-bottom-clearance mx-auto w-full max-w-[480px] space-y-space-lg px-margin pt-20 md:max-w-5xl">
       <div className="space-y-2"><h1 className="text-headline-lg font-semibold">Insights</h1>
         <p className="text-body-md text-on-surface-variant">Spending patterns, payment options, and AI tools for your cash flow.</p>

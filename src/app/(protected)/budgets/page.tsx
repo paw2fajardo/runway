@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ComponentProps } from "react";
-import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
 import { formatPHP } from "@/lib/currency";
@@ -58,7 +57,7 @@ export default function BudgetsPage() {
     if (response.ok) await load();
   }
 
-  return <div className="flex min-h-screen flex-col"><Header title="Budget plans" /><main className="app-bottom-clearance mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-margin pt-20 pb-space-xl">
+  return <div className="flex min-h-screen flex-col"><main className="app-bottom-clearance mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-margin pt-20 pb-space-xl">
     <div><h1 className="text-headline-lg font-semibold">Budget plans</h1><p className="mt-1 text-body-md text-on-surface-variant">Link an expense to a budget date in Quick log. Finish the shop to release its unused reserve; recurring dates stay active.</p></div>
     <form onSubmit={createBudget} className="forest-panel flex flex-col gap-4 rounded-2xl p-5 text-white">
       <h2 className="text-title-md font-semibold">Add a budget</h2>
