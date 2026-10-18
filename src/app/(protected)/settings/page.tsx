@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { clearPrivatePageCaches, NotificationSettings } from "@/components/payday/NotificationSettings";
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
@@ -135,6 +136,7 @@ export default function SettingsPage() {
   const sorted = [...categories].sort((a, b) => Number(a.isIncome) - Number(b.isIncome) || a.name.localeCompare(b.name));
 
   return <div className="flex min-h-screen flex-col bg-transparent">
+    <Header title="Settings" />
     <main className="app-bottom-clearance mx-auto flex min-h-screen w-full max-w-[480px] md:max-w-3xl flex-1 flex-col bg-transparent px-margin pb-space-xl pt-20">
       <div className="space-y-space-xs py-space-sm"><h1 className="text-headline-md font-medium tracking-tight">Settings</h1><p className="text-body-md text-on-surface-variant">Manage your spending allowance, bill reminders, and categories.</p></div>
       <section className="glass-panel mt-space-md space-y-space-sm p-space-md" aria-labelledby="runway-settings-heading">
