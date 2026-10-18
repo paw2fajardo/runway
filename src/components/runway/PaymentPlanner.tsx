@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { PaymentPlanResponse, PaymentPlanScenario, RunwayForecastResponse } from "@/lib/types";
+import type { PaymentPlanResponse, PaymentPlanScenario } from "@/lib/types";
 import { formatPHP } from "@/lib/currency";
 import { todayInManila } from "@/lib/bills/due-date";
 import { ForecastBalanceChart } from "./ForecastBalanceChart";
@@ -15,7 +15,7 @@ function dateLabel(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function PaymentPlanner({ forecast }: { forecast: RunwayForecastResponse }) {
+export function PaymentPlanner() {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [useGrace, setUseGrace] = useState(false);
@@ -48,7 +48,7 @@ export function PaymentPlanner({ forecast }: { forecast: RunwayForecastResponse 
       }
     })();
     return () => controller.abort();
-  }, [open, useGrace, forecast, retry]);
+  }, [open, useGrace, retry]);
 
   const selected = plan?.scenarios.find(item => item.id === selectedId) ?? plan?.scenarios[0];
   const cut = plan && selected ? plan.configured_daily_spending_cents - selected.daily_spending_cents : 0;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { RapidExpenseDrawer } from "@/components/quick-log/RapidExpenseDrawer";
@@ -23,20 +23,10 @@ export default function InboxPage() {
   const [items, setItems] = useState<InboxItemRecord[]>([]);
   const [isInboxLoading, setIsInboxLoading] = useState(true);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
-  const [isAddAlertOpen, setIsAddAlertOpen] = useState(false);
   const [isGuardrailOpen, setIsGuardrailOpen] = useState(false);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<InboxItemRecord | null>(null);
-  const [inputText, setInputText] = useState<string>("");
-  const [isParsing, setIsParsing] = useState<boolean>(false);
-  const [parseError, setParseError] = useState<string | null>(null);
   const [reviewItem, setReviewItem] = useState<InboxItemRecord | null>(null);
-  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "assistant">("pending");
-
-  const [queryText, setQueryText] = useState("");
-  const [assistantReply, setAssistantReply] = useState<string | null>(null);
-  const [assistantError, setAssistantError] = useState<string | null>(null);
-  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"pending" | "approved">("pending");
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -56,39 +46,6 @@ export default function InboxPage() {
     fetchInbox();
   }, [fetchInbox]);
 
-  const handleParseSubmit = async (textToParse?: string) => {
-    const payload = textToParse || inputText;
-    if (!payload.trim()) return;
-
-    setIsParsing(true);
-    setParseError(null);
-    try {
-      const res = await fetch("/api/inbox/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          raw_payload: payload,
-          source_channel: "quick_text",
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Entry could not be staged. Retry.");
-      }
-      if (res.ok) {
-        setInputText("");
-        fetchInbox();
-        setActiveTab("pending");
-        setIsAddAlertOpen(false);
-      }
-    } catch (err) {
-      setParseError(err instanceof Error ? err.message : "Entry could not be staged. Retry.");
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
   const handleDiscard = async (id: string) => {
     try {
       const res = await fetch(`/api/inbox/${id}/discard`, {
@@ -102,64 +59,8 @@ export default function InboxPage() {
     }
   };
 
-  const handleAssistantQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const query = queryText.trim();
-    if (!query || isAssistantLoading) return;
-
-    setIsAssistantLoading(true);
-    setAssistantError(null);
-    setAssistantReply(null);
-    try {
-      const response = await fetch("/api/runway/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-      let data: unknown;
-      try {
-        data = await response.json();
-      } catch {
-        throw new Error("Unable to answer this Runway question.");
-      }
-      const responseBody = typeof data === "object" && data !== null
-        ? data as { answer?: unknown; error?: unknown }
-        : null;
-      if (!response.ok) {
-        throw new Error(typeof responseBody?.error === "string" ? responseBody.error : "Unable to answer this Runway question.");
-      }
-      if (typeof responseBody?.answer !== "string") {
-        throw new Error("The Runway AI response was invalid. Please try again.");
-      }
-      setAssistantReply(responseBody.answer);
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "Unable to answer this Runway question.");
-    } finally {
-      setIsAssistantLoading(false);
-    }
-  };
-
   const pendingItems = items.filter((i) => i.status === "pending");
   const approvedItems = items.filter((i) => i.status === "approved");
-
-  const samplePresets = [
-    {
-      label: "InstaPay ₱5,000 + ₱15 fee",
-      text: "InstaPay transfer of PHP 5,000.00 to GCash successful. Fee: PHP 15.00. Ref No: 994821",
-    },
-    {
-      label: "ATM ₱2,000 + ₱18 fee",
-      text: "ATM withdrawal of PHP 2,000.00 at BDO ATM. Fee: PHP 18.00.",
-    },
-    {
-      label: "Meralco Bill ₱2,850",
-      text: "Your Meralco bill for Oct 2026 is PHP 2,850.00 due on 10/06/2026.",
-    },
-    {
-      label: "Artisan Brew ₱185",
-      text: "You paid PHP 185.00 at Artisan Brew on 10/03/2026. Card ending 9281",
-    },
-  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
@@ -167,9 +68,8 @@ export default function InboxPage() {
 
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-md select-none">
-          <div className="flex items-center justify-between gap-3 py-2">
+          <div className="flex items-center justify-end gap-3 py-2">
             <button runway-id="inbox.approval-required" type="button" onClick={() => setIsGuardrailOpen(true)} className="min-h-11 text-body-md text-secondary">Approval required ⓘ</button>
-            <button runway-id="inbox.add-alert" type="button" onClick={() => setIsAddAlertOpen(true)} className="min-h-11 px-5 rounded-xl bg-secondary text-white font-semibold">Describe a payment</button>
           </div>
           <Dialog open={isGuardrailOpen} onClose={() => setIsGuardrailOpen(false)} title="Approval required">
           <div className="flex items-start gap-3">
@@ -183,64 +83,10 @@ export default function InboxPage() {
                 Deterministic Guardrail Active
               </span>
               <p runway-id="inbox.guardrail.description" className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-0.5">
-                AI extraction strictly stages items into an isolated queue. No automated
-                system modifies your ledger without explicit 1-tap confirmation.
+                Staged entries stay out of your ledger until you review and approve them.
               </p>
             </div>
           </div>
-          </Dialog>
-
-          {/* Quick SMS & Alert Ingest Testbed */}
-          <Dialog open={isAddAlertOpen} onClose={() => setIsAddAlertOpen(false)} title="Describe a payment">
-          <section className="glass-panel p-space-md flex flex-col gap-space-sm">
-            <span runway-id="inbox.add-alert.prompt" className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
-              Describe a payment or paste an alert
-            </span>
-            <div className="flex flex-col gap-2">
-              <textarea runway-id="inbox.add-alert.message-input"
-                rows={2}
-                aria-label="Payment description or bank alert"
-                placeholder="Spent ₱420 on groceries using GCash"
-                maxLength={4000}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                className="w-full p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/40 font-body-sm text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary resize-none"
-              />
-              <p className="text-body-sm text-on-surface-variant">Review every field before logging. Text may go to the configured AI provider if the local parser cannot read it.</p>
-              {parseError && <p role="alert" className="text-body-sm text-error">{parseError}</p>}
-              <button runway-id="inbox.add-alert.parse-button"
-                type="button"
-                onClick={() => handleParseSubmit()}
-                disabled={isParsing || !inputText.trim()}
-                className="min-h-11 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-50"
-              >
-                <span runway-id="inbox.add-alert.parse-icon" className="material-symbols-outlined text-[16px]">
-                  auto_awesome
-                </span>
-                {isParsing ? "Extracting..." : "Prepare entry"}
-              </button>
-            </div>
-
-            {/* Presets */}
-            <div className="flex flex-col gap-1 pt-1">
-              <span runway-id="inbox.add-alert.samples-label" className="font-label-sm text-[11px] text-on-surface-variant">
-                Quick Sample Alerts:
-              </span>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                {samplePresets.map((preset) => (
-                  <button runway-id={`inbox.add-alert.sample.${preset.label}`}
-                    key={preset.label}
-                    type="button"
-                    onClick={() => handleParseSubmit(preset.text)}
-                    disabled={isParsing}
-                    className="min-h-11 inline-flex flex-shrink-0 items-center px-2.5 py-1 bg-surface-container-low hover:bg-surface-container rounded-full text-on-surface-variant text-[11px] font-medium border border-outline-variant/20 transition"
-                  >
-                    + {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
           </Dialog>
 
           {/* Segmented Tab Control */}
@@ -269,19 +115,6 @@ export default function InboxPage() {
             >
               Approved ({isInboxLoading ? "…" : approvedItems.length})
             </button>
-            <button
-              runway-id="inbox.tab.assistant"
-              type="button"
-              onClick={() => setActiveTab("assistant")}
-              className={`flex min-h-11 flex-1 py-1.5 text-center rounded font-label-md text-label-md font-semibold transition items-center justify-center gap-1 ${
-                activeTab === "assistant"
-                  ? "bg-primary text-on-primary shadow-sm"
-                  : "text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              <span runway-id="inbox.tab.assistant.icon" className="material-symbols-outlined text-[14px]">psychology</span>
-              Runway AI
-            </button>
           </div>
 
           {/* Tab 1: Pending Staged Items */}
@@ -296,7 +129,7 @@ export default function InboxPage() {
                     Inbox is Clear
                   </p>
                   <p runway-id="inbox.pending.empty.description" className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                    Describe a payment to prepare a reviewable entry.
+                    Staged payment entries will appear here for review.
                   </p>
                 </div>
               ) : (
@@ -390,55 +223,6 @@ export default function InboxPage() {
             </div>
           )}
 
-          {/* Tab 3: Tactical Runway Query Assistant */}
-          {activeTab === "assistant" && (
-            <button runway-id="inbox.assistant.open" type="button" onClick={() => setIsAssistantOpen(true)} className="glass-panel min-h-14 p-5 text-secondary font-semibold">Ask about runway</button>
-          )}
-          <Dialog open={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} title="Ask about runway">
-            <div className="glass-panel p-space-md flex flex-col gap-space-md">
-              <div>
-                <h3 runway-id="inbox.assistant.heading" className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  Forward Solvency Simulation
-                </h3>
-                <p runway-id="inbox.assistant.description" className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                  Ask natural language scenarios without granting ledger write permissions.
-                </p>
-              </div>
-
-              <form onSubmit={handleAssistantQuery} className="flex flex-col gap-2">
-                <input
-                  runway-id="inbox.assistant.query"
-                  type="text"
-                  aria-label="Runway scenario"
-                  placeholder="e.g. Can I buy a ₱12,000 monitor this weekend?"
-                  value={queryText}
-                  onChange={(e) => {
-                    setQueryText(e.target.value);
-                    setAssistantError(null);
-                  }}
-                  className="h-11 px-3 rounded-lg bg-surface-container-low border border-outline-variant/40 font-body-md text-body-md text-on-surface"
-                />
-                <button
-                  runway-id="inbox.assistant.evaluate"
-                  type="submit"
-                  disabled={isAssistantLoading || !queryText.trim()}
-                  className="min-h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold"
-                >
-                  {isAssistantLoading ? "Thinking…" : "Ask Runway AI"}
-                </button>
-              </form>
-
-              {assistantError && (
-                <p role="alert" className="text-body-sm text-error">{assistantError}</p>
-              )}
-
-              {assistantReply && (
-                <div runway-id="inbox.assistant.reply" className="p-space-md rounded-xl bg-surface-container-low text-on-surface font-body-sm text-body-sm border border-outline-variant/30 leading-relaxed animate-in fade-in duration-200">
-                  {assistantReply}
-                </div>
-              )}
-            </div>
-          </Dialog>
           <Dialog open={detailItem !== null} onClose={() => setDetailItem(null)} title="Alert details">
             {detailItem && <div runway-id={`inbox.detail.${detailItem.id}`} className="space-y-4 text-body-md">
               <p runway-id={`inbox.detail.${detailItem.id}.summary`}>{detailItem.parsedJson.raw_summary}</p>

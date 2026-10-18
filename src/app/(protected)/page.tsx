@@ -7,7 +7,6 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { SolvencyHero } from "@/components/runway/SolvencyHero";
 import { RunwayTimeline } from "@/components/runway/RunwayTimeline";
 import { ForecastBalanceChart } from "@/components/runway/ForecastBalanceChart";
-import { PaymentPlanner } from "@/components/runway/PaymentPlanner";
 import { threeMonthForecastDays } from "@/lib/forecast-chart";
 import { LiquidAccountsStrip } from "@/components/runway/LiquidAccountsStrip";
 import { UpcomingDuesList, DueItem } from "@/components/runway/UpcomingDuesList";
@@ -432,7 +431,7 @@ export default function RunwayDashboard() {
           <div className="space-y-2 pt-2">
             <h1 runway-id="runway.dashboard.title" className="text-headline-lg font-semibold tracking-tight">Cash Runway</h1>
             <p runway-id="runway.dashboard.description" className="text-body-md text-on-surface-variant">Current cash, bills due, and your next payday at a glance.</p>
-            <a href="/insights" className="inline-flex min-h-11 items-center text-body-md text-secondary underline">Spending insights and purchase planning</a>
+            <a href="/insights" className="inline-flex min-h-11 items-center text-body-md text-secondary underline">Spending insights and planning</a>
           </div>
           {/* Solvency Hero Card */}
           {forecast ? <SolvencyHero
@@ -457,8 +456,6 @@ export default function RunwayDashboard() {
             Runway forecast unavailable.
             <button runway-id="runway.dashboard.forecast-retry" type="button" onClick={fetchData} className="block min-h-11 mt-4 px-5 rounded-full bg-white text-primary font-semibold">Retry</button>
           </div>}
-
-          {forecast && <PaymentPlanner forecast={forecast} />}
 
           <div className="glass-panel p-4 sm:p-6">
             {isLoading ? <p className="text-body-md text-on-surface-variant" role="status">Loading daily balances…</p>
