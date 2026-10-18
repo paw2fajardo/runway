@@ -141,6 +141,8 @@ interface BillItem {
   amountDue: number; // cents
   status: string;
   gracePeriodDays?: number;
+  isAutoPay?: boolean;
+  originalDueDate?: string | null;
 }
 
 export interface PlannedBudget {
