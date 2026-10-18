@@ -154,20 +154,47 @@ export interface RunwayForecastResponse {
   shortfall_date: string | null;
   shortfall_amount: number;
   timeline: TimelineDay[];
+  payment_plan?: PaymentPlanResponse;
+  purchase_scenarios?: { amount_cents: number; now: RunwayForecastResponse; after_payday: RunwayForecastResponse | null };
+  comparison_bills?: { key: string; name: string; due_date: string; amount_cents: number; status: string }[];
+}
+
+export interface PaymentPlanChange {
+  id: string;
+  name: string;
+  amount_cents: number;
+  due_date: string;
+  payment_date: string;
+  grace_end_date: string;
+}
+
+export interface PaymentPlanScenario {
+  id: "current" | "spending" | "grace" | "combined";
+  daily_spending_cents: number;
+  minimum_balance_cents: number;
+  shortfall_date: string | null;
+  timeline: TimelineDay[];
+  changes: PaymentPlanChange[];
+}
+
+export interface PaymentPlanResponse {
+  through_date: string;
+  configured_daily_spending_cents: number;
+  scenarios: PaymentPlanScenario[];
 }
 
 // AI Ingestion Parsed Structure Schema
 export const ParsedInboxItemSchema = z.object({
-  merchant: z.string(),
-  amount_cents: z.number().int(),
-  transacted_at: z.string().optional(),
+  merchant: z.string().trim().min(1).max(120),
+  amount_cents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  transacted_at: z.string().max(50).optional(),
   type: z.enum(["expense", "transfer", "income"]).default("expense"),
-  source_account_hint: z.string().optional(),
-  destination_account_hint: z.string().optional(),
-  category_hint: z.string().optional(),
-  fee_cents: z.number().int().default(0),
+  source_account_hint: z.string().max(120).optional(),
+  destination_account_hint: z.string().max(120).optional(),
+  category_hint: z.string().max(100).optional(),
+  fee_cents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(0),
   confidence: z.number().min(0).max(1).default(1),
-  raw_summary: z.string(),
+  raw_summary: z.string().max(1000),
 });
 
 export type ParsedInboxItem = z.infer<typeof ParsedInboxItemSchema>;

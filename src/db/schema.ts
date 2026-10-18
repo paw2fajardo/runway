@@ -19,7 +19,7 @@ import {
   reminderTimeCheck,
 } from "./columns";
 import { relations, sql } from "drizzle-orm";
-import type { BillNotificationSchedule } from "../lib/types";
+import type { BillNotificationSchedule, RunwayForecastResponse } from "../lib/types";
 
 // Enums
 export const accountTypeEnum = pgEnum("account_type", [
@@ -591,6 +591,12 @@ export const inboxItems = pgTable(
   },
   (table) => [index("idx_inbox_items_status").on(table.status)]
 );
+
+export const forecastBaselines = pgTable("forecast_baselines", {
+  id: integer("id").primaryKey().notNull().default(1),
+  forecast: jsonb("forecast").$type<RunwayForecastResponse>().notNull(),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [check("forecast_baselines_singleton_check", sql`${table.id} = 1`)]);
 
 // Relations
 export const accountsRelations = relations(accounts, ({ many }) => ({

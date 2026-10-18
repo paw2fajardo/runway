@@ -7,6 +7,8 @@ import { DateOnlySchema } from "../../../../lib/types";
 import { requireOwner } from "../../../../lib/auth/guard";
 import { loadPlannedBudgetSpending } from "../../../../lib/planned-budget-spending";
 import { projectBillOccurrences } from "../../../../lib/bills/forecast";
+import { calculatePaymentPlan } from "../../../../lib/payment-plan";
+import { calculatePurchaseScenarios } from "../../../../lib/purchase-scenarios";
 
 export async function GET(req: NextRequest) {
   const owner = await requireOwner(req);
@@ -15,6 +17,16 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const horizonDays = Number(searchParams.get("horizon_days") || "14");
     const dateParam = searchParams.get("reference_date");
+    const paymentPlan = searchParams.get("payment_plan");
+    const useGracePeriods = searchParams.get("use_grace_periods");
+    const comparisonInputs = searchParams.get("comparison_inputs");
+    const purchase = searchParams.get("purchase_cents");
+    if (purchase !== null && (!/^[1-9]\d*$/.test(purchase) || !Number.isSafeInteger(Number(purchase)))) {
+      return NextResponse.json({ error: "Enter a positive purchase amount in whole centavos." }, { status: 400 });
+    }
+    if ([paymentPlan, useGracePeriods, comparisonInputs].some(value => value !== null && value !== "true" && value !== "false")) {
+      return NextResponse.json({ error: "Use true or false for payment planning options." }, { status: 400 });
+    }
     if (!Number.isInteger(horizonDays) || horizonDays < 1 || horizonDays > 366 || (dateParam !== null && !DateOnlySchema.safeParse(dateParam).success)) {
       return NextResponse.json({ error: "Use a valid reference date and a horizon between 1 and 366 days." }, { status: 400 });
     }
@@ -73,6 +85,7 @@ export async function GET(req: NextRequest) {
         amount: bills.amount,
         status: billInstances.status,
         gracePeriodDays: bills.gracePeriodDays,
+        isAutoPay: bills.isAutoPay,
         frequency: bills.frequency,
         dueDayOfMonth: bills.dueDayOfMonth,
         occurrenceLimit: bills.occurrenceLimit,
@@ -86,7 +99,7 @@ export async function GET(req: NextRequest) {
     const throughDate = `${through.getFullYear()}-${String(through.getMonth() + 1).padStart(2, "0")}-${String(through.getDate()).padStart(2, "0")}`;
 
     // 4. Calculate forward runway forecast
-    const forecast = calculateRunwayForecast({
+    const forecastParams = {
       currentLiquidCash,
       salaryCycleDays,
       biweeklyPaydayAnchor: proj.biweeklyPaydayAnchor,
@@ -101,7 +114,16 @@ export async function GET(req: NextRequest) {
       plannedBudgetSpending: await loadPlannedBudgetSpending(),
       referenceDate,
       horizonDays,
-    });
+    };
+    const forecast = calculateRunwayForecast(forecastParams);
+    if (paymentPlan === "true") {
+      forecast.payment_plan = calculatePaymentPlan(forecastParams, useGracePeriods === "true");
+    }
+    if (purchase !== null) forecast.purchase_scenarios = calculatePurchaseScenarios(forecastParams, Number(purchase));
+    if (comparisonInputs === "true") {
+      forecast.comparison_bills = forecastParams.bills.map(bill => ({ key: `${bill.billId}:${bill.originalDueDate ?? bill.dueDate}`,
+        name: bill.name, due_date: bill.dueDate, amount_cents: bill.amountDue, status: bill.status }));
+    }
 
     return NextResponse.json(forecast, { status: 200 });
   } catch (error: unknown) {

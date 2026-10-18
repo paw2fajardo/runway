@@ -8,6 +8,7 @@ import { formatPHP } from "@/lib/currency";
 import { ParsedInboxItem } from "@/lib/types";
 import { Dialog } from "@/components/ui/Dialog";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { InboxReview } from "@/components/inbox/InboxReview";
 
 interface InboxItemRecord {
   id: string;
@@ -28,6 +29,8 @@ export default function InboxPage() {
   const [detailItem, setDetailItem] = useState<InboxItemRecord | null>(null);
   const [inputText, setInputText] = useState<string>("");
   const [isParsing, setIsParsing] = useState<boolean>(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [reviewItem, setReviewItem] = useState<InboxItemRecord | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "approved" | "assistant">("pending");
 
   const [queryText, setQueryText] = useState("");
@@ -58,16 +61,21 @@ export default function InboxPage() {
     if (!payload.trim()) return;
 
     setIsParsing(true);
+    setParseError(null);
     try {
       const res = await fetch("/api/inbox/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           raw_payload: payload,
-          source_channel: "sms",
+          source_channel: "quick_text",
         }),
       });
 
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Entry could not be staged. Retry.");
+      }
       if (res.ok) {
         setInputText("");
         fetchInbox();
@@ -75,24 +83,9 @@ export default function InboxPage() {
         setIsAddAlertOpen(false);
       }
     } catch (err) {
-      console.error("Parse failed:", err);
+      setParseError(err instanceof Error ? err.message : "Entry could not be staged. Retry.");
     } finally {
       setIsParsing(false);
-    }
-  };
-
-  const handleApprove = async (id: string) => {
-    try {
-      const res = await fetch(`/api/inbox/${id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        fetchInbox();
-      }
-    } catch (err) {
-      console.error("Approve failed:", err);
     }
   };
 
@@ -176,7 +169,7 @@ export default function InboxPage() {
         <div className="flex flex-col w-full px-margin pb-6 gap-space-md select-none">
           <div className="flex items-center justify-between gap-3 py-2">
             <button runway-id="inbox.approval-required" type="button" onClick={() => setIsGuardrailOpen(true)} className="min-h-11 text-body-md text-secondary">Approval required ⓘ</button>
-            <button runway-id="inbox.add-alert" type="button" onClick={() => setIsAddAlertOpen(true)} className="min-h-11 px-5 rounded-xl bg-secondary text-white font-semibold">Add alert</button>
+            <button runway-id="inbox.add-alert" type="button" onClick={() => setIsAddAlertOpen(true)} className="min-h-11 px-5 rounded-xl bg-secondary text-white font-semibold">Describe a payment</button>
           </div>
           <Dialog open={isGuardrailOpen} onClose={() => setIsGuardrailOpen(false)} title="Approval required">
           <div className="flex items-start gap-3">
@@ -198,20 +191,23 @@ export default function InboxPage() {
           </Dialog>
 
           {/* Quick SMS & Alert Ingest Testbed */}
-          <Dialog open={isAddAlertOpen} onClose={() => setIsAddAlertOpen(false)} title="Add alert">
+          <Dialog open={isAddAlertOpen} onClose={() => setIsAddAlertOpen(false)} title="Describe a payment">
           <section className="glass-panel p-space-md flex flex-col gap-space-sm">
             <span runway-id="inbox.add-alert.prompt" className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
-              Paste a bank alert or receipt
+              Describe a payment or paste an alert
             </span>
             <div className="flex flex-col gap-2">
               <textarea runway-id="inbox.add-alert.message-input"
                 rows={2}
-                aria-label="Bank alert or receipt text"
-                placeholder="Paste raw bank SMS, payment receipt, or utility notice..."
+                aria-label="Payment description or bank alert"
+                placeholder="Spent ₱420 on groceries using GCash"
+                maxLength={4000}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 className="w-full p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/40 font-body-sm text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-secondary resize-none"
               />
+              <p className="text-body-sm text-on-surface-variant">Review every field before logging. Text may go to the configured AI provider if the local parser cannot read it.</p>
+              {parseError && <p role="alert" className="text-body-sm text-error">{parseError}</p>}
               <button runway-id="inbox.add-alert.parse-button"
                 type="button"
                 onClick={() => handleParseSubmit()}
@@ -221,7 +217,7 @@ export default function InboxPage() {
                 <span runway-id="inbox.add-alert.parse-icon" className="material-symbols-outlined text-[16px]">
                   auto_awesome
                 </span>
-                {isParsing ? "Extracting..." : "Parse & Stage into Inbox"}
+                {isParsing ? "Extracting..." : "Prepare entry"}
               </button>
             </div>
 
@@ -300,7 +296,7 @@ export default function InboxPage() {
                     Inbox is Clear
                   </p>
                   <p runway-id="inbox.pending.empty.description" className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                    Use Add alert to paste a bank message or receipt.
+                    Describe a payment to prepare a reviewable entry.
                   </p>
                 </div>
               ) : (
@@ -333,7 +329,7 @@ export default function InboxPage() {
                       {/* Extracted Badges */}
                       <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-outline-variant/20">
                         <span runway-id={`inbox.pending.item.${item.id}.account`} className="px-2 py-0.5 bg-surface-container rounded-full text-on-surface font-label-sm text-[11px]">
-                          Acc: {data.source_account_hint || "BPI Checking"}
+                          Acc: {data.source_account_hint || "Choose during review"}
                         </span>
                         <button runway-id={`inbox.pending.item.${item.id}.details`} type="button" onClick={() => setDetailItem(item)} className="min-h-11 px-3 text-secondary text-body-sm">Details</button>
                       </div>
@@ -351,13 +347,13 @@ export default function InboxPage() {
                         <button
                           runway-id={`inbox.pending.item.${item.id}.approve`}
                           type="button"
-                          onClick={() => handleApprove(item.id)}
+                          onClick={() => setReviewItem(item)}
                           className="min-h-11 rounded-lg bg-secondary text-on-secondary font-label-md text-label-md font-semibold flex items-center justify-center gap-1 active:scale-95 transition"
                         >
                           <span runway-id={`inbox.pending.item.${item.id}.approve-icon`} className="material-symbols-outlined text-[16px]">
                             check
                           </span>
-                          Approve into Ledger
+                          Review and log
                         </button>
                       </div>
                     </div>
@@ -366,6 +362,8 @@ export default function InboxPage() {
               )}
             </div>
           )}
+
+          <InboxReview item={reviewItem} onClose={() => setReviewItem(null)} onSaved={() => { void fetchInbox(); }} />
 
           {/* Tab 2: Approved History */}
           {activeTab === "approved" && (
