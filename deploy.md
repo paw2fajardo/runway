@@ -16,6 +16,8 @@ The script builds and pushes both images:
 - `paw2fajardo/runway:latest` — Next.js app
 - `paw2fajardo/runway-worker:latest` — payday worker and Drizzle CLI
 
+At the prompt, enter `1` for a patch bump, `2` for a minor bump, or `3` for a major bump. After all image pushes succeed, the script updates `package.json` and `package-lock.json` locally. Review and commit those version changes before the next deployment.
+
 Wait for both pushes to finish successfully before deploying. Keep `docker_deploy.sh` saved with LF line endings so it runs correctly under Bash on Windows.
 
 ## 2. Deploy the Portainer stack

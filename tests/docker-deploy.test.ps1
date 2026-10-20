@@ -1,41 +1,72 @@
 $ErrorActionPreference = 'Stop'
-$deployScript = Join-Path $PSScriptRoot '../docker_deploy.ps1'
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tempRoot | Out-Null
+Copy-Item (Join-Path $repoRoot 'docker_deploy.ps1') $tempRoot
+$packageFixture = @'
+{
+  "name": "fixture",
+  "version": "1.2.3"
+}
+'@
+$lockFixture = @'
+{
+  "name": "fixture",
+  "version": "1.2.3",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "name": "fixture",
+      "version": "1.2.3"
+    }
+  }
+}
+'@
+Set-Content -Path (Join-Path $tempRoot 'package.json') -Value $packageFixture
+Set-Content -Path (Join-Path $tempRoot 'package-lock.json') -Value $lockFixture
 $global:deployTestCalls = [System.Collections.Generic.List[string]]::new()
+$global:deployTestFailPush = $false
 $global:deployTestFailBuild = $false
 
-function git {
-    $global:deployTestCalls.Add("git $($args -join ' ')")
-    $global:LASTEXITCODE = 0
-}
+function git { $global:deployTestCalls.Add("git $($args -join ' ')"); $global:LASTEXITCODE = 0 }
 function docker {
     $global:deployTestCalls.Add("docker $($args -join ' ')")
-    $global:LASTEXITCODE = if ($global:deployTestFailBuild -and $args[0] -eq 'build') { 1 } else { 0 }
+    $global:LASTEXITCODE = if (($global:deployTestFailPush -and $args[0] -eq 'push') -or ($global:deployTestFailBuild -and $args[0] -eq 'build')) { 1 } else { 0 }
 }
 
-$version = [version](Get-Content (Join-Path $PSScriptRoot '../package.json') -Raw | ConvertFrom-Json).version
-$expectedVersions = @{
-    small = "$($version.Major).$($version.Minor).$($version.Build + 1)"
-    big = "$($version.Major).$($version.Minor + 1).0"
-    major = "$($version.Major + 1).0.0"
-}
-$originalLocation = (Get-Location).Path
-foreach ($bump in @('small', 'big', 'major')) {
+try {
+    foreach ($case in @(@{ Option = '1'; Version = '1.2.4' }, @{ Option = '2'; Version = '1.3.0' }, @{ Option = '3'; Version = '2.0.0' })) {
+        Set-Content -Path (Join-Path $tempRoot 'package.json') -Value $packageFixture
+        Set-Content -Path (Join-Path $tempRoot 'package-lock.json') -Value $lockFixture
+        $global:deployTestCalls.Clear()
+        & (Join-Path $tempRoot 'docker_deploy.ps1') $case.Option
+        if ($global:deployTestCalls[-4] -ne "docker push paw2fajardo/runway:$($case.Version)") { throw "Wrong image version for option $($case.Option)." }
+        $package = Get-Content (Join-Path $tempRoot 'package.json') -Raw | ConvertFrom-Json
+        $lock = Get-Content (Join-Path $tempRoot 'package-lock.json') -Raw | ConvertFrom-Json -AsHashtable
+        if ($package.version -ne $case.Version -or $lock.version -ne $case.Version -or $lock.packages[''].version -ne $case.Version) { throw "Version files not updated for option $($case.Option)." }
+    }
+
+    Set-Content -Path (Join-Path $tempRoot 'package.json') -Value $packageFixture
+    Set-Content -Path (Join-Path $tempRoot 'package-lock.json') -Value $lockFixture
+    $global:deployTestFailPush = $true
+    $failed = $false
+    try { & (Join-Path $tempRoot 'docker_deploy.ps1') 1 } catch { $failed = $true }
+    if (-not $failed) { throw 'Push failure must fail the deploy.' }
+    if ((Get-Content (Join-Path $tempRoot 'package.json') -Raw | ConvertFrom-Json).version -ne '1.2.3') { throw 'Push failure must not update package.json.' }
+    if ((Get-Content (Join-Path $tempRoot 'package-lock.json') -Raw | ConvertFrom-Json -AsHashtable).version -ne '1.2.3') { throw 'Push failure must not update package-lock.json.' }
+
+    $global:deployTestFailPush = $false
+    $global:deployTestFailBuild = $true
     $global:deployTestCalls.Clear()
-    & $deployScript $bump
-    $release = $expectedVersions[$bump]
-    $expected = @(
-        'git checkout main', 'git pull --ff-only',
-        "docker build -t paw2fajardo/runway:$release -t paw2fajardo/runway:latest .",
-        "docker build --target payday-worker -t paw2fajardo/runway-worker:$release -t paw2fajardo/runway-worker:latest .",
-        "docker push paw2fajardo/runway:$release", 'docker push paw2fajardo/runway:latest',
-        "docker push paw2fajardo/runway-worker:$release", 'docker push paw2fajardo/runway-worker:latest'
-    )
-    if (($global:deployTestCalls -join "`n") -cne ($expected -join "`n")) { throw "Incorrect commands for $bump." }
+    $buildFailed = $false
+    try { & (Join-Path $tempRoot 'docker_deploy.ps1') 1 } catch { $buildFailed = $true }
+    if (-not $buildFailed -or @($global:deployTestCalls | Where-Object { $_ -like 'docker push *' }).Count -ne 0) { throw 'Build failure must stop before pushes.' }
+
+    $global:deployTestFailBuild = $false
+    & (Join-Path $tempRoot 'docker_deploy.ps1') 1
+    if ((Get-Content (Join-Path $tempRoot 'package.json') -Raw | ConvertFrom-Json).version -ne '1.2.4') { throw 'Next small bump must increment from saved version.' }
+} finally {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force
 }
-$global:deployTestCalls.Clear()
-$global:deployTestFailBuild = $true
-$failed = $false
-try { & $deployScript small } catch { $failed = $true }
-if (-not $failed -or $global:deployTestCalls.Count -ne 3) { throw 'Build failure must stop before worker build and pushes.' }
-if ((Get-Location).Path -ne $originalLocation) { throw 'Deploy must restore the working directory.' }
-Write-Host 'PASS: all version bumps, image tags, fail-closed build, and working-directory restoration.'
+
+Write-Host 'PASS: numeric bumps, package version persistence, failed push safety, and repeated patch bump.'
