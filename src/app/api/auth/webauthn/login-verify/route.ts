@@ -63,7 +63,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Authentication challenge expired or invalid." }, { status: 400 });
   }
 
-  const passkey = await getPasskeyByCredentialId(clientResponse.id);
+  if (typeof clientResponse.id !== "string" || !clientResponse.id) {
+    return NextResponse.json({ error: "Missing or invalid credential ID." }, { status: 400 });
+  }
+
+  let passkey: Awaited<ReturnType<typeof getPasskeyByCredentialId>>;
+  try {
+    passkey = await getPasskeyByCredentialId(clientResponse.id);
+  } catch {
+    return NextResponse.json({ error: "Unable to verify credential." }, { status: 503 });
+  }
+
   if (!passkey) {
     recordLoginFailure(ip);
     return NextResponse.json({ error: "Unrecognized credential." }, { status: 401 });
@@ -71,8 +81,9 @@ export async function POST(request: Request) {
 
   const { rpID, origin } = getExpectedRpConfig(request);
 
+  let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
   try {
-    const verification = await verifyAuthenticationResponse({
+    verification = await verifyAuthenticationResponse({
       response: clientResponse,
       expectedChallenge,
       expectedOrigin: origin,
@@ -85,12 +96,17 @@ export async function POST(request: Request) {
       },
       requireUserVerification: false,
     });
+  } catch {
+    recordLoginFailure(ip);
+    return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
+  }
 
-    if (!verification.verified) {
-      recordLoginFailure(ip);
-      return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
-    }
+  if (!verification.verified) {
+    recordLoginFailure(ip);
+    return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
+  }
 
+  try {
     // Update counter and lastUsedAt
     await db
       .update(ownerPasskeys)
@@ -106,7 +122,6 @@ export async function POST(request: Request) {
     response.headers.append("Set-Cookie", serializeOwnerSessionCookie(token));
     return response;
   } catch {
-    recordLoginFailure(ip);
-    return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
+    return NextResponse.json({ error: "Unable to complete sign-in." }, { status: 503 });
   }
 }

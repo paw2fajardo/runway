@@ -47,25 +47,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Registration session expired or invalid." }, { status: 400 });
   }
 
+  let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
   try {
-    const verification = await verifyRegistrationResponse({
+    verification = await verifyRegistrationResponse({
       response: clientResponse,
       expectedChallenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
       requireUserVerification: false,
     });
+  } catch {
+    return NextResponse.json({ error: "Could not verify biometric registration." }, { status: 400 });
+  }
 
-    if (!verification.verified || !verification.registrationInfo) {
-      return NextResponse.json({ error: "Registration verification failed." }, { status: 400 });
-    }
+  if (!verification.verified || !verification.registrationInfo) {
+    return NextResponse.json({ error: "Registration verification failed." }, { status: 400 });
+  }
 
-    const { credential, credentialDeviceType } = verification.registrationInfo;
+  const { credential, credentialDeviceType } = verification.registrationInfo;
 
-    const deviceName = typeof body.deviceName === "string" && body.deviceName.trim()
-      ? body.deviceName.trim().slice(0, 100)
-      : (credentialDeviceType === "singleDevice" ? "This Device" : "Passkey");
+  const deviceName = typeof body.deviceName === "string" && body.deviceName.trim()
+    ? body.deviceName.trim().slice(0, 100)
+    : (credentialDeviceType === "singleDevice" ? "This Device" : "Passkey");
 
+  try {
     await db.insert(ownerPasskeys).values({
       ownerId: owner.id,
       credentialId: credential.id,
@@ -77,6 +82,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ verified: true });
   } catch {
-    return NextResponse.json({ error: "Could not verify biometric registration." }, { status: 400 });
+    return NextResponse.json({ error: "Unable to save passkey." }, { status: 503 });
   }
 }

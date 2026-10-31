@@ -29,8 +29,9 @@ export async function DELETE(request: Request) {
   if (authResult instanceof Response) return authResult;
   const owner = authResult;
 
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const body = (await request.json().catch(() => null)) as { id?: string } | null;
-  if (!body?.id || typeof body.id !== "string") {
+  if (!body?.id || typeof body.id !== "string" || !UUID_PATTERN.test(body.id)) {
     return NextResponse.json({ error: "Invalid credential ID." }, { status: 400 });
   }
 

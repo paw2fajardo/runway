@@ -3,9 +3,9 @@ BEGIN;
 CREATE TABLE owner_passkeys (
   id uuid PRIMARY KEY NOT NULL DEFAULT gen_random_uuid(),
   owner_id integer NOT NULL REFERENCES owner_auth(id) ON DELETE CASCADE,
-  credential_id varchar(500) NOT NULL,
+  credential_id text NOT NULL,
   public_key text NOT NULL,
-  counter integer NOT NULL DEFAULT 0,
+  counter bigint NOT NULL DEFAULT 0,
   transports text,
   device_name varchar(100) NOT NULL DEFAULT 'Device',
   created_at timestamptz NOT NULL DEFAULT now(),

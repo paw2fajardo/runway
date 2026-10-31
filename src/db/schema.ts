@@ -125,9 +125,9 @@ export const ownerPasskeys = pgTable(
     ownerId: integer("owner_id")
       .notNull()
       .references(() => ownerAuth.id, { onDelete: "cascade" }),
-    credentialId: varchar("credential_id", { length: 500 }).notNull(),
+    credentialId: text("credential_id").notNull(),
     publicKey: text("public_key").notNull(),
-    counter: integer("counter").notNull().default(0),
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
     transports: text("transports"),
     deviceName: varchar("device_name", { length: 100 }).notNull().default("Device"),
     createdAt: timestamp("created_at", { withTimezone: true })

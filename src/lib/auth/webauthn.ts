@@ -12,12 +12,18 @@ interface ChallengeEntry {
 
 // In-memory challenge store keyed by session/identifier (10-minute validity)
 const CHALLENGE_EXPIRY_MS = 10 * 60 * 1000;
+const MAX_CHALLENGES = 5000;
 const challenges = new Map<string, ChallengeEntry>();
 
 function pruneChallenges(): void {
   const now = Date.now();
   for (const [key, val] of challenges.entries()) {
     if (val.expiresAt <= now) challenges.delete(key);
+  }
+  while (challenges.size >= MAX_CHALLENGES) {
+    const oldest = challenges.keys().next().value;
+    if (oldest === undefined) break;
+    challenges.delete(oldest);
   }
 }
 

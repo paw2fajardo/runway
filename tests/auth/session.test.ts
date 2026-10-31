@@ -55,7 +55,8 @@ describe("owner sessions", () => {
 
   it("accepts an active known token and rejects absent, malformed, and revoked sessions", async () => {
     const owner = { id: 1, username: "owner", passwordHash: "hash" };
-    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null }]);
+    const recent = new Date();
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null, createdAt: recent }]);
     const valid = new Request("https://runway.test/", {
       headers: { cookie: `${OWNER_SESSION_COOKIE}=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` },
     });
@@ -66,7 +67,11 @@ describe("owner sessions", () => {
       headers: { cookie: `${OWNER_SESSION_COOKIE}=garbage` },
     }))).resolves.toBeNull();
 
-    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: new Date() }]);
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: new Date(), createdAt: recent }]);
+    await expect(getOwnerFromRequest(valid)).resolves.toBeNull();
+
+    const expired = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null, createdAt: expired }]);
     await expect(getOwnerFromRequest(valid)).resolves.toBeNull();
 
     mocks.limit.mockResolvedValueOnce([]);

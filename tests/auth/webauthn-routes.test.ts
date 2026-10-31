@@ -169,14 +169,25 @@ describe("WebAuthn route flows", () => {
     });
 
     it("deletes a credential scoped to the owner ID", async () => {
+      const validUuid = "12345678-1234-1234-1234-123456789abc";
       const req = new Request("https://runway.example/api/auth/webauthn/credentials", {
         method: "DELETE",
         headers,
-        body: JSON.stringify({ id: "pk-1" }),
+        body: JSON.stringify({ id: validUuid }),
       });
       const res = await deleteCredential(req);
       expect(res.status).toBe(200);
       expect(mocks.delete).toHaveBeenCalled();
+    });
+
+    it("rejects malformed non-UUID credential IDs with 400", async () => {
+      const req = new Request("https://runway.example/api/auth/webauthn/credentials", {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify({ id: "not-a-uuid" }),
+      });
+      const res = await deleteCredential(req);
+      expect(res.status).toBe(400);
     });
   });
 });
