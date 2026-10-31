@@ -27,6 +27,11 @@ function pruneChallenges(): void {
   }
 }
 
+export function saveWebAuthnChallenge(key: string, challenge: string): void {
+  pruneChallenges();
+  challenges.set(key, { challenge, expiresAt: Date.now() + CHALLENGE_EXPIRY_MS });
+}
+
 export function createWebAuthnChallenge(key: string): string {
   pruneChallenges();
   const challenge = randomBytes(32).toString("base64url");
