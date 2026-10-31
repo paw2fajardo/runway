@@ -118,6 +118,29 @@ export const ownerSessions = pgTable(
   ]
 );
 
+export const ownerPasskeys = pgTable(
+  "owner_passkeys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references(() => ownerAuth.id, { onDelete: "cascade" }),
+    credentialId: varchar("credential_id", { length: 500 }).notNull(),
+    publicKey: text("public_key").notNull(),
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports"),
+    deviceName: varchar("device_name", { length: 100 }).notNull().default("Device"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("uq_owner_passkeys_credential_id").on(table.credentialId),
+    index("idx_owner_passkeys_owner_id").on(table.ownerId),
+  ]
+);
+
 // 1. Accounts
 export const accounts = pgTable(
   "accounts",

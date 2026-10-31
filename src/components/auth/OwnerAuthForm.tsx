@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CircleAlert, LockKeyhole, RefreshCw } from "lucide-react";
+import { ArrowRight, CircleAlert, Fingerprint, LockKeyhole, RefreshCw } from "lucide-react";
+import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 
 type AuthMode = "setup" | "login";
 type SetupStatus = "checking" | "ready" | "configured" | "unavailable";
@@ -40,6 +41,45 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [confirmationError, setConfirmationError] = useState("");
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsLoading, setBiometricsLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode === "login" && browserSupportsWebAuthn()) {
+      setBiometricsAvailable(true);
+    }
+  }, [mode]);
+
+  async function handleBiometricLogin() {
+    setError("");
+    setBiometricsLoading(true);
+    try {
+      const optionsRes = await fetch("/api/auth/webauthn/login-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!optionsRes.ok) {
+        const msg = await readError(optionsRes, "Biometrics unavailable.");
+        throw new Error(msg);
+      }
+      const options = await optionsRes.json();
+      const authResponse = await startAuthentication({ optionsJSON: options });
+      const verifyRes = await fetch("/api/auth/webauthn/login-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response: authResponse }),
+      });
+      if (!verifyRes.ok) {
+        const msg = await readError(verifyRes, "Biometric verification failed.");
+        throw new Error(msg);
+      }
+      router.replace("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Biometric login failed.");
+    } finally {
+      setBiometricsLoading(false);
+    }
+  }
 
   const checkSetup = useCallback(async () => {
     setChecking(true);
@@ -266,12 +306,24 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || biometricsLoading}
                     className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-on-primary shadow-lg shadow-primary/15 transition hover:-translate-y-0.5 hover:bg-secondary focus-visible:outline-offset-4 disabled:cursor-wait disabled:opacity-65"
                   >
-                    {submitting ? (mode === "setup" ? "Creating account…" : "Signing in…") : (mode === "setup" ? "Create owner account" : "Sign in")}
+                    {submitting ? (mode === "setup" ? "Creating account…" : "Signing in…") : (mode === "setup" ? "Create owner account" : "Sign in with password")}
                     {!submitting ? <ArrowRight size={17} aria-hidden="true" /> : null}
                   </button>
+
+                  {mode === "login" && biometricsAvailable && (
+                    <button
+                      type="button"
+                      disabled={submitting || biometricsLoading}
+                      onClick={() => void handleBiometricLogin()}
+                      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-secondary/40 bg-secondary/10 px-5 text-sm font-bold text-secondary transition hover:bg-secondary/20 focus-visible:outline-offset-4 disabled:opacity-65"
+                    >
+                      <Fingerprint size={18} aria-hidden="true" />
+                      {biometricsLoading ? "Scanning…" : "Sign in with Fingerprint / Passkey"}
+                    </button>
+                  )}
                 </form>
 
                 {mode === "setup" ? (

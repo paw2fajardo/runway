@@ -82,7 +82,7 @@ describe("owner sessions", () => {
     expect(mocks.updateSet).toHaveBeenLastCalledWith(expect.objectContaining({ revokedAt: expect.any(Date) }));
   });
 
-  it("sets secure cookie attributes in production without automatic expiry", () => {
+  it("sets secure cookie attributes with persistent Max-Age in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
       const cookie = serializeOwnerSessionCookie("A".repeat(43));
@@ -90,7 +90,7 @@ describe("owner sessions", () => {
       expect(cookie).toContain("SameSite=Lax");
       expect(cookie).toContain("Secure");
       expect(cookie).toContain("Path=/");
-      expect(cookie).not.toMatch(/Max-Age|Expires/i);
+      expect(cookie).toContain("Max-Age=2592000");
     } finally {
       vi.unstubAllEnvs();
     }

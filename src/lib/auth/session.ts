@@ -51,10 +51,12 @@ export async function revokeOwnerSessions(ownerId: number): Promise<void> {
     .where(eq(ownerSessions.ownerId, ownerId));
 }
 
+export const OWNER_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
 export function serializeOwnerSessionCookie(token: string): string {
   if (!TOKEN_PATTERN.test(token)) throw new Error("Invalid owner session token");
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${OWNER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+  return `${OWNER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${OWNER_SESSION_MAX_AGE_SECONDS}${secure}`;
 }
 
 export function serializeClearedOwnerSessionCookie(): string {

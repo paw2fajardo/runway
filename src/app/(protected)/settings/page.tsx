@@ -3,7 +3,10 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { clearPrivatePageCaches, NotificationSettings } from "@/components/payday/NotificationSettings";
+import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
+import { Fingerprint, Trash2 } from "lucide-react";
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
+type RegisteredPasskey = { id: string; deviceName: string; createdAt: string; lastUsedAt: string | null };
 
 const moneyInput = (cents: number) => `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 
@@ -29,6 +32,30 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [passkeys, setPasskeys] = useState<RegisteredPasskey[]>([]);
+  const [passkeysLoading, setPasskeysLoading] = useState(false);
+  const [passkeyRegistering, setPasskeyRegistering] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [passkeySuccess, setPasskeySuccess] = useState<string | null>(null);
+  const [webAuthnSupported, setWebAuthnSupported] = useState(false);
+
+  const loadPasskeys = useCallback(async () => {
+    setPasskeysLoading(true);
+    try {
+      const res = await fetch("/api/auth/webauthn/credentials");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.passkeys)) setPasskeys(data.passkeys);
+    } catch {
+      // Non-blocking
+    } finally {
+      setPasskeysLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setWebAuthnSupported(browserSupportsWebAuthn());
+  }, []);
 
   const loadDailyBurn = useCallback(async () => {
     setBurnLoading(true);
@@ -55,7 +82,64 @@ export default function SettingsPage() {
     finally { setCategoriesLoading(false); }
   }, []);
 
-  useEffect(() => { void loadDailyBurn(); void loadCategories(); }, [loadDailyBurn, loadCategories]);
+  useEffect(() => {
+    void loadDailyBurn();
+    void loadCategories();
+    void loadPasskeys();
+  }, [loadDailyBurn, loadCategories, loadPasskeys]);
+
+  async function registerPasskey() {
+    setPasskeyError(null);
+    setPasskeySuccess(null);
+    setPasskeyRegistering(true);
+    try {
+      const optionsRes = await fetch("/api/auth/webauthn/register-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!optionsRes.ok) {
+        const d = await optionsRes.json().catch(() => ({}));
+        throw new Error(d.error || "Could not prepare biometric registration.");
+      }
+      const options = await optionsRes.json();
+      const regResponse = await startRegistration({ optionsJSON: options });
+      const verifyRes = await fetch("/api/auth/webauthn/register-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          response: regResponse,
+          deviceName: navigator.userAgent.includes("Android") ? "Android Phone" : "Browser",
+        }),
+      });
+      if (!verifyRes.ok) {
+        const d = await verifyRes.json().catch(() => ({}));
+        throw new Error(d.error || "Could not complete biometric registration.");
+      }
+      setPasskeySuccess("Fingerprint / Passkey registered successfully.");
+      await loadPasskeys();
+    } catch (err) {
+      setPasskeyError(err instanceof Error ? err.message : "Registration failed.");
+    } finally {
+      setPasskeyRegistering(false);
+    }
+  }
+
+  async function deletePasskey(id: string) {
+    setPasskeyError(null);
+    setPasskeySuccess(null);
+    try {
+      const res = await fetch("/api/auth/webauthn/credentials", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("Could not remove credential.");
+      await loadPasskeys();
+      setPasskeySuccess("Credential removed.");
+    } catch (err) {
+      setPasskeyError(err instanceof Error ? err.message : "Failed to remove credential.");
+    }
+  }
 
   async function saveDailyBurn(event: FormEvent) {
     event.preventDefault();
@@ -165,6 +249,70 @@ export default function SettingsPage() {
         </div>}
       </section>
       <NotificationSettings />
+      <section className="glass-panel mt-space-md space-y-space-sm p-space-md" aria-labelledby="biometrics-heading">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 id="biometrics-heading" className="text-body-lg font-medium">Fingerprint & Passkeys</h2>
+            <p className="text-body-sm text-on-surface-variant">Use device biometrics to sign in quickly from your browser or PWA.</p>
+          </div>
+          <Fingerprint className="text-secondary" size={24} aria-hidden="true" />
+        </div>
+
+        {webAuthnSupported ? (
+          <div className="space-y-space-sm">
+            <button
+              type="button"
+              disabled={passkeyRegistering}
+              onClick={() => void registerPasskey()}
+              className="flex min-h-11 items-center gap-2 rounded-full bg-secondary px-space-md text-label-md font-medium text-on-secondary disabled:opacity-50"
+            >
+              <Fingerprint size={16} aria-hidden="true" />
+              {passkeyRegistering ? "Registering…" : "Register this device / fingerprint"}
+            </button>
+
+            {passkeyError && <p role="alert" className="text-body-sm text-error">{passkeyError}</p>}
+            {passkeySuccess && <p role="status" className="text-body-sm text-secondary">{passkeySuccess}</p>}
+
+            <div className="space-y-space-xs pt-space-xs">
+              <h3 className="text-label-md font-medium text-on-surface">Registered devices</h3>
+              {passkeysLoading ? (
+                <p role="status" className="text-body-sm text-on-surface-variant">Loading registered passkeys…</p>
+              ) : passkeys.length === 0 ? (
+                <p className="text-body-sm text-on-surface-variant">No devices or fingerprints registered yet.</p>
+              ) : (
+                <div className="space-y-space-xs">
+                  {passkeys.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-xl border border-outline-variant/30 bg-white/50 p-space-sm"
+                    >
+                      <div>
+                        <p className="text-body-md font-medium">{p.deviceName}</p>
+                        <p className="text-body-xs text-on-surface-variant">
+                          Added {new Date(p.createdAt).toLocaleDateString()}
+                          {p.lastUsedAt ? ` · Last used ${new Date(p.lastUsedAt).toLocaleDateString()}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void deletePasskey(p.id)}
+                        className="rounded-full p-2 text-on-surface-variant transition hover:bg-error/10 hover:text-error"
+                        aria-label={`Remove ${p.deviceName}`}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-body-sm text-on-surface-variant">
+            Biometric authentication is not supported by this browser or requires HTTPS.
+          </p>
+        )}
+      </section>
       <section className="glass-panel mt-space-md space-y-space-sm p-space-md" aria-labelledby="account-security-heading">
         <div><h2 id="account-security-heading" className="text-body-lg font-medium">Account security</h2><p className="text-body-sm text-on-surface-variant">Change your owner password or end this session.</p></div>
         <form onSubmit={changePassword} className="space-y-space-sm">
