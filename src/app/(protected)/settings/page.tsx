@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { clearPrivatePageCaches, NotificationSettings } from "@/components/payday/NotificationSettings";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { Fingerprint, Trash2 } from "lucide-react";
-import { signOut as authSignOut } from "@/lib/auth/client";
+import { SignOutDialog } from "@/components/auth/SignOutDialog";
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
 type RegisteredPasskey = { id: string; deviceName: string; createdAt: string; lastUsedAt: string | null };
 
@@ -31,8 +31,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
-  const [accountError, setAccountError] = useState<string | null>(null);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [passkeys, setPasskeys] = useState<RegisteredPasskey[]>([]);
   const [passkeysLoading, setPasskeysLoading] = useState(false);
   const [passkeyRegistering, setPasskeyRegistering] = useState(false);
@@ -202,15 +201,6 @@ export default function SettingsPage() {
     } finally { setPasswordSaving(false); }
   }
 
-  async function signOut() {
-    setSigningOut(true); setAccountError(null);
-    try {
-      await authSignOut();
-    } catch (error) {
-      setAccountError(error instanceof Error ? error.message : "Unable to sign out.");
-      setSigningOut(false);
-    }
-  }
 
   const inputClass = "w-full min-h-11 rounded-full border border-outline-variant/50 bg-white/70 px-4 text-body-md";
   const sorted = [...categories].sort((a, b) => Number(a.isIncome) - Number(b.isIncome) || a.name.localeCompare(b.name));
@@ -319,8 +309,25 @@ export default function SettingsPage() {
           <button type="submit" disabled={passwordSaving} className="min-h-11 rounded-full bg-primary px-space-md text-label-md font-medium text-white disabled:opacity-50">{passwordSaving ? "Changing password…" : "Change password"}</button>
           {passwordError && <p role="alert" className="text-body-sm text-error">{passwordError}</p>}
         </form>
-        <div className="border-t border-outline-variant/40 pt-space-sm"><button type="button" disabled={signingOut} onClick={() => void signOut()} className="min-h-11 rounded-full border border-outline-variant px-space-md text-label-md font-medium text-on-surface disabled:opacity-50">{signingOut ? "Signing out…" : "Sign out"}</button>{accountError && <p role="alert" className="mt-2 text-body-sm text-error">{accountError}</p>}</div>
+        <div className="border-t border-outline-variant/40 pt-space-sm">
+          <button
+            type="button"
+            onClick={() => setShowLogoutDialog(true)}
+            runway-id="runway.settings.logout"
+            className="min-h-11 rounded-full border border-outline-variant px-space-md text-label-md font-medium text-on-surface hover:bg-black/5"
+          >
+            Sign out
+          </button>
+        </div>
       </section>
+      {showLogoutDialog && (
+        <SignOutDialog
+          open={showLogoutDialog}
+          onClose={() => setShowLogoutDialog(false)}
+          cancelRunwayId="runway.settings.logout.cancel"
+          confirmRunwayId="runway.settings.logout.confirm"
+        />
+      )}
     </main>
     <BottomNav showNavigation={false} />
   </div>;

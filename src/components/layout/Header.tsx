@@ -6,8 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Inbox, LogOut, UserRound } from "lucide-react";
 import { getPendingQueueCount, flushOfflineQueue } from "@/lib/offline-db";
 import { usePathname } from "next/navigation";
-import { Dialog } from "@/components/ui/Dialog";
-import { signOut } from "@/lib/auth/client";
+import { SignOutDialog } from "@/components/auth/SignOutDialog";
 
 interface HeaderProps {
   title?: string;
@@ -28,19 +27,6 @@ export function Header({ title, showBack = false }: HeaderProps) {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [showLogoutDialog, setShowLogoutDialog] = useState<boolean>(false);
-  const [loggingOut, setLoggingOut] = useState<boolean>(false);
-  const [logoutError, setLogoutError] = useState<string | null>(null);
-
-  const handleSignOut = async () => {
-    setLoggingOut(true);
-    setLogoutError(null);
-    try {
-      await signOut();
-    } catch (err) {
-      setLogoutError(err instanceof Error ? err.message : "Unable to sign out.");
-      setLoggingOut(false);
-    }
-  };
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -138,10 +124,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
           </Link>
           <button
             type="button"
-            onClick={() => {
-              setLogoutError(null);
-              setShowLogoutDialog(true);
-            }}
+            onClick={() => setShowLogoutDialog(true)}
             runway-id="runway.header.logout"
             aria-label="Sign out"
             title="Sign out"
@@ -152,44 +135,12 @@ export function Header({ title, showBack = false }: HeaderProps) {
         </div>
       </div>
       {showLogoutDialog && (
-        <Dialog
+        <SignOutDialog
           open={showLogoutDialog}
-          onClose={() => {
-            if (!loggingOut) setShowLogoutDialog(false);
-          }}
-          title="Sign out"
-        >
-          <div className="space-y-4 pt-1">
-            <p className="text-body-md text-on-surface-variant">
-              Are you sure you want to sign out of your account?
-            </p>
-            {logoutError && (
-              <p role="alert" className="text-body-sm text-error">
-                {logoutError}
-              </p>
-            )}
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={loggingOut}
-                onClick={() => setShowLogoutDialog(false)}
-                runway-id="runway.header.logout.cancel"
-                className="min-h-11 rounded-full border border-outline-variant px-space-md text-label-md font-medium text-on-surface hover:bg-black/5 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={loggingOut}
-                onClick={() => void handleSignOut()}
-                runway-id="runway.header.logout.confirm"
-                className="min-h-11 rounded-full bg-primary px-space-md text-label-md font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-              >
-                {loggingOut ? "Signing out…" : "Sign out"}
-              </button>
-            </div>
-          </div>
-        </Dialog>
+          onClose={() => setShowLogoutDialog(false)}
+          cancelRunwayId="runway.header.logout.cancel"
+          confirmRunwayId="runway.header.logout.confirm"
+        />
       )}
     </header>
   );

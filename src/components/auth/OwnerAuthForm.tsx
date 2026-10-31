@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CircleAlert, Fingerprint, LockKeyhole, RefreshCw } from "lucide-react";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
+import { coordinateAuthMutation, recordLoginSession } from "@/lib/auth/client";
 
 type AuthMode = "setup" | "login";
 type SetupStatus = "checking" | "ready" | "configured" | "unavailable";
@@ -64,10 +65,16 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
       }
       const options = await optionsRes.json();
       const authResponse = await startAuthentication({ optionsJSON: options });
-      const verifyRes = await fetch("/api/auth/webauthn/login-verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ response: authResponse }),
+      const verifyRes = await coordinateAuthMutation(async () => {
+        const res = await fetch("/api/auth/webauthn/login-verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response: authResponse }),
+        });
+        if (res.ok) {
+          recordLoginSession();
+        }
+        return res;
       });
       if (!verifyRes.ok) {
         const msg = await readError(verifyRes, "Biometric verification failed.");
@@ -115,10 +122,16 @@ export function OwnerAuthForm({ mode }: OwnerAuthFormProps) {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/auth/${mode}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      const response = await coordinateAuthMutation(async () => {
+        const res = await fetch(`/api/auth/${mode}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        if (res.ok && mode === "login") {
+          recordLoginSession();
+        }
+        return res;
       });
 
       if (!response.ok) {

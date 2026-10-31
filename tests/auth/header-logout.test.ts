@@ -1,10 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import React from "react";
-
-const signOutMock = vi.fn().mockResolvedValue(undefined);
-vi.mock("../../src/lib/auth/client", () => ({
-  signOut: () => signOutMock(),
-}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -61,7 +55,6 @@ function findNode(tree: any, predicate: (node: any) => boolean): any {
 
 describe("Header logout feature", () => {
   beforeEach(() => {
-    signOutMock.mockClear();
     state.stateValues.clear();
     state.setters.clear();
     state.callIndex = 0;
@@ -89,20 +82,14 @@ describe("Header logout feature", () => {
     expect(state.stateValues.get(2)).toBe(true);
   });
 
-  it("renders the confirmation dialog when showLogoutDialog is true", async () => {
+  it("renders the SignOutDialog when showLogoutDialog is true", () => {
     state.stateValues.set(2, true);
     state.callIndex = 0;
 
     const element = Header({});
-    const dialogNode = findNode(element, (n) => typeof n?.props?.onClose === "function" && n?.props?.title === "Sign out");
+    const dialogNode = findNode(element, (n) => n?.props?.confirmRunwayId === "runway.header.logout.confirm");
     expect(dialogNode).toBeDefined();
     expect(dialogNode.props.open).toBe(true);
-
-    const confirmBtn = findNode(dialogNode, (n) => n?.props?.["runway-id"] === "runway.header.logout.confirm");
-    expect(confirmBtn).toBeDefined();
-
-    // Trigger logout
-    await confirmBtn.props.onClick();
-    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(dialogNode.props.cancelRunwayId).toBe("runway.header.logout.cancel");
   });
 });

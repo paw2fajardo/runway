@@ -5,15 +5,37 @@ vi.mock("../../src/components/payday/NotificationSettings", () => ({
   clearPrivatePageCaches: () => clearCachesMock(),
 }));
 
-import { signOut } from "../../src/lib/auth/client";
+const waitForOfflineQueueMock = vi.fn().mockResolvedValue(undefined);
+const recoverSyncingToPendingMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("../../src/lib/offline-db", () => ({
+  waitForOfflineQueue: (timeout?: number) => waitForOfflineQueueMock(timeout),
+  recoverSyncingToPending: () => recoverSyncingToPendingMock(),
+}));
+
+import {
+  coordinateAuthMutation,
+  getLastLoginEpoch,
+  recordLoginSession,
+  signOut,
+} from "../../src/lib/auth/client";
 
 describe("client signOut helper", () => {
   const assignMock = vi.fn();
+  const storage = new Map<string, string>();
 
   beforeEach(() => {
     vi.resetModules();
     clearCachesMock.mockClear();
     assignMock.mockClear();
+    waitForOfflineQueueMock.mockClear();
+    recoverSyncingToPendingMock.mockClear();
+    storage.clear();
+
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
 
     vi.stubGlobal("window", {
       location: {
@@ -37,6 +59,8 @@ describe("client signOut helper", () => {
 
     await signOut();
 
+    expect(waitForOfflineQueueMock).toHaveBeenCalledTimes(1);
+    expect(recoverSyncingToPendingMock).toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith("/api/auth/logout", {
       method: "POST",
@@ -46,16 +70,43 @@ describe("client signOut helper", () => {
     expect(assignMock).toHaveBeenCalledWith("/login");
   });
 
-  it("throws error and does not redirect if /api/auth/logout fails", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Session revocation failed" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+  it("handles ambiguous / failed logout response by still clearing caches and redirecting to /login", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
-    await expect(signOut()).rejects.toThrow("Session revocation failed");
-    expect(clearCachesMock).not.toHaveBeenCalled();
-    expect(assignMock).not.toHaveBeenCalled();
+    await signOut();
+
+    expect(clearCachesMock).toHaveBeenCalledTimes(1);
+    expect(recoverSyncingToPendingMock).toHaveBeenCalled();
+    expect(assignMock).toHaveBeenCalledWith("/login");
+  });
+
+  it("skips logout API call when a newer login completed across tabs while in flight", async () => {
+    // Record an initial session epoch
+    storage.set("runway_auth_session_epoch", "1000");
+
+    // Stub navigator.locks to simulate a newer login finishing before lock acquisition
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (_name: string, callback: () => Promise<void>) => {
+          // Tab B completed a newer login at epoch 2000 while we were acquiring the lock
+          storage.set("runway_auth_session_epoch", "2000");
+          return callback();
+        },
+      },
+    });
+
+    await signOut();
+
+    // Must NOT send logout request which would overwrite the new session cookie
+    expect(fetch).not.toHaveBeenCalled();
+    // But does clean client-side private page caches and redirect
+    expect(clearCachesMock).toHaveBeenCalledTimes(1);
+    expect(assignMock).toHaveBeenCalledWith("/login");
+  });
+
+  it("records login session epoch correctly", () => {
+    expect(getLastLoginEpoch()).toBe(0);
+    recordLoginSession();
+    expect(getLastLoginEpoch()).toBeGreaterThan(0);
   });
 });
