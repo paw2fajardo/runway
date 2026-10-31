@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { ownerAuth, ownerSessions } from "../../src/db/schema";
+import { ownerAuth, ownerPasskeys, ownerSessions } from "../../src/db/schema";
 
 describe("owner authentication schema", () => {
   it("allows at most one owner row", () => {
@@ -57,5 +57,30 @@ describe("owner authentication schema", () => {
       expect(migration.toLowerCase()).toContain(column.toLowerCase());
     }
     expect(migration.toLowerCase()).not.toContain("expires_at");
+  });
+
+  it("stores owner passkeys with unique credentialId index", () => {
+    const config = getTableConfig(ownerPasskeys);
+
+    expect(config.name).toBe("owner_passkeys");
+    expect(config.columns.map((column: any) => column.name)).toEqual([
+      "id",
+      "owner_id",
+      "credential_id",
+      "public_key",
+      "counter",
+      "transports",
+      "device_name",
+      "created_at",
+      "last_used_at",
+    ]);
+    expect(config.indexes.some((index: any) => index.config.unique)).toBe(true);
+
+    const migration = readFileSync(
+      resolve(process.cwd(), "src/db/migrations/0022_owner_passkeys.sql"),
+      "utf8"
+    );
+    expect(migration).toContain("owner_passkeys");
+    expect(migration).toContain("uq_owner_passkeys_credential_id");
   });
 });

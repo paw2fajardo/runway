@@ -55,7 +55,8 @@ describe("owner sessions", () => {
 
   it("accepts an active known token and rejects absent, malformed, and revoked sessions", async () => {
     const owner = { id: 1, username: "owner", passwordHash: "hash" };
-    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null }]);
+    const recent = new Date();
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null, createdAt: recent }]);
     const valid = new Request("https://runway.test/", {
       headers: { cookie: `${OWNER_SESSION_COOKIE}=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` },
     });
@@ -66,7 +67,11 @@ describe("owner sessions", () => {
       headers: { cookie: `${OWNER_SESSION_COOKIE}=garbage` },
     }))).resolves.toBeNull();
 
-    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: new Date() }]);
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: new Date(), createdAt: recent }]);
+    await expect(getOwnerFromRequest(valid)).resolves.toBeNull();
+
+    const expired = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    mocks.limit.mockResolvedValueOnce([{ owner, revokedAt: null, createdAt: expired }]);
     await expect(getOwnerFromRequest(valid)).resolves.toBeNull();
 
     mocks.limit.mockResolvedValueOnce([]);
@@ -82,7 +87,7 @@ describe("owner sessions", () => {
     expect(mocks.updateSet).toHaveBeenLastCalledWith(expect.objectContaining({ revokedAt: expect.any(Date) }));
   });
 
-  it("sets secure cookie attributes in production without automatic expiry", () => {
+  it("sets secure cookie attributes with persistent Max-Age in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
       const cookie = serializeOwnerSessionCookie("A".repeat(43));
@@ -90,7 +95,7 @@ describe("owner sessions", () => {
       expect(cookie).toContain("SameSite=Lax");
       expect(cookie).toContain("Secure");
       expect(cookie).toContain("Path=/");
-      expect(cookie).not.toMatch(/Max-Age|Expires/i);
+      expect(cookie).toContain("Max-Age=2592000");
     } finally {
       vi.unstubAllEnvs();
     }

@@ -26,13 +26,19 @@ export async function getOwnerFromRequest(request: Request): Promise<Owner | nul
   if (!token || !TOKEN_PATTERN.test(token)) return null;
 
   const rows = await db
-    .select({ owner: ownerAuth, revokedAt: ownerSessions.revokedAt })
+    .select({
+      owner: ownerAuth,
+      revokedAt: ownerSessions.revokedAt,
+      createdAt: ownerSessions.createdAt,
+    })
     .from(ownerSessions)
     .innerJoin(ownerAuth, eq(ownerSessions.ownerId, ownerAuth.id))
     .where(eq(ownerSessions.tokenDigest, digestToken(token)))
     .limit(1);
   const row = rows[0];
   if (!row || row.revokedAt !== null) return null;
+  const ageMs = Date.now() - new Date(row.createdAt).getTime();
+  if (ageMs > OWNER_SESSION_MAX_AGE_SECONDS * 1_000) return null;
   return row.owner;
 }
 
@@ -51,10 +57,12 @@ export async function revokeOwnerSessions(ownerId: number): Promise<void> {
     .where(eq(ownerSessions.ownerId, ownerId));
 }
 
+export const OWNER_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
 export function serializeOwnerSessionCookie(token: string): string {
   if (!TOKEN_PATTERN.test(token)) throw new Error("Invalid owner session token");
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${OWNER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax${secure}`;
+  return `${OWNER_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${OWNER_SESSION_MAX_AGE_SECONDS}${secure}`;
 }
 
 export function serializeClearedOwnerSessionCookie(): string {
