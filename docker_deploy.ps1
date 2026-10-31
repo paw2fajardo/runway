@@ -12,6 +12,20 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE." }
 }
 
+function Invoke-DockerPush([string]$ImageTag, [int]$MaxRetries = 5) {
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        Write-Host "Pushing $ImageTag (attempt $attempt of $MaxRetries)..."
+        & docker push $ImageTag
+        if ($LASTEXITCODE -eq 0) { return }
+        if ($attempt -lt $MaxRetries) {
+            $delay = [math]::Min(30, [math]::Pow(2, $attempt))
+            Write-Warning "Docker push failed. Retrying in $delay seconds..."
+            Start-Sleep -Seconds $delay
+        }
+    }
+    throw "Failed to push $ImageTag after $MaxRetries attempts."
+}
+
 Push-Location $PSScriptRoot
 try {
     Invoke-Checked 'git' @('checkout', 'main')
@@ -31,8 +45,8 @@ try {
     Invoke-Checked 'docker' @('build', '-t', "paw2fajardo/runway:$releaseVersion", '-t', 'paw2fajardo/runway:latest', '.')
     Invoke-Checked 'docker' @('build', '--target', 'payday-worker', '-t', "paw2fajardo/runway-worker:$releaseVersion", '-t', 'paw2fajardo/runway-worker:latest', '.')
     foreach ($imageName in @('runway', 'runway-worker')) {
-        Invoke-Checked 'docker' @('push', "paw2fajardo/${imageName}:$releaseVersion")
-        Invoke-Checked 'docker' @('push', "paw2fajardo/${imageName}:latest")
+        Invoke-DockerPush "paw2fajardo/${imageName}:$releaseVersion"
+        Invoke-DockerPush "paw2fajardo/${imageName}:latest"
     }
 
     $versionPattern = '(?m)^([ \t]*"version"[ \t]*:[ \t]*")([^"]+)(")'
