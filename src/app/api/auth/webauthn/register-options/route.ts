@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     },
   });
 
-  saveWebAuthnChallenge(`reg:${owner.id}:${options.challenge}`, options.challenge);
+  await saveWebAuthnChallenge(`reg:${owner.id}:${options.challenge}`, options.challenge);
 
   return NextResponse.json(options);
 }

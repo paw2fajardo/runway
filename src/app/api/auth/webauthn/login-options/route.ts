@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     })),
   });
 
-  saveWebAuthnChallenge(`auth:${options.challenge}`, options.challenge);
+  await saveWebAuthnChallenge(`auth:${options.challenge}`, options.challenge);
 
   return NextResponse.json(options);
 }

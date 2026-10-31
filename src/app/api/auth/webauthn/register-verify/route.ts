@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing or malformed challenge in registration." }, { status: 400 });
   }
 
-  const expectedChallenge = consumeWebAuthnChallenge(`reg:${owner.id}:${challenge}`);
+  const expectedChallenge = await consumeWebAuthnChallenge(`reg:${owner.id}:${challenge}`);
   if (!expectedChallenge) {
     return NextResponse.json({ error: "Registration session expired or invalid." }, { status: 400 });
   }

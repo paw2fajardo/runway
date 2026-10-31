@@ -1,4 +1,39 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+const challengeMap = new Map<string, { challenge: string; expiresAt: Date }>();
+
+vi.mock("../../src/db", () => ({
+  db: {
+    delete: vi.fn().mockImplementation((table) => ({
+      where: vi.fn().mockImplementation((condition) => {
+        return Promise.resolve([]);
+      }),
+      then: (resolve: any) => Promise.resolve([]).then(resolve),
+      catch: (reject: any) => Promise.resolve([]).catch(reject),
+    })),
+    insert: vi.fn().mockImplementation(() => ({
+      values: vi.fn().mockImplementation((vals) => {
+        challengeMap.set(vals.key, { challenge: vals.challenge, expiresAt: vals.expiresAt });
+        return Promise.resolve([]);
+      }),
+    })),
+    select: vi.fn().mockImplementation(() => ({
+      from: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockImplementation((condition) => ({
+          limit: vi.fn().mockImplementation(() => {
+            // Find in mock map
+            const entry = Array.from(challengeMap.entries())[0];
+            if (!entry) return Promise.resolve([]);
+            const [key, val] = entry;
+            challengeMap.delete(key);
+            return Promise.resolve([{ key, challenge: val.challenge, expiresAt: val.expiresAt }]);
+          }),
+        })),
+      })),
+    })),
+  },
+}));
+
 import {
   createWebAuthnChallenge,
   consumeWebAuthnChallenge,
@@ -7,21 +42,21 @@ import {
 } from "../../src/lib/auth/webauthn";
 
 describe("webauthn helpers", () => {
-  beforeEach(() => {
-    resetChallengesForTests();
+  beforeEach(async () => {
+    await resetChallengesForTests();
   });
 
-  it("creates and consumes a one-time challenge", () => {
+  it("creates and consumes a one-time challenge", async () => {
     const key = "test-key";
-    const challenge = createWebAuthnChallenge(key);
+    const challenge = await createWebAuthnChallenge(key);
     expect(challenge).toBeTypeOf("string");
     expect(challenge.length).toBeGreaterThan(20);
 
-    const consumed = consumeWebAuthnChallenge(key);
+    const consumed = await consumeWebAuthnChallenge(key);
     expect(consumed).toBe(challenge);
 
     // Second consume should fail (one-time use)
-    const secondConsume = consumeWebAuthnChallenge(key);
+    const secondConsume = await consumeWebAuthnChallenge(key);
     expect(secondConsume).toBeNull();
   });
 
