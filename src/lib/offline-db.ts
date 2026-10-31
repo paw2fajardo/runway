@@ -61,68 +61,122 @@ export async function queueOfflineTransaction(
   return clientUuid;
 }
 
+let activeFlushPromise: Promise<{ synced: number; failed: number }> | null = null;
+
+/**
+ * Recover any stale or in-flight syncing transactions back to pending status.
+ */
+export async function recoverSyncingToPending(): Promise<void> {
+  if (!offlineDB) return;
+  try {
+    const syncing = await offlineDB.queuedTransactions
+      .where("status")
+      .equals("syncing")
+      .toArray();
+    for (const item of syncing) {
+      if (item.id) {
+        await offlineDB.queuedTransactions.update(item.id, { status: "pending" });
+      }
+    }
+  } catch {
+    // Ignore errors during recovery
+  }
+}
+
+/**
+ * Wait for any in-flight queue flush to complete (up to timeoutMs).
+ */
+export async function waitForOfflineQueue(timeoutMs = 2000): Promise<void> {
+  if (!activeFlushPromise) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  await Promise.race([
+    activeFlushPromise.catch(() => undefined),
+    timeout,
+  ]);
+  if (timer) clearTimeout(timer);
+}
+
 /**
  * Flush all pending offline transactions to the server sequentially.
  */
 export async function flushOfflineQueue(): Promise<{ synced: number; failed: number }> {
-  // The protected accounts endpoint validates the current HttpOnly owner session.
-  // Do this before changing any local queue state so signed-out rows stay pending.
-  try {
-    const authCheck = await fetch("/api/accounts", { cache: "no-store" });
-    if (!authCheck.ok) return { synced: 0, failed: 0 };
-  } catch {
-    // A network/auth check failure must never turn queued work into a sync failure.
-    return { synced: 0, failed: 0 };
+  if (activeFlushPromise) {
+    return activeFlushPromise;
   }
 
-  if (!offlineDB) return { synced: 0, failed: 0 };
-
-  const pending = await offlineDB.queuedTransactions
-    .where("status")
-    .equals("pending")
-    .toArray();
-
-  let synced = 0;
-  let failed = 0;
-
-  for (const item of pending) {
-    if (!item.id) continue;
+  const promise = (async () => {
+    // The protected accounts endpoint validates the current HttpOnly owner session.
+    // Do this before changing any local queue state so signed-out rows stay pending.
     try {
-      await offlineDB.queuedTransactions.update(item.id, { status: "syncing" });
-      const { category_id, ...payload } = item.payload;
-
-      const res = await fetch("/api/transactions/compound", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...payload,
-          ...(category_id ? { category_id } : {}),
-          client_uuid: item.clientUuid,
-        }),
-      });
-
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          await offlineDB.queuedTransactions.update(item.id, { status: "pending" });
-          break;
-        }
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${res.status}`);
-      }
-
-      await offlineDB.queuedTransactions.update(item.id, { status: "synced" });
-      synced++;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Sync error";
-      await offlineDB.queuedTransactions.update(item.id, {
-        status: "failed",
-        errorMessage: message,
-      });
-      failed++;
+      const authCheck = await fetch("/api/accounts", { cache: "no-store" });
+      if (!authCheck.ok) return { synced: 0, failed: 0 };
+    } catch {
+      // A network/auth check failure must never turn queued work into a sync failure.
+      return { synced: 0, failed: 0 };
     }
-  }
 
-  return { synced, failed };
+    if (!offlineDB) return { synced: 0, failed: 0 };
+
+    // Recover any transactions left in 'syncing' status from interrupted previous attempts
+    await recoverSyncingToPending();
+
+    const pending = await offlineDB.queuedTransactions
+      .where("status")
+      .equals("pending")
+      .toArray();
+
+    let synced = 0;
+    let failed = 0;
+
+    for (const item of pending) {
+      if (!item.id) continue;
+      try {
+        await offlineDB.queuedTransactions.update(item.id, { status: "syncing" });
+        const { category_id, ...payload } = item.payload;
+
+        const res = await fetch("/api/transactions/compound", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            ...(category_id ? { category_id } : {}),
+            client_uuid: item.clientUuid,
+          }),
+        });
+
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            await offlineDB.queuedTransactions.update(item.id, { status: "pending" });
+            break;
+          }
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        await offlineDB.queuedTransactions.update(item.id, { status: "synced" });
+        synced++;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Sync error";
+        await offlineDB.queuedTransactions.update(item.id, {
+          status: "failed",
+          errorMessage: message,
+        });
+        failed++;
+      }
+    }
+
+    return { synced, failed };
+  })();
+
+  activeFlushPromise = promise;
+  try {
+    return await promise;
+  } finally {
+    activeFlushPromise = null;
+  }
 }
 
 /**
@@ -130,8 +184,13 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
  */
 export async function getPendingQueueCount(): Promise<number> {
   if (!offlineDB) return 0;
-  return await offlineDB.queuedTransactions
+  const pending = await offlineDB.queuedTransactions
     .where("status")
     .equals("pending")
     .count();
+  const syncing = await offlineDB.queuedTransactions
+    .where("status")
+    .equals("syncing")
+    .count();
+  return pending + syncing;
 }

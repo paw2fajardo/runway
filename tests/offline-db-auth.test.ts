@@ -91,4 +91,37 @@ describe("offline queue authentication boundary", () => {
     const request = fetchMock.mock.calls[1][1] as RequestInit;
     expect(JSON.parse(String(request.body))).not.toHaveProperty("category_id");
   });
+
+  it("recovers stale syncing rows back to pending on next flush", async () => {
+    state.records = [{
+      id: 1,
+      clientUuid: "queued-stale",
+      status: "syncing",
+      payload: {
+        type: "expense",
+        description: "Gas",
+        source_account_id: "11111111-1111-4111-8111-111111111111",
+        gross_outflow: 10000,
+      },
+    }];
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));
+    const { flushOfflineQueue, offlineDB } = await import("../src/lib/offline-db");
+    installQueueTable(offlineDB);
+
+    await expect(flushOfflineQueue()).resolves.toEqual({ synced: 1, failed: 0 });
+    expect(state.records[0]).toMatchObject({ id: 1, status: "synced" });
+  });
+
+  it("includes syncing items in getPendingQueueCount", async () => {
+    state.records = [
+      { id: 1, clientUuid: "q-1", status: "pending", payload: {} },
+      { id: 2, clientUuid: "q-2", status: "syncing", payload: {} },
+    ];
+    const { getPendingQueueCount, offlineDB } = await import("../src/lib/offline-db");
+    installQueueTable(offlineDB);
+
+    await expect(getPendingQueueCount()).resolves.toBe(2);
+  });
 });

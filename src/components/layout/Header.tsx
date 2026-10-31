@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Inbox, UserRound } from "lucide-react";
+import { ArrowLeft, Inbox, LogOut, UserRound } from "lucide-react";
 import { getPendingQueueCount, flushOfflineQueue } from "@/lib/offline-db";
 import { usePathname } from "next/navigation";
+import { SignOutDialog } from "@/components/auth/SignOutDialog";
 
 interface HeaderProps {
   title?: string;
@@ -25,6 +26,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
     : "Runway");
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [showLogoutDialog, setShowLogoutDialog] = useState<boolean>(false);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -120,8 +122,26 @@ export function Header({ title, showBack = false }: HeaderProps) {
           >
             <UserRound size={20} aria-hidden="true" />
           </Link>
+          <button
+            type="button"
+            onClick={() => setShowLogoutDialog(true)}
+            runway-id="runway.header.logout"
+            aria-label="Sign out"
+            title="Sign out"
+            className="w-11 h-11 rounded-full bg-white/60 border border-white/70 text-primary flex items-center justify-center hover:bg-white hover:text-error active:scale-95 transition-transform"
+          >
+            <LogOut size={20} aria-hidden="true" />
+          </button>
         </div>
       </div>
+      {showLogoutDialog && (
+        <SignOutDialog
+          open={showLogoutDialog}
+          onClose={() => setShowLogoutDialog(false)}
+          cancelRunwayId="runway.header.logout.cancel"
+          confirmRunwayId="runway.header.logout.confirm"
+        />
+      )}
     </header>
   );
 }
