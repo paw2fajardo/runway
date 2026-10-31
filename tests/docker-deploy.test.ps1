@@ -18,6 +18,9 @@ $lockFixture = @'
     "": {
       "name": "fixture",
       "version": "1.2.3"
+    },
+    "node_modules/dep": {
+      "version": "9.9.9"
     }
   }
 }
@@ -44,6 +47,7 @@ try {
         $package = Get-Content (Join-Path $tempRoot 'package.json') -Raw | ConvertFrom-Json
         $lock = Get-Content (Join-Path $tempRoot 'package-lock.json') -Raw | ConvertFrom-Json -AsHashtable
         if ($package.version -ne $case.Version -or $lock.version -ne $case.Version -or $lock.packages[''].version -ne $case.Version) { throw "Version files not updated for option $($case.Option)." }
+        if ($lock.packages['node_modules/dep'].version -ne '9.9.9') { throw "Dependency version in package-lock.json was erroneously modified." }
     }
 
     Set-Content -Path (Join-Path $tempRoot 'package.json') -Value $packageFixture

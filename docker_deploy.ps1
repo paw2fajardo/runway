@@ -50,8 +50,9 @@ try {
     }
 
     $replacement = '${1}' + $releaseVersion + '${3}'
-    $packageJson = [regex]::Replace($packageJson, $versionPattern, $replacement, 1)
-    $packageLock = [regex]::Replace($packageLock, $versionPattern, $replacement, 2)
+    $packageRegex = [regex]$versionPattern
+    $packageJson = $packageRegex.Replace($packageJson, $replacement, 1)
+    $packageLock = $packageRegex.Replace($packageLock, $replacement, 2)
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllText($packagePath, $packageJson, $utf8NoBom)
     [System.IO.File]::WriteAllText($lockPath, $packageLock, $utf8NoBom)

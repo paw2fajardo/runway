@@ -8,7 +8,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci || npm install
 
 # One-off owner password recovery image with only the CLI's runtime packages.
 FROM node:22-alpine AS auth-recovery
