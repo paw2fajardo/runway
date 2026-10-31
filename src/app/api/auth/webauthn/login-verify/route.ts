@@ -96,9 +96,11 @@ export async function POST(request: Request) {
       },
       requireUserVerification: false,
     });
-  } catch {
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Verification failed";
+    console.error("WebAuthn login error:", reason, { origin, rpID, expectedChallenge });
     recordLoginFailure(ip);
-    return NextResponse.json({ error: "Authentication failed." }, { status: 401 });
+    return NextResponse.json({ error: `Authentication failed: ${reason}` }, { status: 401 });
   }
 
   if (!verification.verified) {

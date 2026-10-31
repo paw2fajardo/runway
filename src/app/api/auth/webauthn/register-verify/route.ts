@@ -56,8 +56,10 @@ export async function POST(request: Request) {
       expectedRPID: rpID,
       requireUserVerification: false,
     });
-  } catch {
-    return NextResponse.json({ error: "Could not verify biometric registration." }, { status: 400 });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Verification failed";
+    console.error("WebAuthn register error:", reason, { origin, rpID, expectedChallenge });
+    return NextResponse.json({ error: `Could not verify biometric registration: ${reason}` }, { status: 400 });
   }
 
   if (!verification.verified || !verification.registrationInfo) {
