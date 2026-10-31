@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { clearPrivatePageCaches, NotificationSettings } from "@/components/payday/NotificationSettings";
 import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 import { Fingerprint, Trash2 } from "lucide-react";
+import { signOut as authSignOut } from "@/lib/auth/client";
 type Category = { id: string; name: string; isIncome: boolean; isArchived: boolean; isSystemFee: boolean };
 type RegisteredPasskey = { id: string; deviceName: string; createdAt: string; lastUsedAt: string | null };
 
@@ -204,11 +205,7 @@ export default function SettingsPage() {
   async function signOut() {
     setSigningOut(true); setAccountError(null);
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Unable to sign out.");
-      await clearPrivatePageCaches().catch(() => undefined);
-      window.location.assign("/login");
+      await authSignOut();
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : "Unable to sign out.");
       setSigningOut(false);
