@@ -20,9 +20,25 @@ export function assertSameOrigin(request: Request): Response | null {
 
   try {
     const configuredOrigin = process.env.APP_ORIGIN;
-    const expectedOrigin = configuredOrigin
-      ? new URL(configuredOrigin).origin
-      : new URL(request.url).origin;
+    let expectedOrigin: string;
+
+    if (configuredOrigin) {
+      expectedOrigin = new URL(configuredOrigin).origin;
+    } else {
+      const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+      const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+      const host = forwardedHost || request.headers.get("host")?.split(",", 1)[0]?.trim();
+
+      if (host) {
+        const proto = forwardedProto && (forwardedProto === "https" || forwardedProto === "http")
+          ? forwardedProto
+          : "https";
+        expectedOrigin = new URL(`${proto}://${host}`).origin;
+      } else {
+        expectedOrigin = new URL(request.url).origin;
+      }
+    }
+
     if (new URL(origin).origin === expectedOrigin) return null;
   } catch {
     // Malformed configured, request, and opaque origins are never trusted.

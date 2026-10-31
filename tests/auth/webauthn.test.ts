@@ -31,4 +31,16 @@ describe("webauthn helpers", () => {
     expect(rpID).toBe("runway.example.com");
     expect(origin).toBe("https://runway.example.com");
   });
+
+  it("handles forwarded proxy headers, multi-hop chains, and normalizes default ports", () => {
+    const req = new Request("http://127.0.0.1:3000/api/test", {
+      headers: {
+        "x-forwarded-proto": "https, http",
+        "x-forwarded-host": "runway.custom.org:443, proxy2.internal",
+      },
+    });
+    const { rpID, origin } = getExpectedRpConfig(req);
+    expect(rpID).toBe("runway.custom.org");
+    expect(origin).toBe("https://runway.custom.org");
+  });
 });

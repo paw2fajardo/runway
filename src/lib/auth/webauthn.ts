@@ -55,14 +55,23 @@ export function getExpectedRpConfig(request: Request): { rpID: string; origin: s
   }
 
   // Support reverse proxies (e.g., Caddy, Traefik, Nginx, Cloudflare)
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  const host = forwardedHost || request.headers.get("host")?.split(",", 1)[0]?.trim();
+
   if (host) {
-    const hostname = host.split(":")[0];
-    return {
-      rpID: hostname,
-      origin: `${proto}://${host}`,
-    };
+    const proto = forwardedProto && (forwardedProto === "https" || forwardedProto === "http")
+      ? forwardedProto
+      : "https";
+    try {
+      const url = new URL(`${proto}://${host}`);
+      return {
+        rpID: url.hostname,
+        origin: url.origin, // Automatically normalizes default ports (:80, :443)
+      };
+    } catch {
+      // Fallback on error
+    }
   }
 
   const url = new URL(request.url);
