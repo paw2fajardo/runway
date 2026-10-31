@@ -49,7 +49,32 @@ export function resetChallengesForTests(): void {
 
 export function getExpectedRpConfig(request: Request): { rpID: string; origin: string } {
   const configuredOrigin = process.env.APP_ORIGIN;
-  const url = configuredOrigin ? new URL(configuredOrigin) : new URL(request.url);
+  if (configuredOrigin) {
+    const url = new URL(configuredOrigin);
+    return { rpID: url.hostname, origin: url.origin };
+  }
+
+  // Support reverse proxies (e.g., Caddy, Traefik, Nginx, Cloudflare)
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  const host = forwardedHost || request.headers.get("host")?.split(",", 1)[0]?.trim();
+
+  if (host) {
+    const proto = forwardedProto && (forwardedProto === "https" || forwardedProto === "http")
+      ? forwardedProto
+      : "https";
+    try {
+      const url = new URL(`${proto}://${host}`);
+      return {
+        rpID: url.hostname,
+        origin: url.origin, // Automatically normalizes default ports (:80, :443)
+      };
+    } catch {
+      // Fallback on error
+    }
+  }
+
+  const url = new URL(request.url);
   return {
     rpID: url.hostname,
     origin: url.origin,
