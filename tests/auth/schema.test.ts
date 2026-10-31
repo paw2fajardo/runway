@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { ownerAuth, ownerPasskeys, ownerSessions } from "../../src/db/schema";
+import { ownerAuth, ownerChallenges, ownerPasskeys, ownerSessions } from "../../src/db/schema";
 
 describe("owner authentication schema", () => {
   it("allows at most one owner row", () => {
@@ -82,5 +82,23 @@ describe("owner authentication schema", () => {
     );
     expect(migration).toContain("owner_passkeys");
     expect(migration).toContain("uq_owner_passkeys_credential_id");
+  });
+
+  it("stores owner challenges with expiration index", () => {
+    const config = getTableConfig(ownerChallenges);
+
+    expect(config.name).toBe("owner_challenges");
+    expect(config.columns.map((column: any) => column.name)).toEqual([
+      "key",
+      "challenge",
+      "expires_at",
+    ]);
+
+    const migration = readFileSync(
+      resolve(process.cwd(), "src/db/migrations/0023_owner_challenges.sql"),
+      "utf8"
+    );
+    expect(migration).toContain("owner_challenges");
+    expect(migration).toContain("idx_owner_challenges_expires_at");
   });
 });

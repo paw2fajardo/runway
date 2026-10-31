@@ -40,10 +40,8 @@ const owner = { id: 1, username: "owner" };
 const headers = { origin: "https://runway.example", "content-type": "application/json" };
 
 describe("WebAuthn route flows", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    resetChallengesForTests();
-    resetLoginThrottleForTests();
     mocks.from.mockReturnValue({ where: mocks.where, limit: mocks.limit });
     mocks.where.mockReturnValue({ limit: mocks.limit });
     mocks.limit.mockResolvedValue([]);
@@ -51,9 +49,16 @@ describe("WebAuthn route flows", () => {
     mocks.values.mockResolvedValue([]);
     mocks.update.mockReturnValue({ set: mocks.set });
     mocks.set.mockReturnValue({ where: mocks.where });
-    mocks.delete.mockReturnValue({ where: mocks.where });
+    mocks.delete.mockImplementation(() => {
+      const p = Promise.resolve([]);
+      return Object.assign(p, {
+        where: vi.fn().mockImplementation(() => Promise.resolve([])),
+      });
+    });
     mocks.getOwnerFromRequest.mockResolvedValue(owner);
     mocks.createOwnerSession.mockResolvedValue("A".repeat(43));
+    resetLoginThrottleForTests();
+    await resetChallengesForTests();
   });
 
   describe("register-options", () => {

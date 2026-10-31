@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { assertSameOrigin, isLoginThrottled } from "../../../../../lib/auth/guard";
 import {
-  createWebAuthnChallenge,
   getExpectedRpConfig,
   getOwnerPasskeys,
+  saveWebAuthnChallenge,
 } from "../../../../../lib/auth/webauthn";
 import { db } from "../../../../../db";
 import { ownerAuth } from "../../../../../db/schema";
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     })),
   });
 
-  createWebAuthnChallenge(`auth:${options.challenge}`);
+  await saveWebAuthnChallenge(`auth:${options.challenge}`, options.challenge);
 
   return NextResponse.json(options);
 }

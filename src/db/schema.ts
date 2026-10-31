@@ -141,6 +141,18 @@ export const ownerPasskeys = pgTable(
   ]
 );
 
+export const ownerChallenges = pgTable(
+  "owner_challenges",
+  {
+    key: varchar("key", { length: 255 }).primaryKey(),
+    challenge: text("challenge").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("idx_owner_challenges_expires_at").on(table.expiresAt),
+  ]
+);
+
 // 1. Accounts
 export const accounts = pgTable(
   "accounts",
