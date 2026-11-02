@@ -168,6 +168,8 @@ interface RunwayCalculationParams {
   plannedBudgetSpending?: PlannedBudgetSpending[];
   referenceDate?: Date;
   horizonDays?: number;
+  availableCredit?: number;
+  includeAvailableCredit?: boolean;
 }
 
 export interface ForecastPaycheckOccurrence {
@@ -198,6 +200,8 @@ export function calculateRunwayForecast({
   plannedBudgetSpending = [],
   referenceDate = new Date(),
   horizonDays = 14,
+  availableCredit = 0,
+  includeAvailableCredit = false,
 }: RunwayCalculationParams): RunwayForecastResponse {
   const ref = new Date(referenceDate);
   ref.setHours(0, 0, 0, 0);
@@ -249,20 +253,26 @@ export function calculateRunwayForecast({
     .reduce((sum, item) => safeCents(sum + safeCents(item.amountCents)), 0));
 
   // 3. Discretionary Burn & Net Buffer
-  const discretionary_burn_total = safeCents(dailyDiscretionaryBurn * daysToPayday);
-  const net_projected_buffer = safeCents(currentLiquidCash - safeCents(scheduled_bills_total + planned_spending_total + discretionary_burn_total));
+    const available_credit = safeCents(availableCredit ?? 0);
+    const startingCapacity = includeAvailableCredit
+      ? safeCents(currentLiquidCash + available_credit)
+      : currentLiquidCash;
+    const discretionary_burn_total = safeCents(dailyDiscretionaryBurn * daysToPayday);
+    const net_projected_buffer = safeCents(
+      startingCapacity - safeCents(scheduled_bills_total + planned_spending_total + discretionary_burn_total)
+    );
 
-  const daily_allowance = Math.max(
-    0,
-    Math.floor(net_projected_buffer / Math.max(daysToPayday, 1))
-  );
+    const daily_allowance = Math.max(
+      0,
+      Math.floor(net_projected_buffer / Math.max(daysToPayday, 1))
+    );
 
-  // 4. Construct 14-Day Timeline
-  let runningBalance = currentLiquidCash;
-  let shortfallDate: string | null = null;
-  let shortfallAmount = 0;
-  const timeline: TimelineDay[] = [];
-  let confirmed_inflows = 0;
+    // 4. Construct 14-Day Timeline
+    let runningBalance = startingCapacity;
+    let shortfallDate: string | null = null;
+    let shortfallAmount = 0;
+    const timeline: TimelineDay[] = [];
+    let confirmed_inflows = 0;
   for (let i = 0; i < horizonDays; i++) {
     const dayDate = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + i);
     const dateStr = formatLocalDate(dayDate);
@@ -317,18 +327,20 @@ export function calculateRunwayForecast({
   const is_solvent = shortfallDate === null;
 
   return {
-    current_liquid_cash: currentLiquidCash,
-    confirmed_inflows,
-    scheduled_bills_total,
-    discretionary_burn_total,
-    planned_spending_total,
-    net_projected_buffer,
-    daily_allowance,
-    days_to_payday: daysToPayday,
-    next_payday_date: nextPaydayStr,
-    is_solvent,
-    shortfall_date: shortfallDate,
-    shortfall_amount: shortfallAmount,
-    timeline,
-  };
+      current_liquid_cash: currentLiquidCash,
+      confirmed_inflows,
+      scheduled_bills_total,
+      discretionary_burn_total,
+      planned_spending_total,
+      net_projected_buffer,
+      daily_allowance,
+      days_to_payday: daysToPayday,
+      next_payday_date: nextPaydayStr,
+      is_solvent,
+      shortfall_date: shortfallDate,
+      shortfall_amount: shortfallAmount,
+      timeline,
+      available_credit,
+      total_available_capacity: safeCents(currentLiquidCash + available_credit),
+    };
 }

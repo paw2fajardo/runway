@@ -4,7 +4,7 @@ import { accounts, projectionSettings, incomeStreams, paycheckOccurrences, billI
 import { calculateRunwayForecast } from "../../../../lib/runway";
 import { eq, and } from "drizzle-orm";
 import { DateOnlySchema } from "../../../../lib/types";
-import { requireOwner } from "../../../../lib/auth/guard";
+import { requireOwner, assertSameOrigin } from "../../../../lib/auth/guard";
 import { loadPlannedBudgetSpending } from "../../../../lib/planned-budget-spending";
 import { projectBillOccurrences } from "../../../../lib/bills/forecast";
 import { calculatePaymentPlan } from "../../../../lib/payment-plan";
@@ -20,8 +20,9 @@ export async function GET(req: NextRequest) {
     const paymentPlan = searchParams.get("payment_plan");
     const useGracePeriods = searchParams.get("use_grace_periods");
     const comparisonInputs = searchParams.get("comparison_inputs");
-    const purchase = searchParams.get("purchase_cents");
-    if (purchase !== null && (!/^[1-9]\d*$/.test(purchase) || !Number.isSafeInteger(Number(purchase)))) {
+        const purchase = searchParams.get("purchase_cents");
+        const includeAvailableCredit = searchParams.get("include_credit") === "true";
+        if (purchase !== null && (!/^[1-9]\d*$/.test(purchase) || !Number.isSafeInteger(Number(purchase)))) {
       return NextResponse.json({ error: "Enter a positive purchase amount in whole centavos." }, { status: 400 });
     }
     if ([paymentPlan, useGracePeriods, comparisonInputs].some(value => value !== null && value !== "true" && value !== "false")) {
@@ -33,17 +34,28 @@ export async function GET(req: NextRequest) {
     const referenceDate = dateParam ? new Date(`${dateParam}T00:00:00`) : new Date();
 
     // 1. Fetch liquid accounts
-    const liquidAccounts = await db
-      .select()
-      .from(accounts)
-      .where(and(eq(accounts.type, "liquid"), eq(accounts.isActive, true)));
+        const liquidAccounts = await db
+          .select()
+          .from(accounts)
+          .where(and(eq(accounts.type, "liquid"), eq(accounts.isActive, true)));
 
-    const currentLiquidCash = liquidAccounts.reduce(
-      (sum, acc) => sum + acc.currentBalance,
-      0
-    );
+        const currentLiquidCash = liquidAccounts.reduce(
+          (sum, acc) => sum + acc.currentBalance,
+          0
+        );
 
-    // 2. Fetch projection settings
+        // 1b. Fetch revolving credit accounts and calculate total available credit
+        const creditAccounts = await db
+          .select()
+          .from(accounts)
+          .where(and(eq(accounts.type, "revolving_credit"), eq(accounts.isActive, true)));
+
+        const totalAvailableCredit = creditAccounts.reduce((sum, acc) => {
+          const limit = acc.creditLimit ?? 0;
+          return sum + Math.max(0, limit - acc.currentBalance);
+        }, 0);
+
+        // 2. Fetch projection settings
     const [proj] = await db.select().from(projectionSettings).orderBy(projectionSettings.id).limit(1);
     if (!proj) return NextResponse.json({ error: "Set up your pay schedule to calculate your runway.", code: "PAY_SCHEDULE_NOT_CONFIGURED" }, { status: 409 });
     const streams = await db.select().from(incomeStreams).where(and(eq(incomeStreams.projectionSettingsId, proj.id), eq(incomeStreams.isEnabled, true)));
@@ -100,21 +112,23 @@ export async function GET(req: NextRequest) {
 
     // 4. Calculate forward runway forecast
     const forecastParams = {
-      currentLiquidCash,
-      salaryCycleDays,
-      biweeklyPaydayAnchor: proj.biweeklyPaydayAnchor,
-      payScheduleKind: proj.payScheduleKind,
-      payIntervalDays: proj.payIntervalDays,
-      expectedSalaryAmount,
-      incomeStreams: streams,
-      paycheckOccurrences: forecastOccurrences,
-      dailyDiscretionaryBurn,
-      bills: projectBillOccurrences(billList, throughDate),
-      plannedBudgets: budgetList as import("../../../../lib/runway").PlannedBudget[],
-      plannedBudgetSpending: await loadPlannedBudgetSpending(),
-      referenceDate,
-      horizonDays,
-    };
+          currentLiquidCash,
+          salaryCycleDays,
+          biweeklyPaydayAnchor: proj.biweeklyPaydayAnchor,
+          payScheduleKind: proj.payScheduleKind,
+          payIntervalDays: proj.payIntervalDays,
+          expectedSalaryAmount,
+          incomeStreams: streams,
+          paycheckOccurrences: forecastOccurrences,
+          dailyDiscretionaryBurn,
+          bills: projectBillOccurrences(billList, throughDate),
+          plannedBudgets: budgetList as import("../../../../lib/runway").PlannedBudget[],
+          plannedBudgetSpending: await loadPlannedBudgetSpending(),
+          referenceDate,
+          horizonDays,
+          availableCredit: totalAvailableCredit,
+          includeAvailableCredit,
+        };
     const forecast = calculateRunwayForecast(forecastParams);
     if (paymentPlan === "true") {
       forecast.payment_plan = calculatePaymentPlan(forecastParams, useGracePeriods === "true");

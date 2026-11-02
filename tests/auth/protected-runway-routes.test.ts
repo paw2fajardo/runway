@@ -116,15 +116,16 @@ describe("owner-protected runway routes", () => {
   });
 
   it("includes recurring bills through December without saving projected occurrences", async () => {
-    mocks.select
-      .mockReturnValueOnce(query([{ currentBalance: 100000 }]))
-      .mockReturnValueOnce(query([{ id: "profile-1", expectedSalaryAmount: 100000, salaryCycleDays: "15,30", dailyDiscretionaryBurn: 0 }]))
-      .mockReturnValueOnce(query([{ id: "stream-1", name: "Salary", netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-30", isEnabled: true }]))
-      .mockReturnValueOnce(query([]))
-      .mockReturnValueOnce(query([]))
-      .mockReturnValueOnce(query([{ id: "instance-1", billId: "bill-1", name: "Monthly bill", dueDate: "2026-10-22",
-        originalDueDate: null, amountDue: 5000, amount: 5000, status: "upcoming", gracePeriodDays: 0,
-        frequency: "monthly", dueDayOfMonth: 22, occurrenceLimit: null }]));
+      mocks.select
+        .mockReturnValueOnce(query([{ currentBalance: 100000 }])) // liquid accounts
+        .mockReturnValueOnce(query([{ creditLimit: 50000, currentBalance: 20000 }])) // credit accounts
+        .mockReturnValueOnce(query([{ id: "profile-1", expectedSalaryAmount: 100000, salaryCycleDays: "15,30", dailyDiscretionaryBurn: 0 }]))
+        .mockReturnValueOnce(query([{ id: "stream-1", name: "Salary", netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-30", isEnabled: true }]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([]))
+        .mockReturnValueOnce(query([{ id: "instance-1", billId: "bill-1", name: "Monthly bill", dueDate: "2026-10-22",
+          originalDueDate: null, amountDue: 5000, amount: 5000, status: "upcoming", gracePeriodDays: 0,
+          frequency: "monthly", dueDayOfMonth: 22, occurrenceLimit: null }]));
 
     const requestStartedAt = Date.now();
     const response = await getForecast(request("GET", "/api/runway/forecast?reference_date=2026-10-18&horizon_days=75"));

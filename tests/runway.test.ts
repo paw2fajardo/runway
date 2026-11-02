@@ -11,6 +11,38 @@ describe("Predictive Cash Runway & Forward Solvency Engine", () => {
     expect(forecast.timeline[0].outflow).toBe(0);
   });
 
+  it("includeAvailableCredit: false leaves net_projected_buffer based only on liquid cash", () => {
+    const forecast = calculateRunwayForecast({
+      currentLiquidCash: 100000,
+      expectedSalaryAmount: 100000,
+      dailyDiscretionaryBurn: 0,
+      bills: [],
+      availableCredit: 50000,
+      includeAvailableCredit: false,
+      referenceDate: new Date("2026-10-03"),
+    });
+    expect(forecast.available_credit).toBe(50000);
+    expect(forecast.total_available_capacity).toBe(150000);
+    expect(forecast.net_projected_buffer).toBe(100000);
+    expect(forecast.timeline[0].balance).toBe(100000);
+  });
+
+  it("includeAvailableCredit: true adds availableCredit to net_projected_buffer and timeline runningBalance", () => {
+    const forecast = calculateRunwayForecast({
+      currentLiquidCash: 100000,
+      expectedSalaryAmount: 100000,
+      dailyDiscretionaryBurn: 0,
+      bills: [],
+      availableCredit: 50000,
+      includeAvailableCredit: true,
+      referenceDate: new Date("2026-10-03"),
+    });
+    expect(forecast.available_credit).toBe(50000);
+    expect(forecast.total_available_capacity).toBe(150000);
+    expect(forecast.net_projected_buffer).toBe(150000);
+    expect(forecast.timeline[0].balance).toBe(150000);
+  });
+
   const mockBills = [
     {
       id: "1",
