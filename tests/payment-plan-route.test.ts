@@ -15,7 +15,8 @@ function query(rows: unknown[]) {
 }
 
 function fixtures() {
-  mocks.select.mockReturnValueOnce(query([{ currentBalance: 10000 }]))
+  mocks.select.mockReturnValueOnce(query([{ currentBalance: 10000 }])) // liquid accounts
+    .mockReturnValueOnce(query([{ creditLimit: 50000, currentBalance: 20000 }])) // credit accounts
     .mockReturnValueOnce(query([{ id: "settings", expectedSalaryAmount: 30000, dailyDiscretionaryBurn: 1000 }]))
     .mockReturnValueOnce(query([{ id: "salary", name: "Salary", netPayCents: 30000,
       scheduleKind: "weekly", paydayAnchor: "2026-10-23", isEnabled: true }]))
@@ -56,6 +57,6 @@ describe("payment plan forecast options", () => {
     expect(data.shortfall_date).toBe("2026-10-20");
     expect(data.payment_plan.scenarios.find((item: { id: string }) => item.id === "grace"))
       .toMatchObject({ shortfall_date: null, changes: [{ payment_date: "2026-10-25" }] });
-    expect(mocks.select).toHaveBeenCalledTimes(6);
+    expect(mocks.select).toHaveBeenCalledTimes(7);
   });
 });

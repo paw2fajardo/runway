@@ -158,6 +158,8 @@ export interface RunwayForecastResponse {
   payment_plan?: PaymentPlanResponse;
   purchase_scenarios?: { amount_cents: number; now: RunwayForecastResponse; after_payday: RunwayForecastResponse | null };
   comparison_bills?: { key: string; name: string; due_date: string; amount_cents: number; status: string }[];
+  available_credit: number;
+  total_available_capacity: number;
 }
 
 export interface PaymentPlanChange {
