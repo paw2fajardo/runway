@@ -158,14 +158,19 @@ export default function AccountsPage() {
 
   const totalLiquid = liquidAccounts.reduce((acc, a) => acc + a.currentBalance, 0);
   const totalCreditDebt = creditAccounts.reduce((acc, a) => acc + a.currentBalance, 0);
+  const totalAvailableCredit = creditAccounts.reduce(
+    (acc, a) => acc + Math.max(0, (a.creditLimit ?? 0) - a.currentBalance),
+    0
+  );
+  const totalSpendingCapacity = totalLiquid + totalAvailableCredit;
 
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
       <main className="app-bottom-clearance flex flex-col flex-1 relative w-full pt-20 bg-transparent max-w-[480px] md:max-w-5xl mx-auto min-h-screen">
         <div className="flex flex-col w-full px-margin pb-6 gap-space-lg select-none">
           <section runway-id="accounts.summary" className="forest-panel mt-space-xs p-6">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-col">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/15">
+              <div className="flex flex-col sm:pr-6">
               <span runway-id="accounts.summary.liquid.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">
                 Total Liquid Cash
               </span>
@@ -176,7 +181,18 @@ export default function AccountsPage() {
                 {isAccountsLoading ? <Skeleton className="h-4 w-28 bg-white/15" /> : `${liquidAccounts.length} connected wallets`}
               </span>
               </div>
-              <div className="border-t border-white/15 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+              <div className="flex flex-col border-t border-white/15 pt-4 sm:border-t-0 sm:px-6 sm:pt-0">
+              <span runway-id="accounts.summary.capacity.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">
+                Total Spending Capacity
+              </span>
+              <span runway-id="accounts.summary.capacity.total" className="font-currency-display text-currency-display text-white font-semibold mt-1 min-h-[36px]">
+                {isAccountsLoading ? <Skeleton className="h-9 w-40 bg-white/15" /> : formatPHP(totalSpendingCapacity)}
+              </span>
+              <span runway-id="accounts.summary.capacity.credit" className="font-body-sm text-body-sm text-secondary-fixed mt-1">
+                {isAccountsLoading ? <Skeleton className="h-4 w-28 bg-white/15" /> : `Includes ${formatPHP(totalAvailableCredit)} credit`}
+              </span>
+              </div>
+              <div className="flex flex-col border-t border-white/15 pt-4 sm:border-t-0 sm:pl-6 sm:pt-0">
               <span runway-id="accounts.summary.credit.label" className="font-label-sm text-label-sm text-secondary-fixed uppercase tracking-wider">
                 Revolving Debt
               </span>

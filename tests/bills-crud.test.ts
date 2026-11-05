@@ -113,24 +113,24 @@ describe("bill CRUD", () => {
   });
 
   it("updates recurring fields and moves only unpaid instances while preserving paid history", async () => {
-    const unpaid = [
-      { id: "a", dueDate: "2026-10-15", status: "upcoming" },
-      { id: "b", dueDate: "2026-11-15", status: "grace_period" },
-    ];
-    const { tx, updateSet } = makeTx({ instances: unpaid });
+      const unpaid = [
+        { id: "a", dueDate: "2026-10-15", status: "upcoming" },
+        { id: "b", dueDate: "2026-11-15", status: "grace_period" },
+      ];
+      const { tx, updateSet } = makeTx({ instances: unpaid });
 
-    const response = await PATCH(request("PATCH", { frequency: "monthly", due_day_of_month: 20, amount: 2500 }), context());
+      const response = await PATCH(request("PATCH", { frequency: "monthly", due_day_of_month: 20, amount: 2500 }), context());
 
-    expect(response.status).toBe(200);
-    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ dueDayOfMonth: 20, amount: 2500 }));
-    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ dueDate: expect.any(String), targetSettlementDate: expect.any(String), amountDue: 2500 }));
-    expect(tx.select).toHaveBeenCalledTimes(2);
-    expect(tx.update).toHaveBeenCalledTimes(3);
-    const instanceUpdates = updateSet.mock.calls.map(([values]) => values as Record<string, unknown>).filter((values) => "amountDue" in values);
-    expect(instanceUpdates).toHaveLength(2);
-    expect(instanceUpdates.filter((values) => "dueDate" in values)).toHaveLength(1);
-    expect(instanceUpdates.map((values) => values.amountDue)).toEqual([2500, 2500]);
-  });
+      expect(response.status).toBe(200);
+      expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ dueDayOfMonth: 20, amount: 2500 }));
+      expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ dueDate: expect.any(String), targetSettlementDate: expect.any(String), amountDue: 2500 }));
+      expect(tx.select).toHaveBeenCalledTimes(2);
+      expect(tx.update).toHaveBeenCalledTimes(4);
+      const instanceUpdates = updateSet.mock.calls.map(([values]) => values as Record<string, unknown>).filter((values) => "amountDue" in values);
+      expect(instanceUpdates).toHaveLength(2);
+      expect(instanceUpdates.filter((values) => "dueDate" in values)).toHaveLength(1);
+      expect(instanceUpdates.map((values) => values.amountDue)).toEqual([2500, 2500]);
+    });
 
   it("stores whether a bill requires confirmation of its payment amount", async () => {
     const { updateSet } = makeTx();

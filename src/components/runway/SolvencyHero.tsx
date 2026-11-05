@@ -21,6 +21,9 @@ interface SolvencyHeroProps {
     currentBalance: number;
     creditLimit?: number | null;
   }>;
+  availableCredit?: number;
+  includeCredit?: boolean;
+  onToggleIncludeCredit?: (include: boolean) => void;
 }
 
 export function SolvencyHero({
@@ -35,6 +38,9 @@ export function SolvencyHero({
   forecastCalculatedAt,
   isSolvent = true,
   revolvingCreditAccounts = [],
+  availableCredit = 0,
+  includeCredit = false,
+  onToggleIncludeCredit,
 }: SolvencyHeroProps) {
   return (
     <section runway-id="runway.solvency-hero" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 flex flex-col gap-6">
@@ -80,13 +86,37 @@ export function SolvencyHero({
         </p>
       </div>
 
+      {onToggleIncludeCredit && availableCredit > 0 && (
+        <div className="flex items-start justify-between gap-4 border-t border-white/15 pt-4">
+          <div className="min-w-0">
+            <span runway-id="runway.include-credit-label" className="font-label-md text-label-md font-medium text-white">
+              Include Available Credit in Runway
+            </span>
+            <p runway-id="runway.include-credit-description" className="mt-0.5 text-body-sm text-white/80">
+              Factor {formatPHP(availableCredit)} in available credit cards into your runway.
+            </p>
+          </div>
+          <button
+            runway-id="runway.include-credit-toggle"
+            type="button"
+            role="switch"
+            aria-checked={includeCredit}
+            aria-label="Include Available Credit in Runway"
+            onClick={() => onToggleIncludeCredit(!includeCredit)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${includeCredit ? "bg-secondary-fixed" : "bg-white/20"}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${includeCredit ? "translate-x-5" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 min-[380px]:grid-cols-2 lg:grid-cols-4">
         <div className="min-w-0">
           <span runway-id="runway.breakdown-liquid-cash-label" className="font-label-sm text-label-sm text-white/70">
-            Current liquid cash
+            {includeCredit ? "Cash + Available Credit" : "Current liquid cash"}
           </span>
           <div runway-id="runway.breakdown-liquid-cash" className="mt-0.5 font-currency-md text-currency-md font-semibold text-white whitespace-nowrap">
-            {formatPHP(liquidCash)}
+            {formatPHP(liquidCash + (includeCredit ? availableCredit : 0))}
           </div>
         </div>
 

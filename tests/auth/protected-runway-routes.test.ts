@@ -101,18 +101,23 @@ describe("owner-protected runway routes", () => {
   });
 
   it("preserves the authenticated income stream list payload", async () => {
-    const settings = { id: "profile-1" };
-    const account = { id: "account-1", name: "Main account", type: "liquid", currency: "PHP", isActive: true };
-    const stream = { id: "stream-1", projectionSettingsId: "profile-1", destinationAccountId: account.id, name: "Salary", netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-15", intervalDays: null, isEnabled: true };
-    mocks.select.mockReturnValueOnce(query([settings])).mockReturnValueOnce(query([stream]));
+    vi.setSystemTime(new Date("2026-10-10T00:00:00Z"));
+    try {
+      const settings = { id: "profile-1" };
+      const account = { id: "account-1", name: "Main account", type: "liquid", currency: "PHP", isActive: true };
+      const stream = { id: "stream-1", projectionSettingsId: "profile-1", destinationAccountId: account.id, name: "Salary", netPayCents: 100000, scheduleKind: "monthly", paydayAnchor: "2026-10-15", intervalDays: null, isEnabled: true };
+      mocks.select.mockReturnValueOnce(query([settings])).mockReturnValueOnce(query([stream]));
 
-    const response = await getStreams(request("GET", "/api/runway/income-streams"));
+      const response = await getStreams(request("GET", "/api/runway/income-streams"));
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ streams: [{ id: "stream-1", name: "Salary", net_pay_cents: 100000, next_pay_date: "2026-10-15", payday_anchor: "2026-10-15", schedule_kind: "monthly", interval_days: null, salary_cycle_days: "15,30", is_enabled: true,
-      destination_account_id: "account-1" }] });
-    expect(mocks.requireOwner).toHaveBeenCalledOnce();
-    expect(mocks.select).toHaveBeenCalledTimes(2);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ streams: [{ id: "stream-1", name: "Salary", net_pay_cents: 100000, next_pay_date: "2026-10-15", payday_anchor: "2026-10-15", schedule_kind: "monthly", interval_days: null, salary_cycle_days: "15,30", is_enabled: true,
+        destination_account_id: "account-1" }] });
+      expect(mocks.requireOwner).toHaveBeenCalledOnce();
+      expect(mocks.select).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("includes recurring bills through December without saving projected occurrences", async () => {
