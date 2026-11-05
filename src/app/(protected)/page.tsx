@@ -102,6 +102,7 @@ export default function RunwayDashboard() {
   const [isPlannedSpendingSaving, setIsPlannedSpendingSaving] = useState(false);
   const [plannedSpendingError, setPlannedSpendingError] = useState<string | null>(null);
   const [plannedSpendingWarning, setPlannedSpendingWarning] = useState<string | null>(null);
+  const [includeCredit, setIncludeCredit] = useState(false);
 
   const fetchPlannedSpending = useCallback(async () => {
     setIsPlannedSpendingLoading(true);
@@ -150,10 +151,10 @@ export default function RunwayDashboard() {
     try {
       await fetch("/api/bills/auto-post", { method: "POST" });
       const [forecastRes, accountsRes, billsRes, balanceForecastData] = await Promise.all([
-        fetch("/api/runway/forecast"),
+        fetch(`/api/runway/forecast${includeCredit ? "?include_credit=true" : ""}`),
         fetch("/api/accounts"),
         fetch("/api/bills"),
-        fetch(`/api/runway/forecast?horizon_days=${threeMonthForecastDays()}&reference_date=${localDateInputValue(new Date())}`)
+        fetch(`/api/runway/forecast?horizon_days=${threeMonthForecastDays()}&reference_date=${localDateInputValue(new Date())}${includeCredit ? "&include_credit=true" : ""}`)
           .then(response => response.ok ? response.json() : null).catch(() => null),
       ]);
 
@@ -213,7 +214,7 @@ export default function RunwayDashboard() {
       await plannedSpendingRequest;
       setIsLoading(false);
     }
-  }, [fetchPaySettings, fetchPlannedSpending]);
+  }, [fetchPaySettings, fetchPlannedSpending, includeCredit]);
 
   const transitionIncomeDialog = (next: "manage" | "form") => {
     setIncomeDialog(null);
@@ -399,7 +400,7 @@ export default function RunwayDashboard() {
     setIsModalForecastLoading(true);
     setModalForecastError(null);
     try {
-      const response = await fetch(`/api/runway/forecast?horizon_days=${horizonDays}&reference_date=${localDateInputValue(new Date())}`);
+      const response = await fetch(`/api/runway/forecast?horizon_days=${horizonDays}&reference_date=${localDateInputValue(new Date())}${includeCredit ? "&include_credit=true" : ""}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Forecast unavailable.");
       if (requestId === forecastRequestId.current) setModalForecast(data as RunwayForecastResponse);
@@ -474,6 +475,9 @@ export default function RunwayDashboard() {
             forecastCalculatedAt={forecast.forecast_calculated_at}
             isSolvent={forecast.is_solvent}
             revolvingCreditAccounts={accounts.filter((account) => account.type === "revolving_credit")}
+            availableCredit={forecast.available_credit}
+            includeCredit={includeCredit}
+            onToggleIncludeCredit={setIncludeCredit}
           /> : isLoading ? <section runway-id="runway.dashboard.forecast-loading" className="forest-panel min-h-[376px] min-[380px]:min-h-[304px] lg:min-h-0 p-6 flex flex-col gap-6" role="status" aria-label="Loading your runway">
             <span className="sr-only">Loading your runway…</span>
             <div className="flex justify-between gap-3"><Skeleton className="h-8 w-32 bg-white/15" /><Skeleton className="h-8 w-40 bg-white/15" /></div>
@@ -504,7 +508,7 @@ export default function RunwayDashboard() {
             <span runway-id="runway.dashboard.open-forecast-label" className="font-medium">View income, bills, and daily balances</span><span runway-id="runway.dashboard.open-forecast-action" className="text-secondary">View →</span>
           </button>}
 
-          <PendingPaychecks />
+          <PendingPaychecks onComplete={() => void fetchData()} />
 
           <section aria-label="Cash plan management">
             <details className="group/cash-plan border-y border-outline-variant/55">

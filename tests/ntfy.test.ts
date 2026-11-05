@@ -19,23 +19,23 @@ function makeStore() {
 
 describe("ntfy notifications", () => {
   it("publishes to the configured server topic", async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    try {
-      const sender = configuredNtfySender({
-        NTFY_SERVER_URL: "https://ntfy.example.test/base/",
-        NTFY_TOPIC: "runway-finance",
-      } as NodeJS.ProcessEnv);
-      expect(sender).not.toBeNull();
-      await sender!.send("Bill due today", "Internet · PHP 2,500.00");
-      const [url, init] = fetchMock.mock.calls[0]!;
-      expect(String(url)).toBe("https://ntfy.example.test/base/runway-finance");
-      expect(new Headers(init?.headers).get("Title")).toBe("Bill due today");
-      expect(init?.body).toBe("Internet · PHP 2,500.00");
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
+      const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const sender = configuredNtfySender({
+          NTFY_SERVER_URL: "https://ntfy.example.test/base/",
+          NTFY_TOPIC: "runway-finance",
+        } as unknown as NodeJS.ProcessEnv);
+        expect(sender).not.toBeNull();
+        await sender!.send("Bill due today", "Internet · PHP 2,500.00");
+        const [url, init] = fetchMock.mock.calls[0]!;
+        expect(String(url)).toBe("https://ntfy.example.test/base/runway-finance");
+        expect(new Headers(init?.headers).get("Title")).toBe("Bill due today");
+        expect(init?.body).toBe("Internet · PHP 2,500.00");
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
 
   it("queues one stable payday key and records a successful delivery", async () => {
     const { store, queued, finished } = makeStore();

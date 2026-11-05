@@ -136,42 +136,45 @@ describe("owner-protected money routes", () => {
   });
 
   it("updates account metadata without changing its current balance", async () => {
-    const saved = { id: "00000000-0000-4000-8000-000000000001", name: "Travel", type: "revolving_credit", currentBalance: 12500, creditLimit: 50000, statementCutoffDay: 12, paymentDueDay: 25 };
-    const returning = vi.fn().mockResolvedValue([saved]);
-    const where = vi.fn(() => ({ returning }));
-    const set = vi.fn(() => ({ where }));
-    mocks.update.mockReturnValue({ set });
+                const saved = { id: "00000000-0000-4000-8000-000000000001", name: "Travel", type: "revolving_credit", currentBalance: 12500, creditLimit: 50000, statementCutoffDay: 12, paymentDueDay: 25 };
+                const returning = vi.fn().mockResolvedValue([saved]);
+                const where = vi.fn(() => ({ returning }));
+                const set = vi.fn(() => ({ where }));
+                mocks.update.mockReturnValue({ set });
 
-    const response = await updateAccount(request("PATCH", `/api/accounts/${saved.id}`, appOrigin, JSON.stringify({
-      name: "Travel", type: "revolving_credit", credit_limit: 50000, statement_cutoff_day: 12, payment_due_day: 25,
-    })), { params: Promise.resolve({ id: saved.id }) });
+                const response = await updateAccount(request("PATCH", `/api/accounts/${saved.id}`, appOrigin, JSON.stringify({
+                  name: "Travel", type: "revolving_credit", credit_limit: 50000, statement_cutoff_day: 12, payment_due_day: 25,
+                })), { params: Promise.resolve({ id: saved.id }) });
 
-    expect(response.status).toBe(200);
-    expect(set).toHaveBeenCalledOnce();
-    const changes = set.mock.calls[0][0];
-    expect(changes).toMatchObject({ name: "Travel", type: "revolving_credit", creditLimit: 50000, statementCutoffDay: 12, paymentDueDay: 25 });
-    expect(changes).not.toHaveProperty("currentBalance");
-    expect(await response.json()).toEqual(saved);
-  });
+                expect(response.status).toBe(200);
+                expect(set).toHaveBeenCalledOnce();
+                const calls = set.mock.calls as unknown as [Record<string, unknown>][];
+                const changes = calls[0][0];
+                expect(changes).toMatchObject({ name: "Travel", type: "revolving_credit", creditLimit: 50000, statementCutoffDay: 12, paymentDueDay: 25 });
+                expect(changes).not.toHaveProperty("currentBalance");
+                expect(await response.json()).toEqual(saved);
+              });
 
-  it("recomputes current balance from the new initial balance and ledger activity", async () => {
-    const saved = { id: "00000000-0000-4000-8000-000000000001", initialBalance: 50000, currentBalance: 63750 };
-    const returning = vi.fn().mockResolvedValue([saved]);
-    const where = vi.fn(() => ({ returning }));
-    const set = vi.fn(() => ({ where }));
-    mocks.update.mockReturnValue({ set });
+              it("recomputes current balance from the new initial balance and ledger activity", async () => {
+                const saved = { id: "00000000-0000-4000-8000-000000000001", initialBalance: 50000, currentBalance: 63750 };
+                const returning = vi.fn().mockResolvedValue([saved]);
+                const where = vi.fn(() => ({ returning }));
+                const set = vi.fn(() => ({ where }));
+                mocks.update.mockReturnValue({ set });
 
-    const response = await updateAccount(request("PATCH", `/api/accounts/${saved.id}`, appOrigin, JSON.stringify({ initial_balance: 50000 })), { params: Promise.resolve({ id: saved.id }) });
+                const response = await updateAccount(request("PATCH", `/api/accounts/${saved.id}`, appOrigin, JSON.stringify({ initial_balance: 50000 })), { params: Promise.resolve({ id: saved.id }) });
 
-    expect(response.status).toBe(200);
-    const changes = set.mock.calls[0][0];
-    expect(changes.initialBalance).toBe(50000);
-    expect(changes.currentBalance).toBeDefined();
-    const query = new PgDialect().sqlToQuery(changes.currentBalance);
-    expect(query.sql).toContain("transaction_legs");
-    expect(query.sql).toContain("income_stream_deposits");
-    expect(query.params).toEqual([50000]);
-  });
+                expect(response.status).toBe(200);
+                expect(set).toHaveBeenCalledOnce();
+                const calls = set.mock.calls as unknown as [Record<string, unknown>][];
+                const changes = calls[0][0];
+                expect(changes.initialBalance).toBe(50000);
+                expect(changes.currentBalance).toBeDefined();
+                const query = new PgDialect().sqlToQuery(changes.currentBalance as import("drizzle-orm").SQL<unknown>);
+                expect(query.sql).toContain("transaction_legs");
+                expect(query.sql).toContain("income_stream_deposits");
+                expect(query.params).toEqual([50000]);
+              });
 
   it("rejects invalid account changes and returns not found for unavailable accounts", async () => {
     const invalid = await updateAccount(request("PATCH", "/api/accounts/00000000-0000-4000-8000-000000000001", appOrigin, JSON.stringify({ current_balance: 100 })), { params: Promise.resolve({ id: "00000000-0000-4000-8000-000000000001" }) });

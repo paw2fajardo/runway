@@ -15,14 +15,15 @@ export interface IncomeStreamSchedule {
   isEnabled: boolean;
 }
 
-export function incomeStreamResponse(stream: IncomeStreamSchedule & { id: string }): IncomeStreamResponse {
+export function incomeStreamResponse(stream: IncomeStreamSchedule & { id: string }, referenceDate?: unknown): IncomeStreamResponse {
   const schedule = resolvePaySchedule(stream.scheduleKind, stream.paydayAnchor, stream.intervalDays);
+  const effectiveReferenceDate = referenceDate instanceof Date ? referenceDate : new Date();
   return { id: stream.id, name: stream.name, net_pay_cents: stream.netPayCents,
     schedule_kind: schedule.kind, payday_anchor: stream.paydayAnchor ?? null,
     interval_days: schedule.kind === "custom" ? stream.intervalDays! : null,
     salary_cycle_days: stream.salaryCycleDays ?? "15,30", is_enabled: stream.isEnabled,
     destination_account_id: stream.destinationAccountId ?? null,
-    next_pay_date: getNextPaydayDate(new Date(), stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays) };
+    next_pay_date: getNextPaydayDate(effectiveReferenceDate, stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays) };
 }
 
 function safeCents(value: number): number {
@@ -224,7 +225,14 @@ export function calculateRunwayForecast({
     const parent = occurrenceById.get(occurrence.parentOccurrenceId);
     return (occurrence.parentStatus ?? parent?.status) === "reversed_awaiting_retry";
   });
-  const nextPaydayStr = activeStreams.map(stream => getNextPaydayDate(ref, stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays)).sort()[0];
+  const nextPaydayStr = activeStreams.map(stream => {
+    const candidate = getNextPaydayDate(ref, stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays);
+    if (stream.id && settledScheduledDates.has(`${stream.id}:${candidate}`)) {
+      const nextDay = new Date(calendarDay(candidate) * msPerDay + msPerDay);
+      return getNextPaydayDate(nextDay, stream.salaryCycleDays, stream.paydayAnchor, stream.scheduleKind, stream.intervalDays);
+    }
+    return candidate;
+  }).sort()[0];
   const daysToPayday = Math.max(0,
     calendarDay(nextPaydayStr) - calendarDay(formatLocalDate(ref)));
 

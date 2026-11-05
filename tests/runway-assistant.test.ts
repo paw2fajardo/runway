@@ -16,6 +16,8 @@ const forecast: RunwayForecastResponse = {
   shortfall_date: null,
   shortfall_amount: 0,
   timeline: [],
+  available_credit: 0,
+  total_available_capacity: 275000,
 };
 
 afterEach(() => vi.unstubAllGlobals());
